@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="A tiny, one-bit driving playground. Pick a car, scatter some cones, and leave a few tracks. Everything is drawn in code.">
+<meta name="theme-color" content="#e9e7dd">
+<title>Tiny Drive — a driving playground</title>
+<style>
+:root{color-scheme:light;--paper:#e9e7dd;--ink:#30342d;--muted:#74766a;--line:#b8baad;--screen:#bfc1b1;--panel:#e2e1d6}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--paper);color:var(--ink)}body{font-family:"Courier New",Courier,monospace;font-size:13px;padding:clamp(20px,5vw,64px) 24px 24px}button,input{font:inherit}button{color:inherit}button:focus-visible,input:focus-visible{outline:2px solid var(--ink);outline-offset:4px}button{cursor:pointer}main{max-width:1260px;margin:auto}.masthead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;padding-bottom:22px;border-bottom:1px solid var(--ink)}h1{font-size:clamp(26px,3vw,40px);font-weight:700;letter-spacing:-2px;line-height:1;margin:0}.edition{text-align:right;font-size:10px;line-height:1.7;letter-spacing:1.4px;text-transform:uppercase}.edition span{color:var(--muted)}.workspace{display:flex;align-items:flex-start;justify-content:center;gap:26px;margin-top:28px}.stage{min-width:0;flex:1}.screen{position:relative;width:100%;aspect-ratio:5/3;background:var(--screen);outline:1px solid var(--ink);outline-offset:5px}#game{display:block;width:100%;height:100%;image-rendering:pixelated;outline:none;cursor:crosshair}#game:focus-visible{outline:2px solid var(--ink);outline-offset:9px}.entry{position:absolute;bottom:17px;left:50%;transform:translateX(-50%);border:1px solid var(--ink);background:var(--paper);padding:9px 13px;font-size:10px;font-weight:bold;letter-spacing:1px;white-space:nowrap;box-shadow:3px 3px 0 var(--ink)}.entry[hidden]{display:none}.instrument{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:18px;font-size:10px;letter-spacing:1px;color:var(--muted)}.live{display:flex;align-items:center;gap:7px}.light{width:5px;height:5px;background:var(--muted)}.live[data-running="true"] .light{background:var(--ink)}#status{font-size:10px}.fps{font-variant-numeric:tabular-nums;color:var(--ink)}aside{width:204px;flex:0 0 204px}.section-label{font-size:10px;letter-spacing:1.7px;margin:0 0 12px;color:var(--muted);font-weight:normal}.cars{display:grid;gap:6px}.car-choice{display:grid;grid-template-columns:58px 1fr;align-items:center;text-align:left;width:100%;padding:10px 8px;border:1px solid var(--line);background:transparent;min-height:62px}.car-choice:hover{border-color:var(--ink)}.car-choice[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--paper)}.car-choice canvas{width:48px;height:36px;image-rendering:pixelated}.car-choice strong{display:block;font-size:12px;font-weight:bold;letter-spacing:.7px}.car-choice small{display:block;font-size:9px;margin-top:5px;opacity:.7;letter-spacing:.15px}.switch-row{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:24px 0 14px;font-size:11px}.switch-row input{appearance:none;width:29px;height:16px;border:1px solid var(--ink);background:transparent;margin:0;position:relative;cursor:pointer}.switch-row input:before{content:"";position:absolute;top:3px;left:3px;width:8px;height:8px;background:var(--ink)}.switch-row input:checked{background:var(--ink)}.switch-row input:checked:before{left:16px;background:var(--paper)}.actions{display:grid;grid-template-columns:1fr 1fr;gap:7px}.actions button{border:1px solid var(--line);background:transparent;padding:10px 3px;font-size:10px}.actions button:hover{border-color:var(--ink);background:var(--panel)}.help{margin-top:27px;border-top:1px solid var(--line);padding-top:20px}.keyrow{display:flex;align-items:center;justify-content:space-between;margin:10px 0;color:var(--muted);font-size:10px}.keys{display:flex;gap:4px}kbd{display:inline-grid;place-items:center;min-width:21px;height:21px;padding:0 4px;border:1px solid var(--line);box-shadow:0 2px 0 var(--line);font:11px "Courier New",monospace;color:var(--ink)}.aside-note{font-size:10px;line-height:1.7;color:var(--muted);margin:21px 0 0}.footer{margin-top:30px;padding-top:16px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:20px;font-size:9px;letter-spacing:1.2px;color:var(--muted);text-transform:uppercase}.footer span:last-child{text-align:right}#announcement{position:absolute;clip-path:inset(50%);width:1px;height:1px;overflow:hidden}.mobile-note{display:none}
+@media(min-width:1450px){.workspace{gap:34px}aside{width:218px;flex-basis:218px}}
+@media(max-width:760px){body{padding:25px 18px}.masthead{padding-bottom:17px}.edition{font-size:8px}.workspace{display:block;margin-top:23px}aside{width:100%;margin-top:28px}.cars{grid-template-columns:repeat(3,1fr)}.car-choice{grid-template-columns:1fr;text-align:center;justify-items:center;padding:8px 3px}.car-choice strong{font-size:10px}.car-choice small{font-size:8px}.switch-row{margin:20px 0 12px}.actions button{padding:12px}.help{margin-top:20px;display:flex;flex-wrap:wrap;gap:9px 24px;padding-top:10px}.help .section-label{display:none}.keyrow{gap:15px}.aside-note{margin-top:5px}.footer{margin-top:20px;font-size:8px}.entry{bottom:12px;font-size:9px}.mobile-note{display:block;font-size:10px;color:var(--muted);margin:14px 0 0}}
+</style>
+</head>
+<body>
+<main>
+  <header class="masthead"><h1>TINY DRIVE<span aria-hidden="true">.</span></h1><div class="edition">A driving playground<br><span>One screen / three little cars</span></div></header>
+  <div class="workspace">
+    <section class="stage" aria-label="Driving playground">
+      <div class="screen"><canvas id="game" width="400" height="240" tabindex="0" aria-label="Driving playground. W accelerates, S brakes and reverses, A and D steer. Escape pauses. All edges wrap." aria-describedby="driving-help">This playground needs a browser with Canvas 2D support.</canvas><button class="entry" id="enter">CLICK TO DRIVE ↗</button></div>
+      <div class="instrument"><div class="live" id="live" data-running="false"><span class="light" aria-hidden="true"></span><output id="status">READY WHEN YOU ARE</output></div><span class="fps"><output id="fps">—</output> FPS</span></div>
+      <p class="mobile-note">Bring a keyboard. This little playground uses W, A, S, D.</p>
+    </section>
+    <aside aria-label="Playground controls">
+      <h2 class="section-label">01 / PICK YOUR RIDE</h2>
+      <div class="cars">
+        <button class="car-choice" data-car="compact" aria-pressed="true"><canvas width="48" height="36" aria-hidden="true"></canvas><span><strong>COMPACT</strong><small>Light &amp; nimble</small></span></button>
+        <button class="car-choice" data-car="coupe" aria-pressed="false"><canvas width="48" height="36" aria-hidden="true"></canvas><span><strong>COUPE</strong><small>Made to slide</small></span></button>
+        <button class="car-choice" data-car="van" aria-pressed="false"><canvas width="48" height="36" aria-hidden="true"></canvas><span><strong>VAN</strong><small>Slow &amp; steady</small></span></button>
+      </div>
+      <label class="switch-row" for="skids"><span>Leave skid marks</span><input id="skids" type="checkbox" checked></label>
+      <div class="actions"><button id="clear">Clear tracks</button><button id="reset">Reset scene</button></div>
+      <div class="help" id="driving-help"><h2 class="section-label">02 / TAKE IT FOR A SPIN</h2><div class="keyrow"><span class="keys"><kbd>W</kbd></span><span>Accelerate</span></div><div class="keyrow"><span class="keys"><kbd>S</kbd></span><span>Brake / reverse</span></div><div class="keyrow"><span class="keys"><kbd>A</kbd><kbd>D</kbd></span><span>Steer</span></div><div class="keyrow"><span class="keys"><kbd>Esc</kbd></span><span>Pause</span></div></div>
+      <p class="aside-note">The edges are connected.<br>Drive off one side, return on the other.</p>
+    </aside>
+  </div>
+  <footer class="footer"><span>Small cars. A little room to play.</span><span>1-bit / drawn entirely in code</span></footer>
+  <p id="announcement" role="status" aria-live="polite"></p>
+</main>
+<script>
+(() => {
+'use strict';
+// Pure simulation. No DOM, media files, or third-party code is needed here.
+const WIDTH=400, HEIGHT=240, K=.66, Z=Math.sqrt(1-K*K), WORLD_H=HEIGHT/K, STEP=1/120, TAU=Math.PI*2;
+const INK=[48,52,45], PAPER=[191,193,177], ink='#30342d', paper='#bfc1b1';
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const wrap=(v,n)=>((v%n)+n)%n;
+const delta=(v,n)=>wrap(v+n/2,n)-n/2;
+const angleDelta=(a,b)=>delta(b-a,TAU);
+const PRESETS={
+ compact:{name:'Compact',length:24,width:12,height:6.2,roof:10.2,wheelbase:16,mass:1,accel:57,brake:105,max:111,reverse:37,grip:84,steer:.63,drag:.17},
+ coupe:{name:'Coupe',length:28,width:12.5,height:4.9,roof:8.2,wheelbase:19,mass:.95,accel:69,brake:109,max:137,reverse:43,grip:60,steer:.64,drag:.14},
+ van:{name:'Van',length:28,width:14,height:7.3,roof:14,wheelbase:19,mass:1.65,accel:43,brake:89,max:88,reverse:29,grip:91,steer:.55,drag:.2}
+};
+const CONE_MASS=.045, CONE_R=2.25;
+function createWorld(id='compact') {
+ const p=PRESETS[id];
+ const car={x:117,y:157/K,px:117,py:157/K,a:-.56,pa:-.56,vx:0,vy:0,omega:0,steer:0,slip:0,braking:false,skidding:false};
+ const layout=[[233,81],[255,81],[277,81],[298,94],[298,115],[298,136],[277,149],[255,149],[233,149],[214,136],[214,115],[214,94]];
+ const cones=layout.map(([x,y],i)=>({x,y:y/K,px:x,py:y/K,vx:0,vy:0,a:(i*.7)%TAU,pa:(i*.7)%TAU,omega:0,tipped:false}));
+ return {id,p,car,cones,time:0,wraps:0,hits:0};
+}
+function limitVelocity(o,max){const s=Math.hypot(o.vx,o.vy);if(s>max){o.vx*=max/s;o.vy*=max/s;}}
+function drive(w,input,dt){
+ const c=w.car,p=w.p,cs=Math.cos(c.a),sn=Math.sin(c.a);
+ let forward=c.vx*cs+c.vy*sn,lateral=-c.vx*sn+c.vy*cs;
+ const gas=!!input.w,back=!!input.s;
+ c.braking=(gas&&back)||(gas&&forward<-1.2)||(back&&forward>1.2);
+ let accel=0;
+ if(c.braking){accel=-Math.sign(forward)*Math.min(p.brake,Math.abs(forward)/dt);}
+ else if(gas)accel=p.accel;else if(back)accel=-p.accel*.64;
+ const rolling=3.8+p.drag*Math.abs(forward)+.001*Math.abs(forward)*Math.abs(forward);
+ if(Math.abs(forward)>.01)accel-=Math.sign(forward)*Math.min(rolling,Math.abs(forward)/dt);
+ forward=clamp(forward+accel*dt,-p.reverse,p.max);
+ if(!gas&&!back&&Math.abs(forward)<.03)forward=0;
+ const steerInput=(input.d?1:0)-(input.a?1:0);
+ const steeringLimit=p.steer*(1-.48*Math.min(1,Math.abs(forward)/p.max));
+ c.steer+=(steerInput*steeringLimit-c.steer)*(1-Math.exp(-10*dt));
+ const desiredYaw=forward/p.wheelbase*Math.tan(c.steer);
+ c.omega+=clamp((desiredYaw-c.omega)*8.5,-8,8)*dt;
+ c.omega=clamp(c.omega,-4.4,4.4);
+ const grip=p.grip*(c.braking?.7:1);
+ lateral+=clamp(-lateral*8,-grip,grip)*dt;
+ c.vx=cs*forward-sn*lateral;c.vy=sn*forward+cs*lateral;
+ limitVelocity(c,p.max*1.1);
+ c.a=wrap(c.a+c.omega*dt+Math.PI,TAU)-Math.PI;
+ c.x+=c.vx*dt;c.y+=c.vy*dt;
+ c.slip=Math.abs(-Math.sin(c.a)*c.vx+Math.cos(c.a)*c.vy);
+ const speed=Math.hypot(c.vx,c.vy);
+ c.skidding=speed>12&&(c.slip>(c.skidding?3.6:6.5)||(c.braking&&speed>24));
+}
+function carCone(w,o){
+ const c=w.car,p=w.p,dx=delta(o.x-c.x,WIDTH),dy=delta(o.y-c.y,WORLD_H),bound=p.length*.5+p.width*.5+CONE_R;
+ if(Math.abs(dx)>bound||Math.abs(dy)>bound)return;
+ const cs=Math.cos(c.a),sn=Math.sin(c.a),lx=dx*cs+dy*sn,ly=-dx*sn+dy*cs,hl=p.length/2,hw=p.width/2;
+ let qx=clamp(lx,-hl,hl),qy=clamp(ly,-hw,hw),nx=lx-qx,ny=ly-qy,dist=Math.hypot(nx,ny),penetration;
+ if(dist>=CONE_R)return;
+ if(dist<1e-8){const gx=hl-Math.abs(lx),gy=hw-Math.abs(ly);if(gx<gy){nx=lx>=0?1:-1;ny=0;qx=nx*hl;penetration=CONE_R+gx;}else{nx=0;ny=ly>=0?1:-1;qy=ny*hw;penetration=CONE_R+gy;}}
+ else {nx/=dist;ny/=dist;penetration=CONE_R-dist;}
+ const normalX=cs*nx-sn*ny,normalY=sn*nx+cs*ny,rx=cs*qx-sn*qy,ry=sn*qx+cs*qy;
+ const invA=1/p.mass,invB=1/CONE_MASS,inertia=p.mass*(p.length*p.length+p.width*p.width)/12;
+ const contactVX=c.vx-c.omega*ry,contactVY=c.vy+c.omega*rx;
+ const relative=(o.vx-contactVX)*normalX+(o.vy-contactVY)*normalY;
+ if(relative<0){
+  const cross=rx*normalY-ry*normalX,j=-(1.12)*relative/(invA+invB+cross*cross/inertia);
+  c.vx-=j*normalX*invA;c.vy-=j*normalY*invA;c.omega-=cross*j/inertia;
+  o.vx+=j*normalX*invB;o.vy+=j*normalY*invB;
+  if(j*invB>8){if(!o.tipped)w.hits++;o.tipped=true;o.a=Math.atan2(o.vy,o.vx);o.omega=clamp(cross*.08,-3,3);}
+  limitVelocity(o,150);
+ }
+ const correction=Math.max(0,penetration-.015)*.85/(invA+invB);
+ c.x-=normalX*correction*invA;c.y-=normalY*correction*invA;o.x+=normalX*correction*invB;o.y+=normalY*correction*invB;
+}
+function coneCone(a,b){
+ let dx=delta(b.x-a.x,WIDTH),dy=delta(b.y-a.y,WORLD_H),d2=dx*dx+dy*dy;
+ if(d2>=4*CONE_R*CONE_R)return;
+ let d=Math.sqrt(d2),nx=d>1e-8?dx/d:1,ny=d>1e-8?dy/d:0;
+ const rel=(b.vx-a.vx)*nx+(b.vy-a.vy)*ny;
+ if(rel<0){const j=-rel*.56;a.vx-=nx*j;a.vy-=ny*j;b.vx+=nx*j;b.vy+=ny*j;}
+ const push=Math.max(0,2*CONE_R-d-.01)*.45;a.x-=nx*push;a.y-=ny*push;b.x+=nx*push;b.y+=ny*push;
+}
+function normalize(o){o.x=wrap(o.x,WIDTH);o.y=wrap(o.y,WORLD_H);}
+function step(w,input,dt=STEP){
+ const c=w.car;c.px=c.x;c.py=c.y;c.pa=c.a;
+ let maxCone=0;
+ for(const o of w.cones){o.px=o.x;o.py=o.y;o.pa=o.a;maxCone=Math.max(maxCone,Math.hypot(o.vx,o.vy));}
+ const radius=Math.hypot(w.p.length,w.p.width)/2;
+ const motion=(Math.hypot(c.vx,c.vy)+maxCone+Math.abs(c.omega)*radius+w.p.accel*dt)*dt;
+ const n=clamp(Math.ceil(motion/(CONE_R*.5)),1,4),h=dt/n;
+ for(let sub=0;sub<n;sub++){
+  drive(w,input,h);
+  for(const o of w.cones){o.x+=o.vx*h;o.y+=o.vy*h;o.a+=o.omega*h;const drag=Math.exp(-4.1*h);o.vx*=drag;o.vy*=drag;o.omega*=drag;if(Math.hypot(o.vx,o.vy)<.1){o.vx=0;o.vy=0;o.omega=0;}}
+  for(let iteration=0;iteration<2;iteration++){
+   for(const o of w.cones)carCone(w,o);
+   for(let a=0;a<w.cones.length;a++)for(let b=a+1;b<w.cones.length;b++)coneCone(w.cones[a],w.cones[b]);
+  }
+  if(c.x<0||c.x>=WIDTH||c.y<0||c.y>=WORLD_H)w.wraps++;
+  normalize(c);for(const o of w.cones)normalize(o);
+ }
+ w.time+=dt;
+}
+function position(o,alpha){return {x:wrap(o.px+delta(o.x-o.px,WIDTH)*alpha,WIDTH),y:wrap(o.py+delta(o.y-o.py,WORLD_H)*alpha,WORLD_H),a:o.pa+angleDelta(o.pa,o.a)*alpha};}
+function wheelPoints(w){const c=w.car,p=w.p,cs=Math.cos(c.a),sn=Math.sin(c.a),x=-p.wheelbase/2;return [-1,1].map(side=>({x:wrap(c.x+cs*x-sn*(p.width*.45*side),WIDTH),y:wrap((c.y+sn*x+cs*(p.width*.45*side))*K,HEIGHT)}));}
+function wrappedLine(x0,y0,x1,y1,plot){
+ let x=Math.round(x0),y=Math.round(y0),endX=Math.round(x0+delta(x1-x0,WIDTH)),endY=Math.round(y0+delta(y1-y0,HEIGHT));
+ const dx=Math.abs(endX-x),sx=x<endX?1:-1,dy=-Math.abs(endY-y),sy=y<endY?1:-1;let error=dx+dy;
+ for(;;){plot(wrap(x,WIDTH),wrap(y,HEIGHT));if(x===endX&&y===endY)break;const e2=2*error;if(e2>=dy){error+=dy;x+=sx;}if(e2<=dx){error+=dx;y+=sy;}}
+}
+// The same pure functions can be tested in Node without altering the delivered page.
+if(typeof document==='undefined'){if(typeof module!=='undefined')module.exports={WIDTH,HEIGHT,K,WORLD_H,STEP,PRESETS,wrap,delta,angleDelta,createWorld,drive,step,carCone,coneCone,position,wheelPoints,wrappedLine};return;}
+
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d',{alpha:false});
+if(!ctx){document.getElementById('enter').textContent='Canvas 2D is unavailable';return;}
+ctx.imageSmoothingEnabled=false;
+const ui={enter:document.getElementById('enter'),fps:document.getElementById('fps'),status:document.getElementById('status'),live:document.getElementById('live'),skids:document.getElementById('skids'),announce:document.getElementById('announcement')};
+const makeCanvas=(w,h)=>{const c=document.createElement('canvas');c.width=w;c.height=h;return c;};
+// Integer rasterization keeps every visible game pixel one of two opaque colors.
+function raster(size=48,anchorX=24,anchorY=30){
+ const image=new ImageData(size,size),bytes=image.data,bayer=[0,2,3,1];
+ function pixel(x,y,shade){x=Math.round(x);y=Math.round(y);if(x<0||y<0||x>=size||y>=size)return;const color=shade>=1?PAPER:shade<=0?INK:(bayer[(x&1)+2*(y&1)]<shade*4?PAPER:INK),i=(y*size+x)*4;bytes[i]=color[0];bytes[i+1]=color[1];bytes[i+2]=color[2];bytes[i+3]=255;}
+ function line(a,b,shade=0){let x=Math.round(a[0]),y=Math.round(a[1]),ex=Math.round(b[0]),ey=Math.round(b[1]),dx=Math.abs(ex-x),sx=x<ex?1:-1,dy=-Math.abs(ey-y),sy=y<ey?1:-1,e=dx+dy;for(;;){pixel(x,y,shade);if(x===ex&&y===ey)break;const e2=e*2;if(e2>=dy){e+=dy;x+=sx;}if(e2<=dx){e+=dx;y+=sy;}}}
+ function poly(points,shade=1,outline=true){
+  const ys=points.map(p=>p[1]),lo=Math.ceil(Math.min(...ys)),hi=Math.floor(Math.max(...ys));
+  for(let y=lo;y<=hi;y++){const intersections=[];for(let i=0;i<points.length;i++){const a=points[i],b=points[(i+1)%points.length];if((a[1]<=y+.5&&b[1]>y+.5)||(b[1]<=y+.5&&a[1]>y+.5))intersections.push(a[0]+(y+.5-a[1])/(b[1]-a[1])*(b[0]-a[0]));}intersections.sort((a,b)=>a-b);for(let i=0;i+1<intersections.length;i+=2)for(let x=Math.ceil(intersections[i]);x<=Math.floor(intersections[i+1]);x++)pixel(x,y,shade);}
+  if(outline)for(let i=0;i<points.length;i++)line(points[i],points[(i+1)%points.length]);
+ }
+ return {pixel,line,poly,project:([x,y,z])=>[anchorX+x,anchorY+K*y-Z*z],finish(){const c=makeCanvas(size,size);c.getContext('2d').putImageData(image,0,0);return c;}};
+}
+function carSprite(p,a){
+ const r=raster(),cs=Math.cos(a),sn=Math.sin(a),faces=[];
+ const rotate=([x,y,z])=>[x*cs-y*sn,x*sn+y*cs,z];
+ function face(points,shade,outline=true){const ps=points.map(rotate);faces.push({ps,shade,outline,depth:ps.reduce((s,v)=>s+v[1]*Z+v[2]*K,0)/ps.length});}
+ function body(x0,x1,y0,y1,z0,z1,top=1,side=.55){
+  face([[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]],top);
+  for(const [nx,ny,points] of [[1,0,[[x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1]]],[-1,0,[[x0,y1,z0],[x0,y0,z0],[x0,y0,z1],[x0,y1,z1]]],[0,1,[[x1,y1,z0],[x0,y1,z0],[x0,y1,z1],[x1,y1,z1]]],[0,-1,[[x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1]]]]){if(nx*sn+ny*cs>0)face(points,side);}
+ }
+ const L=p.length/2,B=p.width/2;
+ for(const axle of [-p.wheelbase/2,p.wheelbase/2])for(const side of [-1,1])body(axle-2.2,axle+2.2,side*B-1.1,side*B+1.1,.5,4,0,0);
+ body(-L,L,-B,B,2.5,p.height,1,.52);
+ const cabinBack=p.name==='Van'?-L+1.5:-L*.48,cabinFront=p.name==='Van'?L*.48:L*.39,roofBack=p.name==='Van'?cabinBack:cabinBack+1.6,roofFront=cabinFront-2.5,b=B-.7,rb=b-.65,z0=p.height,z1=p.roof;
+ const front=[[cabinFront,-b,z0],[cabinFront,b,z0],[roofFront,rb,z1],[roofFront,-rb,z1]],back=[[cabinBack,b,z0],[cabinBack,-b,z0],[roofBack,-rb,z1],[roofBack,rb,z1]];
+ if(sn>0)face(front,.05);else face(back,p.name==='Van'?.65:.2);
+ const s=cs>=0?1:-1;
+ face([[cabinBack,s*b,z0],[cabinFront,s*b,z0],[roofFront,s*rb,z1],[roofBack,s*rb,z1]],.25);
+ face([[roofBack,-rb,z1],[roofFront,-rb,z1],[roofFront,rb,z1],[roofBack,rb,z1]],1);
+ faces.sort((a,b)=>a.depth-b.depth);for(const f of faces)r.poly(f.ps.map(r.project),f.shade,f.outline);
+ // Roof seam, windscreen pillar, lights, and hubs give each little shape a readable face.
+ const project=v=>r.project(rotate(v));
+ r.line(project([roofFront,-rb,z1]),project([roofFront,rb,z1]),0);
+ if(cs>=0)r.line(project([(roofBack+roofFront)*.5,rb,z1]),project([(cabinBack+cabinFront)*.5,b,z0]),1);
+ else r.line(project([(roofBack+roofFront)*.5,-rb,z1]),project([(cabinBack+cabinFront)*.5,-b,z0]),1);
+ if(sn>0)for(const side of [-1,1])r.line(project([L+.1,side*(B-1),p.height-1]),project([L+.1,side*(B-2),p.height-1]),1);
+ for(const axle of [-p.wheelbase/2,p.wheelbase/2]){const point=project([axle,s*(B+1.15),2]);r.pixel(point[0],point[1],1);}
+ return r.finish();
+}
+function carShadow(p,a){const r=raster(),cs=Math.cos(a),sn=Math.sin(a);const ps=[[-p.length/2,-p.width/2],[p.length/2,-p.width/2],[p.length/2,p.width/2],[-p.length/2,p.width/2]].map(([x,y])=>[24+x*cs-y*sn+3,30+(x*sn+y*cs)*K+3]);r.poly(ps,.55,false);return r.finish();}
+function coneSprite(tipped=false,a=0){
+ const r=raster(20,10,14);
+ if(tipped){const cs=Math.cos(a),sn=Math.sin(a),pt=(x,y,z=0)=>r.project([x*cs-y*sn,x*sn+y*cs,z]);r.poly([pt(-2,-2),pt(2,-2),pt(2,2),pt(-2,2)],.5);r.poly([pt(-1,-2,2),pt(6,0,1),pt(-1,2,2)],.15);r.line(pt(1,-1,2),pt(2,1,2),1);}
+ else{r.poly([[7,14],[10,12],[14,14],[11,16]],.5);r.poly([[7,13],[10,5],[13,13],[10,15]],.25);r.line([8,11],[11,12],1);r.pixel(10,7,1);}
+ return r.finish();
+}
+const atlases={},shadows={};for(const [id,p] of Object.entries(PRESETS)){atlases[id]=[];shadows[id]=[];for(let i=0;i<64;i++){atlases[id].push(carSprite(p,i*TAU/64));shadows[id].push(carShadow(p,i*TAU/64));}}
+const uprightCone=coneSprite(),tippedCones=Array.from({length:16},(_,i)=>coneSprite(true,i*TAU/16));
+const coneShade=(()=>{const r=raster(20,10,14);r.poly([[9,14],[13,12],[17,15],[13,17]],.5,false);return r.finish();})();
+const ground=makeCanvas(WIDTH,HEIGHT),g=ground.getContext('2d',{alpha:false});g.fillStyle=paper;g.fillRect(0,0,WIDTH,HEIGHT);g.fillStyle=ink;
+// Quiet, deterministic surface texture and parking-bay marks.
+for(let y=15;y<HEIGHT;y+=20)for(let x=15;x<WIDTH;x+=20)if(((x*17+y*13)%7)<4)g.fillRect(x,y,1,1);
+function groundLine(x0,y0,x1,y1){wrappedLine(x0,y0,x1,y1,(x,y)=>{if((x+y)%3!==0)g.fillRect(x,y,1,1);});}
+for(const x of [32,56,80,104,128])groundLine(x,28,x,60);groundLine(32,28,128,28);
+for(const x of [269,293,317,341,365])groundLine(x,184,x,216);groundLine(269,216,365,216);
+for(const [x,y] of [[8,8],[391,8],[8,231],[391,231]]){g.fillRect(x-2,y,5,1);g.fillRect(x,y-2,1,5);}
+const tracks=makeCanvas(WIDTH,HEIGHT),trackCtx=tracks.getContext('2d');trackCtx.fillStyle=ink;
+let world=createWorld(),enabled=true,running=false,raf=0,lastTime=0,accumulator=0,fpsStart=0,frameCount=0,lastUI=0,trackPixels=0,previousWheels=null,drawList=[];
+const input={w:false,s:false,a:false,d:false};
+function clearKeys(){for(const k of Object.keys(input))input[k]=false;}
+function clearTracks(){trackCtx.clearRect(0,0,WIDTH,HEIGHT);previousWheels=null;trackPixels=0;}
+function addTracks(){
+ if(!enabled||!world.car.skidding){previousWheels=null;return;}
+ const current=wheelPoints(world);
+ if(previousWheels)for(let i=0;i<2;i++){const from=previousWheels[i],to=current[i];if(Math.floor(from.x)!==Math.floor(to.x)||Math.floor(from.y)!==Math.floor(to.y))wrappedLine(from.x,from.y,to.x,to.y,(x,y)=>{if((x*3+y*5)%7!==0){trackCtx.fillRect(x,y,1,1);trackPixels++;}});}
+ previousWheels=current;
+}
+function frameIndex(a,count){return wrap(Math.round(a/TAU*count),count);}
+function draw(alpha=1){
+ ctx.drawImage(ground,0,0);if(enabled)ctx.drawImage(tracks,0,0);
+ drawList.length=0;
+ function images(o,type){const p=position(o,alpha),sy=p.y*K;for(const dx of [-WIDTH,0,WIDTH])for(const dy of [-HEIGHT,0,HEIGHT]){const x=p.x+dx,y=sy+dy;if(x<-25||x>WIDTH+25||y<-20||y>HEIGHT+30)continue;drawList.push({x:Math.round(x),y:Math.round(y),a:p.a,type,tipped:o.tipped});}}
+ images(world.car,'car');for(const o of world.cones)images(o,'cone');
+ for(const o of drawList){if(o.type==='car')ctx.drawImage(shadows[world.id][frameIndex(o.a,64)],o.x-24,o.y-30);else ctx.drawImage(coneShade,o.x-10,o.y-14);}
+ drawList.sort((a,b)=>a.y-b.y);
+ for(const o of drawList){if(o.type==='car')ctx.drawImage(atlases[world.id][frameIndex(o.a,64)],o.x-24,o.y-30);else ctx.drawImage(o.tipped?tippedCones[frameIndex(o.a,16)]:uprightCone,o.x-10,o.y-14);}
+}
+function updateUI(){
+ const c=world.car;ui.live.dataset.running=String(running);ui.status.textContent=running?(c.skidding?'A LITTLE SIDEWAYS':Math.hypot(c.vx,c.vy)>2?'OUT FOR A DRIVE':'IDLE / W TO GO'):'READY WHEN YOU ARE';
+ // Read-only diagnostics for QA; these are not exposed as extra player controls.
+ Object.assign(canvas.dataset,{car:world.id,x:c.x.toFixed(2),y:c.y.toFixed(2),speed:Math.hypot(c.vx,c.vy).toFixed(2),heading:c.a.toFixed(3),wraps:String(world.wraps),hits:String(world.hits),tracks:String(trackPixels),simTime:world.time.toFixed(3),running:String(running),movingCones:String(world.cones.filter(o=>Math.hypot(o.vx,o.vy)>.2).length)});
+}
+function animate(time){
+ raf=0;if(!running)return;
+ if(!lastTime){lastTime=time;fpsStart=time;}
+ accumulator+=Math.min(.1,(time-lastTime)/1000);lastTime=time;
+ let ticks=0;while(accumulator>=STEP&&ticks<8){step(world,input);addTracks();accumulator-=STEP;ticks++;}
+ if(ticks===8&&accumulator>=STEP)accumulator%=STEP;
+ draw(accumulator/STEP);frameCount++;
+ if(time-fpsStart>=600){ui.fps.textContent=String(Math.round(frameCount*1000/(time-fpsStart)));fpsStart=time;frameCount=0;}
+ if(time-lastUI>250){updateUI();lastUI=time;}
+ raf=requestAnimationFrame(animate);
+}
+function start(){if(running)return;running=true;lastTime=0;accumulator=0;frameCount=0;previousWheels=null;for(const o of [world.car,...world.cones]){o.px=o.x;o.py=o.y;o.pa=o.a;}ui.enter.hidden=true;updateUI();raf=requestAnimationFrame(animate);}
+function pause(){running=false;clearKeys();previousWheels=null;cancelAnimationFrame(raf);raf=0;accumulator=0;lastTime=0;ui.enter.hidden=false;ui.enter.textContent='CLICK TO DRIVE ↗';ui.fps.textContent='—';draw();updateUI();}
+function reset(id=world.id){world=createWorld(id);clearKeys();clearTracks();accumulator=0;lastTime=0;draw();updateUI();ui.announce.textContent=PRESETS[id].name+' ready. Scene reset.';}
+function syncChoices(){document.querySelectorAll('[data-car]').forEach(button=>{button.setAttribute('aria-pressed',String(button.dataset.car===world.id));const c=button.querySelector('canvas'),cx=c.getContext('2d');cx.clearRect(0,0,48,36);cx.imageSmoothingEnabled=false;cx.drawImage(atlases[button.dataset.car][frameIndex(-.55,64)],0,-6);});}
+document.querySelectorAll('[data-car]').forEach(button=>button.addEventListener('click',()=>{reset(button.dataset.car);syncChoices();}));
+ui.skids.addEventListener('change',()=>{enabled=ui.skids.checked;previousWheels=null;draw();ui.announce.textContent=enabled?'Skid marks enabled.':'Skid marks hidden and recording paused.';});
+document.getElementById('clear').addEventListener('click',()=>{clearTracks();draw();updateUI();ui.announce.textContent='Tracks cleared.';});
+document.getElementById('reset').addEventListener('click',()=>reset());
+ui.enter.addEventListener('click',()=>canvas.focus());canvas.addEventListener('pointerdown',()=>canvas.focus());canvas.addEventListener('focus',start);canvas.addEventListener('blur',pause);
+const keyMap={KeyW:'w',KeyS:'s',KeyA:'a',KeyD:'d'};
+window.addEventListener('keydown',event=>{if(document.activeElement!==canvas||event.isComposing)return;if(event.key==='Escape'){event.preventDefault();canvas.blur();ui.enter.focus();return;}if(event.ctrlKey||event.metaKey||event.altKey)return;const key=keyMap[event.code]||(!event.code?event.key.toLowerCase():null);if(Object.hasOwn(input,key)){event.preventDefault();input[key]=true;}});
+window.addEventListener('keyup',event=>{const key=keyMap[event.code]||(!event.code?event.key.toLowerCase():null);if(Object.hasOwn(input,key))input[key]=false;});
+window.addEventListener('blur',pause);document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
+// Returning from a hidden tab leaves the car paused until an intentional click.
+canvas.addEventListener('click',()=>{if(document.activeElement===canvas)start();});
+function resize(){const area=document.querySelector('.workspace'),aside=document.querySelector('aside'),stage=document.querySelector('.stage');const small=innerWidth<=760,available=small?area.clientWidth:area.clientWidth-aside.offsetWidth-parseFloat(getComputedStyle(area).gap);const scale=available>=WIDTH?Math.max(1,Math.floor(available/WIDTH)):available/WIDTH;stage.style.flex='0 1 '+Math.floor(WIDTH*scale)+'px';stage.style.maxWidth=Math.floor(WIDTH*scale)+'px';if(small)stage.style.maxWidth='100%';}
+window.addEventListener('resize',resize);syncChoices();resize();draw();updateUI();
+})();
+</script>
+</body>
+</html>
