@@ -1,36 +1,17 @@
-# Tiny Drive
+# 8-Bit Drift
 
-A single-screen driving playground. The complete game is **dist/index.html**: HTML, CSS, JavaScript, and procedurally drawn Canvas graphics in one file. There are no libraries, imported images, fonts, models, audio files, or application network requests.
+A single-screen driving playground. The complete game is `dist/index.html`: HTML, CSS, JavaScript, and procedurally drawn Canvas graphics in one file, with no runtime libraries or external assets.
 
 ## Play
 
-Open `dist/index.html` in a desktop browser. Click the playground to drive. A keyboard is required.
+Open `dist/index.html` in a browser, or run `node preview.cjs` and visit http://127.0.0.1:4173. Use W to accelerate, S to brake and reverse, A/D to steer, and Escape to pause. On touch screens, drag the wheel and hold the gas or brake pedal. Cross an edge to re-enter on the opposite side. The settings panel offers skid visibility, track clearing, and reset; R rights an overturned ground car.
 
-- W: accelerate; brake first if reversing.
-- S: brake, then reverse.
-- A / D: steer.
-- Escape: pause.
-- Cross any edge to return on the opposite side with the same momentum.
+Choose the Compact, Supercar, or hovering Drone. The Supercar uses five manual gears: Q shifts down, E shifts up, or drag the H-pattern stick. An automatic clutch handles each shift; unsafe downshifts are refused. Higher gears allow a higher top speed, while lower gears give stronger acceleration. The dashboard shows game speed in km/h. The drone flies over cones and leaves no tyre marks. Choose the signature circuit traced from the supplied reference, an easy oval, or a club circuit in Settings. Each road has two lanes. Tuning is collapsible; its expanded ranges change handling and camera scale continuously. Drifting emits temporary smoke. Mobile layouts omit the ground keyboard guide and reserve space below the course for touch controls.
 
-The side panel selects Compact, Coupe, or Van; enables/hides skid marks; clears tracks; and resets the scene. Vehicle changes reset the scene. Clicking a control pauses driving. Click the playground again to resume. Skids appear under hard braking or lateral slip.
+## Development
 
-The camera is fixed. Cars, cones, shadows, and dither patterns are all drawn from numeric shapes in JavaScript. Heading images are cached only in memory. The game uses a 400 × 240 logical canvas, a fixed 120 Hz physics update, and requestAnimationFrame rendering.
+Node is only needed for the optional helpers. Run `node verify-current.cjs` for current camera, track, tuning and vehicle checks. `verify.cjs` retains the older detailed suite; its tuning and layout expectations predate the current redesign and need migration. The static host needs only `dist/index.html`; `.openai/hosting.json` holds deployment metadata. See `AGENTS.md` for contributor guidance.
 
-## Optional developer commands
+The visual reference is [Daily Driver (Tech Demo)](https://gingerbeardman.itch.io/daily-driver). This is a new procedural implementation; no assets or source from that game are included.
 
-Node is only needed for these helpers, not for playing or hosting the HTML file:
-
-```
-node verify.cjs
-node preview.cjs
-```
-
-The preview serves http://127.0.0.1:4173. Only `dist/index.html` is needed on a static host. `.openai/hosting.json` is deployment metadata; `verify.cjs` and `preview.cjs` are development helpers, not game dependencies.
-
-## Validation
-
-12 automated checks passed: wrapping and overshoot, edge/angle interpolation, track seam splitting, acceleration/coasting/braking/reverse, stationary and reverse steering, simultaneous input, drifting, horizontal and vertical seam collisions, degenerate contacts, identical fixed-step results under 30/60/120/144 Hz render schedules, and five simulated minutes for each vehicle without invalid or out-of-bounds state.
-
-The initial screen and keyboard acceleration were inspected in Chrome, with no reported browser console errors. The automation preview was running at a throttled background frame rate. Foreground testing ended when Computer Use could not verify the active browser URL on Windows. Sustained 60 fps, direct-file browser launch, all panel interactions, responsive layouts, Firefox, and Safari remain unverified in a live browser. The simulation runs are not a browser frame-rate benchmark.
-
-The visual reference is [Daily Driver (Tech Demo)](https://gingerbeardman.itch.io/daily-driver). This page is a new procedural implementation; no assets or source from that game are included.
+The clutch-free manual interaction follows the distinction between manual and manual-with-clutch modes in [Forza](https://forums.forza.net/t/meet-the-most-accessible-forza-motorsport-ever/597587/38), with downshift protection similar to [GT7](https://us.gran-turismo.com/us/gt7/news/00_3200508.html).
