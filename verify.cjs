@@ -1741,4 +1741,78 @@ test('round 2 integration: painted instructions shrink smoothly on square-ish sc
  }
 });
 
+// ==== Round 4: lane paint (smooth edges, open eight crossing, curbs) and the parking lot ====
+const r4Layout=(id,W=1022,H=575)=>{e.setTrack(id);const A=e.makeArena(W,H),L=e.layoutCourse(A);e.setTrack('signature');return {A,L};};
+const r4World=(car,id,A)=>{e.setTrack(id);const w=e.createWorld(car,A);e.setTrack('signature');return w;};
+const r4Marks=(L,A)=>{const m={edge:[],curb:[],guide:[]};e.trackMarks(L,(x,y,k)=>{if(m[k])m[k].push([x,y]);},A.W,A.H);return m;};
+test('round 4: lane edges are an even line on the lane boundary, and the eight crossing has no edges or dashes inside the lane', () => {
+ for(const id of ['signature','oval','eight']){const {A,L}=r4Layout(id),T=L.track,m=r4Marks(L,A);
+  // Every edge pixel centre is within ~1.6 screen px of the boundary (|d - half| <= that, in world units), never inside the lane.
+  for(const [x,y] of m.edge){const d=trackDist(T,x+.5,(y+.5)/e.K);assert(d>T.half-1.6/e.K-1e-6&&d<T.half+1.6/e.K+1e-6,`${id}: edge pixel ${x},${y} is ${(d-T.half).toFixed(2)} off the boundary`);}
+  // Even: across a vertical-ish stretch of edge (pixel rows), each row holds 1-3 edge pixels near the boundary.
+  assert(m.edge.length>T.length*1.2,`${id}: edges drawn (${m.edge.length})`);
+  for(const [x,y] of m.guide)assert(trackDist(T,x,y/e.K)<2.5,`${id}: guide dash off the centreline`);
+  if(T.cross){const c=T.cross,D=2*T.half;
+   const near=m.edge.filter(([x,y])=>Math.hypot(x-c.x,y/e.K-c.y)<T.half);assert.equal(near.length,0,'eight: lane edges drawn inside the crossing');
+   const dash=m.guide.filter(([x,y])=>Math.hypot(x-c.x,y/e.K-c.y)<T.half*.8);assert.equal(dash.length,0,'eight: centre dashes drawn across the crossing');}
+ }
+});
+test('round 4: tight bends get striped curbs just outside the lane, and cones stand beyond them', () => {
+ for(const id of ['signature','oval','eight']){const {A,L}=r4Layout(id),T=L.track,m=r4Marks(L,A);
+  assert(T.curbs.length>=2,`${id}: curb runs on the corners (${T.curbs.length})`);
+  assert(m.curb.length>50,`${id}: curb pixels drawn`);
+  for(const [x,y] of m.curb){const d=trackDist(T,x+.5,(y+.5)/e.K);assert(d>=T.half&&d<=T.half+e.CURB_W+1.5/e.K,`${id}: curb pixel ${(d-T.half).toFixed(2)} from the edge`);}
+  // Stripes: along a curb some band pixels are paper, so it is not one solid ink band.
+  const band=m.curb.filter(([x,y])=>{const d=trackDist(T,x+.5,(y+.5)/e.K);return d>T.half+1.6&&d<T.half+e.CURB_W-1.6;});assert(band.length>10,`${id}: curb fill`);
+  for(const c of L.cones)assert(trackDist(T,c.x,c.y)>=T.half+e.CONE_R,`${id}: cone on the lane`);
+ }
+ assert.equal(e.trackCurbs([[0,0],[100,0],[200,0],[300,0]]).length,0,'no curbs on a short line');
+ const ring=R=>{const n=Math.round(2*Math.PI*R/4);return Array.from({length:n},(_,i)=>[R*Math.cos(i*2*Math.PI/n),R*Math.sin(i*2*Math.PI/n)]);};
+ assert.equal(e.trackCurbs(ring(400)).length,0,'no curbs on a gentle bend');assert.equal(e.trackCurbs(ring(60))[0][1],ring(60).length,'a tight loop is curbed all round');
+});
+test('round 4: parking lot layout has stalls, an accessible pair, a corral of four nested carts, a stray cart and cones, all off the controls', () => {
+ for(const [W,H] of [[1022,575],[711,400],[400,240],[390,844],[844,390]]){const {A,L}=r4Layout('parking',W,H),name=`${W}x${H}`,zones=e.controlZones(A),lot=L.lot;
+  assert.equal(L.track.kind,'parking');assert.equal(L.gate,null,`${name}: no start gate in the lot`);
+  assert(lot.rows.length>=2&&lot.rows.every(q=>q.slots.every(s=>Math.abs(s.x1-s.x0-e.LOT_STALL_W)<.02)),`${name}: rows of stalls`);
+  const kinds=lot.rows.flatMap(q=>q.slots.map(s=>s.kind));
+  if(W>=700){assert.equal(kinds.filter(k=>k==='hc').length,2,`${name}: two accessible stalls`);assert.equal(kinds.filter(k=>k==='access').length,1,`${name}: one access aisle`);
+   assert(lot.corral,`${name}: a cart corral`);assert.equal(L.props.filter(p=>p.type==='cart').length,4,`${name}: four nested carts`);}
+  const carts=L.cones.filter(o=>o.kind==='cart');assert.equal(carts.length,1,`${name}: one stray cart`);
+  assert(L.cones.length>=2,`${name}: traffic cones`);
+  for(const o of L.cones)assert(clearOf(A,o.x,o.y*e.K,o.r||e.CONE_R,zones),`${name}: body under a control`);
+  for(const q of L.posts)assert(zones.every(z=>!(q.x>z.l&&q.x<z.r&&q.y*e.K>z.t&&q.y*e.K<z.b)),`${name}: corral under a control`);
+  for(const o of L.cones)for(const q of L.posts)assert(Math.hypot(o.x-q.x,o.y-q.y)>q.r+(o.r||e.CONE_R),`${name}: body inside the corral`);
+  const s=L.spawn,cb=e.carBoxAll(),sx=s.x,sy=s.y*e.K;assert(sx+cb.l>=4&&sy+cb.t>=4&&sx+cb.r<=A.W-4&&sy+cb.b<=A.H-4&&zones.every(z=>sx+cb.r<=z.l||sx+cb.l>=z.r||sy+cb.b<=z.t||sy+cb.t>=z.b),`${name}: spawn car box`);
+  const w=r4World('compact','parking',A);e.step(w,input());assert(w.cones.every(o=>o.vx===0&&o.vy===0)&&w.car.vx===0,`${name}: spawn overlaps something`);
+  assert.equal(JSON.stringify(e.buildParking({...A,E:e.edgeClear(A)},e.keepOuts(A))),JSON.stringify(L),`${name}: deterministic`);
+ }
+});
+test('round 4: lot paint draws stalls and the wheelchair mark, never under a control; the thumbnail shows the lot', () => {
+ const {A,L}=r4Layout('parking'),zones=e.keepOuts(A),px=new Set();e.lotMarks(L,(x,y)=>px.add(x+','+y),A.W,A.H,zones);
+ assert(px.size>500,'stall lines painted');
+ for(const k of px){const [x,y]=k.split(',').map(Number);assert(zones.every(z=>!(x>=z.l&&x<z.r&&y>=z.t&&y<z.b)),'paint under a control');}
+ assert(e.ACCESS_MARK.every(r=>r.length===e.ACCESS_MARK.length),'square wheelchair mark');
+ const hc=L.lot.rows.flatMap(q=>q.slots.filter(s=>s.kind==='hc').map(s=>({s,q})))[0],cx=Math.round((hc.s.x0+hc.s.x1)/2),cy=Math.round((hc.q.back+hc.q.dir*e.LOT_STALL_D/2)*e.K);
+ let ink=0;for(let y=cy-7;y<=cy+7;y++)for(let x=cx-7;x<=cx+7;x++)if(px.has(x+','+y))ink++;assert(ink>100,`wheelchair square painted (${ink})`);
+ const th=e.lotThumb(L,64,36);assert(th.bits.reduce((a,b)=>a+b,0)>60,'lot thumbnail');
+ assert.equal(e.titleRect(L,A),null,'no title paint in the lot');
+});
+test('round 4: the stray cart rolls away when hit, never tips, and the corral stops the car', () => {
+ const {A,L}=r4Layout('parking');
+ // Drive straight at the stray cart.
+ let w=r4World('compact','parking',A);const cart=w.cones.find(o=>o.kind==='cart');w.cones=[cart];
+ Object.assign(w.car,{x:cart.x-60,y:cart.y,px:cart.x-60,py:cart.y,a:0,pa:0,vx:0,vy:0,omega:0});
+ for(let i=0;i<240;i++)e.step(w,input(true));
+ assert(Math.hypot(cart.x-cart.hx,cart.y-cart.hy)>20,'the cart was pushed');assert(!cart.tipped,'carts do not tip');
+ assert(w.cones.every(o=>Number.isFinite(o.x)&&Number.isFinite(o.a)));
+ // Drive at the corral's back rail: the car never ends up inside the corral.
+ const c=L.lot.corral;w=r4World('coupe','parking',A);w.cones=[];
+ Object.assign(w.car,{x:c.xb-50,y:c.y,px:c.xb-50,py:c.y,a:0,pa:0,vx:0,vy:0,omega:0});
+ let inside=false;for(let i=0;i<360;i++){e.step(w,input(true));if(w.car.x>c.xb+3&&w.car.x<c.xf&&Math.abs(w.car.y-c.y)<e.CORRAL_HW)inside=true;}
+ assert(!inside,'the car drove through the corral rails');
+ // Cart vs cone: the heavy cart shoves a cone aside.
+ const cone=e.bodyFrom({x:0,y:0},0),k=e.bodyFrom({x:-e.CART_R-1,y:0,kind:'cart',r:e.CART_R,m:e.CART_MASS,a:0},0);k.vx=40;e.coneCone(k,cone);
+ assert(cone.vx>k.vx&&k.vx>30,'mass-weighted cart-cone impulse');
+});
+
 console.log(`${count} checks passed. The deployable page has no external assets or dependencies.`);

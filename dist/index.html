@@ -64,7 +64,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--ink);outline-of
 button.row:hover{background:var(--ink);color:var(--paper)}button.row:active{transform:translate(2px,2px);box-shadow:none}
 /* Round 3 (r3-ui): Settings > Track, one pixel-art thumbnail button per TRACKS entry (drawn in two inks by syncTracks). */
 .track-pick{display:flex;flex-direction:column;gap:4px;min-width:0}
-.track-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.track-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
 .track-choice{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:3px;min-width:0;padding:4px 3px 3px;border:2px solid var(--ink);background:var(--paper);box-shadow:2px 2px 0 var(--ink);font-size:max(8px,.68em);line-height:1.05;letter-spacing:0;text-align:center}
 .track-choice canvas{display:block;width:100%;max-width:84px;height:auto;max-height:clamp(26px,9vh,60px);object-fit:contain;image-rendering:pixelated;pointer-events:none}
 .track-choice span{overflow-wrap:anywhere}
@@ -567,7 +567,7 @@ function fallbackTrack(A,hw){
 // layoutCourse costs tens of ms, so results are cached per arena size and zone set (contract §11). Each call returns a fresh copy.
 // Round 3: the selectable tracks (Settings shows a thumbnail button per entry, in this order). The course owner changes shapes;
 // the UI reads ids and names from here only.
-const TRACKS=[{id:'signature',name:'Signature circuit'},{id:'oval',name:'Easy oval'},{id:'eight',name:'Figure eight'}];
+const TRACKS=[{id:'signature',name:'Signature circuit'},{id:'oval',name:'Easy oval'},{id:'eight',name:'Figure eight'},{id:'parking',name:'Parking lot'}];
 let SELECTED_TRACK='signature';
 function setTrack(id){if(!TRACKS.some(t=>t.id===id))return false;SELECTED_TRACK=id;layoutCache.clear();return true;}
 const layoutCache=new Map();
@@ -765,6 +765,7 @@ function fitShape(A,zones,grid,id,hw){
 }
 function buildCourse(A,zones,id=SELECTED_TRACK){
  if(!Number.isFinite(A.E))A={...A,E:edgeClear(A)};
+ if(id==='parking')return buildParking(A,zones);
  if(!TRACK_SHAPES[id])id='signature';
  const hw=TRACK_HALF,grid=trackGrid(A,zones,hw+LANE_PAD+3);let pl=null;
  if(!grid.empty)for(const k of TRACK_FALLBACK[id])if((pl=fitShape(A,zones,grid,k,hw)))break;
@@ -775,8 +776,10 @@ function buildCourse(A,zones,id=SELECTED_TRACK){
  // Cones every ~length/18 just off the lane: both sides on the circuit and the oval, only round the outside of the eight's
  // loops (and never near its crossing). Never on any part of the lane, the gate approach, the spawn, the edge strip, a
  // control zone, or touching another cone.
- const cones=[],n=pts.length,k=hw+CONE_R+4,step=Math.max(4,Math.round(n/(pl.cross?24:18))),inside=(x,y)=>insideLoop(pts,x,y),gl=TRACK_BACK;
- for(let i=Math.round(step/2);i<n&&cones.length<36;i+=step){const p=pts[i],a=pts[(i+n-1)%n],b=pts[(i+1)%n],l=Math.hypot(b[0]-a[0],b[1]-a[1])||1;
+ // Round 4: on a curbed bend the cones stand just beyond the curb instead of on it.
+ const curbs=trackCurbs(pts),onCurb=curbFlags(curbs,pts.length);
+ const cones=[],n=pts.length,step=Math.max(4,Math.round(n/(pl.cross?24:18))),inside=(x,y)=>insideLoop(pts,x,y),gl=TRACK_BACK;
+ for(let i=Math.round(step/2);i<n&&cones.length<36;i+=step){const p=pts[i],a=pts[(i+n-1)%n],b=pts[(i+1)%n],l=Math.hypot(b[0]-a[0],b[1]-a[1])||1,k=hw+CONE_R+4+(onCurb[i]?CURB_W:0);
   for(const side of [-1,1]){const x=p[0]-side*k*(b[1]-a[1])/l,y=p[1]+side*k*(b[0]-a[0])/l;
    if(pl.cross&&(inside(x,y)||Math.hypot(x-pl.cross[0],y-pl.cross[1])<2*(2*hw+LANE_GAP)))continue;
    if(!pointClear(A,zones,x,y*K,CONE_MARGIN))continue;
@@ -788,8 +791,103 @@ function buildCourse(A,zones,id=SELECTED_TRACK){
    cones.push({x:r2(x),y:r2(y)});}}
  const length=arcLengths(pts)[n];
  return {cones,parking:[],spawn:G.spawn,gate:{x:gx,y:gy,width:2*TRACK_POST-8,height:GATE_HIGH,a:G.ang,rotation:G.ang-Math.PI/2,lane:gl,posts:G.posts},
-  track:{kind:fallback?'fallback':pl.id,id,half:hw,pts,length,cross:pl.cross?{x:r2(pl.cross[0]),y:r2(pl.cross[1])}:null,
+  track:{kind:fallback?'fallback':pl.id,id,half:hw,pts,length,curbs,cross:pl.cross?{x:r2(pl.cross[0]),y:r2(pl.cross[1])}:null,
    straight:{x0:G.a[0],y0:G.a[1],x1:G.b[0],y1:G.b[1],len:Math.hypot(G.b[0]-G.a[0],G.b[1]-G.a[1])},box:{x:pl.x0,y:pl.y0,w:pl.w,h:pl.h,o:pl.o}}};
+}
+// ---- Round 4: the parking lot (a big-box store's lot). No lane and no gate: rows of painted stalls across the arena between
+// drive aisles; a cart corral (rails round a lane of four nested shopping carts, open at one end) lying across three stalls
+// of a middle double row; a stray cart that rolls away when hit (a movable body in w.cones, kind 'cart');
+// traffic cones; and two accessible stalls (painted wheelchair symbol) either side of a hatched access aisle in the top row.
+// World units (screen y = y*K). The rails and the corralled carts are fixed colliders (layout.posts: circles, like gate posts).
+// Aisles: at least LOT_AISLE_MIN; the plan with the most rows whose aisles reach LOT_AISLE_PREF wins (roomy enough to slide).
+const LOT_STALL_W=26,LOT_STALL_D=42,LOT_AISLE_MIN=64,LOT_AISLE_PREF=120,LOT_AISLE_MAX=135,LOT_END=60;
+// CART_S: carts are drawn and collide about 1.3× real size next to the cars, so they read at this pixel scale.
+// The corral: CORRAL_HL half-length (across the screen), CORRAL_HW half-width; one lane of four nested carts inside.
+const CART_S=1.3,CART_R=5.4,CART_MASS=.3,CART_LEN=10*CART_S,CART_NEST=6.2,CORRAL_HW=9,CORRAL_HL=36,RAIL_R=1.6,RAIL_GAP=2.4;
+function buildParking(A,zones){
+ const E=A.E,l=E,r=A.W-E,t=E/K,b=(A.H-E)/K,h=b-t,D=LOT_STALL_D,SW=LOT_STALL_W,r2=v=>Math.round(v*100)/100;
+ // Bands top to bottom: s = single stall row, d = back-to-back double row, a = aisle. The richest plan that fits wins; spare
+ // height widens the aisles (up to LOT_AISLE_MAX) and the rest is split above and below.
+ const size={s:D,d:2*D,a:LOT_AISLE_MIN},plans=[];
+ for(let m=4;m>=1;m--){const mid=[];for(let k=0;k<m;k++)mid.push('a','d');plans.push(['s',...mid,'a','s']);}
+ plans.push(['s','a','d','a'],['a','d','a'],['a']);
+ const need=p=>p.reduce((s,c)=>s+size[c],0),roomy=p=>LOT_AISLE_MIN+(h-need(p))/p.filter(c=>c==='a').length>=LOT_AISLE_PREF;
+ const plan=plans.find(p=>p.length>1&&need(p)<=h&&roomy(p))||plans.find(p=>need(p)<=h)||['a'],na=plan.filter(c=>c==='a').length;
+ const aisle=Math.min(LOT_AISLE_MAX,LOT_AISLE_MIN+Math.max(0,h-need(plan))/na);let y=t+Math.max(0,h-need(plan)-na*(aisle-LOT_AISLE_MIN))/2;
+ const rows=[],aisles=[],end=Math.min(LOT_END,.12*(r-l));
+ // A row: back line at `back`, stalls reaching dir × D from it (dir 1 = down), slots of SW across [x0, x1].
+ const row=(back,dir,x0,x1,pair)=>{const n=Math.max(0,Math.floor((x1-x0)/SW)),s=x0+((x1-x0)-n*SW)/2;
+  rows.push({back:r2(back),dir,pair,slots:Array.from({length:n},(_,k)=>({x0:r2(s+k*SW),x1:r2(s+(k+1)*SW),kind:'stall'}))});};
+ plan.forEach((c,i)=>{
+  if(c==='a'){aisles.push({y0:y,y1:y+aisle,mid:y+aisle/2});y+=aisle;return;}
+  if(c==='s'){if(i===0)row(y,1,l,r,-1);else row(y+D,-1,l,r,-1);y+=D;return;}
+  const p=rows.length;row(y+D,-1,l+end,r-end,p);row(y+D,1,l+end,r-end,p);y+=2*D;});
+ const cx0=(l+r)/2,cy0=(t+b)/2,props=[],posts=[];let corral=null;
+ // Corral: lengthwise across three stalls of one half of a double row (nearest the lot's centre first), wherever its rails
+ // and sign clear every control. Its long axis runs across the screen so the nested carts show side-on; open end to the right.
+ const halves=rows.filter(q=>q.pair>=0).sort((p,q)=>Math.abs(p.back+p.dir*D/2-cy0)-Math.abs(q.back+q.dir*D/2-cy0)||p.back-q.back);
+ search:for(const q of halves){const cy=q.back+q.dir*D/2,order=q.slots.map((s,k)=>k).filter(k=>k>0&&k<q.slots.length-1).sort((p,u)=>Math.abs((q.slots[p].x0+q.slots[p].x1)/2-cx0)-Math.abs((q.slots[u].x0+q.slots[u].x1)/2-cx0)||p-u);
+  for(const k of order){const cx=(q.slots[k].x0+q.slots[k].x1)/2,xb=cx-CORRAL_HL,xf=cx+CORRAL_HL;
+   if(!q.slots.slice(k-1,k+2).every(s=>s.kind==='stall')||!rectClear(A,zones,xb-4,(cy-CORRAL_HW)*K-14,xf+4,(cy+CORRAL_HW+4)*K,2))continue;
+   for(const s of q.slots.slice(k-1,k+2))s.kind='corral';corral={x:r2(cx),y:r2(cy),xb:r2(xb),xf:r2(xf)};break search;}}
+ if(corral){const {y:cy,xb,xf}=corral,H2=CORRAL_HW,c=3;
+  // Rails (plan view), each split into pieces of at most 12 units so the pieces depth-sort against the cars; post = upright at that end.
+  const rail=(x0,y0,x1,y1,post0,post1)=>{const L=Math.hypot(x1-x0,y1-y0),m=Math.max(1,Math.ceil(L/12));
+   for(let k=0;k<m;k++)props.push({type:'rail',x0:r2(x0+(x1-x0)*k/m),y0:r2(y0+(y1-y0)*k/m),x1:r2(x0+(x1-x0)*(k+1)/m),y1:r2(y0+(y1-y0)*(k+1)/m),p0:k===0&&post0||k===Math.floor(m/2)&&m>3,p1:k===m-1&&post1});
+   for(let k=0,n=Math.max(1,Math.ceil(L/RAIL_GAP));k<=n;k++)posts.push({x:r2(x0+(x1-x0)*k/n),y:r2(y0+(y1-y0)*k/n),r:RAIL_R});};
+  rail(xb,cy-H2+c,xb,cy+H2-c,false,false);rail(xb+c,cy-H2,xb,cy-H2+c,true,false);rail(xb,cy+H2-c,xb+c,cy+H2,false,true);
+  rail(xb+c,cy-H2,xf,cy-H2,false,true);rail(xb+c,cy+H2,xf,cy+H2,false,true);
+  // The sign hangs on the front rail near the open end, facing the camera (like "please place carts here").
+  props.push({type:'sign',x:r2(xf-14),y:r2(cy+H2+.5)});
+  // Four nested carts side-on, noses to the back rail.
+  for(const [lane,count] of [[0,4]]){const y=r2(cy+lane*H2/2);
+   for(let k=0;k<count;k++)props.push({type:'cart',x:r2(xb+1.5+CART_LEN/2+k*CART_NEST),y,a:Math.PI});
+   const x0=xb+1.5+CART_LEN/2-3,x1=xb+1.5+CART_LEN/2+(count-1)*CART_NEST+4;for(let xx=x0;xx<=x1+1e-9;xx+=3)posts.push({x:r2(xx),y,r:4.6});}}
+ // Accessible stalls: three slots in a row (stall, hatched access aisle, stall), in the top row when no control covers them
+ // there (nearest the lot's centre), else in the next row down that has room.
+ for(const top of rows){if(top.slots.length<3)continue;const yb=top.back*K,ym=(top.back+top.dir*D)*K,vis=s=>zonesClear(zones,s.x0,Math.min(yb,ym),s.x1,Math.max(yb,ym),4);
+  const ks=top.slots.map((s,k)=>k).filter(k=>k>0&&k<top.slots.length-1).sort((p,q)=>Math.abs((top.slots[p].x0+top.slots[p].x1)/2-cx0)-Math.abs((top.slots[q].x0+top.slots[q].x1)/2-cx0)||p-q);
+  const k=ks.find(k=>top.slots.slice(k-1,k+2).every(s=>s.kind==='stall'&&vis(s)));
+  if(k!==undefined){top.slots[k-1].kind=top.slots[k+1].kind='hc';top.slots[k].kind='access';break;}}
+ // Spawn: the top aisle first, as far left as the whole car fits (any heading) clear of the controls and every prop, facing right.
+ const cb=carBoxAll(),reach=Math.hypot(...[cb.l,cb.t].map(Math.abs))+4,clearOfProps=(x,yw,m)=>posts.every(q=>Math.hypot(q.x-x,q.y-yw)>=q.r+m);
+ const spawnOk=(x,yw)=>{const ys=yw*K;return pointClear(A,zones,x,ys)&&x+cb.l>=SPAWN_INSIDE&&ys+cb.t>=SPAWN_INSIDE&&x+cb.r<=A.W-SPAWN_INSIDE&&ys+cb.b<=A.H-SPAWN_INSIDE&&zonesClear(zones,x+cb.l,ys+cb.t,x+cb.r,ys+cb.b)&&clearOfProps(x,yw,reach);};
+ let spawn=null;
+ for(const a of aisles){for(let x=l+20;x<=r-20&&!spawn;x+=6)if(spawnOk(x,a.mid))spawn={x:r2(x),y:r2(a.mid),a:0};if(spawn)break;}
+ if(!spawn)spawn={x:r2(A.W/2),y:r2(A.H/K/2),a:0};
+ // Movable bodies: traffic cones, then the stray cart (last, so cone indices match the circuits' rules on resize).
+ const cones=[],free=(x,yw,m)=>pointClear(A,zones,x,yw*K,m)&&clearOfProps(x,yw,m+1)&&Math.hypot(x-spawn.x,yw-spawn.y)>=SPAWN_CLEAR+m&&cones.every(o=>Math.hypot(o.x-x,o.y-yw)>=(o.r||CONE_R)+m+3);
+ const cand=[];
+ // A coned-off stall in the lowest row (three cones across its mouth), cones flanking the corral's open end, and a short
+ // line across the far end of each aisle.
+ const low=rows[rows.length-1];
+ if(low&&low.slots.length){const s=low.slots[Math.min(low.slots.length-1,Math.floor(low.slots.length*.7))],my=low.back+low.dir*(D-5);cand.push([s.x0+5,my],[(s.x0+s.x1)/2,my],[s.x1-5,my]);}
+ if(corral)cand.push([corral.xf+9,corral.y-CORRAL_HW-2],[corral.xf+9,corral.y+CORRAL_HW+2]);
+ aisles.forEach((a,i)=>{if(i%2===0)for(const f of [-.22,0,.22])cand.push([r-Math.max(26,end/2),a.mid+f*(a.y1-a.y0)]);});
+ for(const [x,yw] of cand)if(free(x,yw,CONE_MARGIN))cones.push({x:r2(x),y:r2(yw)});
+ // The stray cart: in an aisle away from the spawn, at an angle; the first free spot from a fixed list.
+ const spots=[];for(const a of [...aisles].reverse())for(const f of [.62,.4,.8,.25,.5])spots.push([l+(r-l)*f,a.mid+(a.y1-a.y0)*.12]);
+ for(const [x,yw] of spots)if(free(x,yw,CART_R+4)){cones.push({x:r2(x),y:r2(yw),kind:'cart',r:CART_R,m:CART_MASS,a:.55});break;}
+ return {cones,parking:[],spawn,gate:null,posts,props,
+  lot:{l,t,r,b,rows,aisles:aisles.map(a=>({y0:r2(a.y0),y1:r2(a.y1)})),corral},
+  track:{kind:'parking',id:'parking',half:0,pts:[],length:0,curbs:[],cross:null,straight:null,box:{x:l,y:t,w:r-l,h:b-t,o:0}}};
+}
+// The wheelchair symbol painted in accessible stalls: paper strokes on an ink square, ACCESS_MARK px (screen, not squashed).
+const ACCESS_MARK=['...............','.......###.....','.......###.....','...............','.......##......','.......##......','.......######..','...#...##......','..#....##......','.#.....#######.','.#..........##.','.#...........#.','..#...#......##','...###.......#.','...............'];
+// Lot paint pixels in screen px (plot(x, y)): each row's back line, the stall dividers, the hatched access aisle and the
+// wheelchair squares. A stall that any control zone (grown 4 px) touches is left out whole, so no stray half-stalls show
+// round the controls and the painted instructions stay readable.
+function lotMarks(layout,plot,W,H,zones=[]){
+ const lot=layout&&layout.lot;if(!lot)return;
+ const put=(x,y)=>{x=Math.round(x);y=Math.round(y);if(x>=0&&y>=0&&x<W&&y<H)plot(x,y);};
+ for(const q of lot.rows){const yb=Math.round(q.back*K),ym=Math.round((q.back+q.dir*LOT_STALL_D)*K),lo=Math.min(yb,ym),hi=Math.max(yb,ym);
+  for(const s of q.slots){const a=Math.round(s.x0),c=Math.round(s.x1);if(s.kind==='corral'||!zonesClear(zones,a-2,lo-2,c+2,hi+2,4))continue;
+   for(let x=a;x<=c;x++)put(x,yb);for(const x of [a,c])for(let y=lo;y<=hi;y++)put(x,y);
+   // Short ticks at the stall mouth make the dividers read as painted T-ends.
+   for(const x of [a,c])for(const d of [-1,1])put(x+d,ym);
+   if(s.kind==='access')for(let y=lo+1;y<hi;y++)for(let x=a+1;x<c;x++)if((x+y)%5===0)put(x,y);
+   if(s.kind==='hc'){const m=ACCESS_MARK,n=m.length,x0=Math.round((a+c)/2-n/2),y0=Math.round((lo+hi)/2-n/2);
+    for(let j=0;j<n;j++)for(let i=0;i<n;i++)if(m[j][i]!=='#')put(x0+i,y0+j);}}}
 }
 // Even-odd test against the closed centreline (world units): inside a loop's infield. On the eight each loop is its own region.
 function insideLoop(pts,x,y){let c=false;for(let i=0,j=pts.length-1;i<pts.length;j=i++){const [xi,yi]=pts[i],[xj,yj]=pts[j];if((yi>y)!==(yj>y)&&x<(xj-xi)*(y-yi)/(yj-yi)+xi)c=!c;}return c;}
@@ -832,16 +930,62 @@ function plotLine(x0,y0,x1,y1,plot,W,H){
  let x=Math.round(x0),y=Math.round(y0);const ex=Math.round(x1),ey=Math.round(y1),dx=Math.abs(ex-x),sx=x<ex?1:-1,dy=-Math.abs(ey-y),sy=y<ey?1:-1;let e=dx+dy;
  for(;;){if(x>=0&&y>=0&&x<W&&y<H)plot(x,y);if(x===ex&&y===ey)break;const e2=2*e;if(e2>=dy){e+=dy;x+=sx;}if(e2<=dx){e+=dx;y+=sy;}}
 }
-// Pixels of the course markings in screen px: the two lane edges, the dashed centre guide line (2 px dash every 7 px) and a
-// two-row checker start line under the gate. Exposed for tests; drawGround plots them.
+// ---- Round 4 lane paint. The lane is rasterised from a distance field (world distance from each screen pixel's centre to
+// the nearest centreline segment), so each edge is an even EDGE_PX-wide line that follows the curve exactly, and wherever one
+// part of the lane runs over another (the figure eight's crossing) the edges inside the other lane are lane surface and
+// simply are not drawn. Curbs: striped bands CURB_W wide just outside both lane edges on tight bends (radius < CURB_R),
+// alternating ink and paper blocks CURB_STRIPE long (measured along the curb), with a thin outer border.
+const EDGE_PX=1.05,CURB_W=7,CURB_R=125,CURB_STRIPE=9,CURB_MIN=6;
+// Curb runs [first index, count] along the closed centreline: bends tighter than CURB_R (over ±5 points), at least CURB_MIN long.
+function trackCurbs(pts){
+ const n=pts.length,k=5,tight=new Uint8Array(n),out=[];if(n<2*k+2)return out;
+ for(let i=0;i<n;i++){const a=pts[(i+n-k)%n],b=pts[i],c=pts[(i+k)%n],ax=b[0]-a[0],ay=b[1]-a[1],cx=c[0]-b[0],cy=c[1]-b[1],th=Math.abs(Math.atan2(ax*cy-ay*cx,ax*cx+ay*cy));
+  if(th>1e-6&&(Math.hypot(ax,ay)+Math.hypot(cx,cy))/2/th<CURB_R)tight[i]=1;}
+ if(tight.every(v=>v))return [[0,n]];
+ const s0=tight.indexOf(0);
+ for(let j=1;j<=n;j++){const i=(s0+j)%n;if(tight[i]&&!tight[(i+n-1)%n]){let len=0;while(tight[(i+len)%n])len++;if(len>=CURB_MIN)out.push([i,len]);}}
+ return out;
+}
+// Per centreline index: 1 when that index lies in a curb run.
+function curbFlags(runs,n){const f=new Uint8Array(n);for(const [i0,len] of runs||[])for(let k=0;k<len;k++)f[(i0+k)%n]=1;return f;}
+// Calls fn(x, y, seg, f, side, d, g) for every screen pixel within `reach` world units of the lane centreline: seg = nearest
+// segment (P[seg] → P[seg+1]), f = its fraction, side = ±1 (the same sign as trackMarks' edge offset), d = world distance and
+// g = |∇d| in screen px (so (d − x) / g is the screen distance to the curve at offset x).
+function laneField(P,W,H,reach,fn){
+ // k, mx, mn: locals for the hot loops (much faster than global lookups where the page runs in a sandbox, as in the tests).
+ const k=K,mx=Math.max,mn=Math.min,n=P.length,N=W*H,best=new Float32Array(N).fill(Infinity),seg=new Int32Array(N).fill(-1);
+ for(let i=0;i<n;i++){const a=P[i],b=P[(i+1)%n],dx=b[0]-a[0],dy=b[1]-a[1],L2=dx*dx+dy*dy||1e-9;
+  const ax=a[0],ay=a[1],x0=mx(0,Math.floor(mn(ax,b[0])-reach)),x1=mn(W-1,Math.ceil(mx(ax,b[0])+reach));
+  const y0=mx(0,Math.floor((mn(ay,b[1])-reach)*k)),y1=mn(H-1,Math.ceil((mx(ay,b[1])+reach)*k));
+  for(let y=y0;y<=y1;y++){const wy=(y+.5)/k,row=y*W;for(let x=x0;x<=x1;x++){const wx=x+.5;let f=((wx-ax)*dx+(wy-ay)*dy)/L2;f=f<0?0:f>1?1:f;const ex=wx-ax-dx*f,ey=wy-ay-dy*f,q=ex*ex+ey*ey;
+   if(q<best[row+x]){best[row+x]=q;seg[row+x]=i;}}}}
+ const R2=reach*reach;
+ for(let j=0;j<N;j++){if(!(best[j]<=R2))continue;const i=seg[j],a=P[i],b=P[(i+1)%n],dx=b[0]-a[0],dy=b[1]-a[1],L2=dx*dx+dy*dy||1e-9,x=j%W,y=(j-x)/W,wx=x+.5,wy=(y+.5)/K;
+  const f=clamp(((wx-a[0])*dx+(wy-a[1])*dy)/L2,0,1),ex=wx-a[0]-dx*f,ey=wy-a[1]-dy*f,d=Math.sqrt(best[j]),l=d||1;
+  fn(x,y,i,f,dx*ey-dy*ex>=0?1:-1,d,d?Math.hypot(ex/l,ey/l/K):1);}
+}
+// Pixels of the course markings in screen px: the two lane edges, curbs on tight bends, the dashed centre guide line (2 px
+// dash every 7 px, left out where it runs inside another part of the lane) and a two-row checker start line under the gate.
+// Exposed for tests; drawGround plots them (edge and curb pixels 1 × 1, guide and start pixels 2 × 2).
 function trackMarks(layout,plot,W,H){
  const t=layout&&layout.track;if(!t||!Array.isArray(t.pts)||t.pts.length<3)return;
- const P=t.pts,n=P.length,hw=t.half;
- const edge=(i,side)=>{const a=P[(i+n-1)%n],b=P[(i+1)%n],dx=b[0]-a[0],dy=b[1]-a[1],l=Math.hypot(dx,dy)||1,p=P[i];return [p[0]-side*hw*dy/l,(p[1]+side*hw*dx/l)*K];};
- for(const side of [-1,1]){let prev=edge(0,side);for(let i=1;i<=n;i++){const next=edge(i%n,side);plotLine(prev[0],prev[1],next[0],next[1],(x,y)=>plot(x,y,'edge'),W,H);prev=next;}}
+ const P=t.pts,n=P.length,hw=t.half,curbs=curbFlags(t.curbs||trackCurbs(P),n);
+ // Distance along each curb's middle line (per side), so the stripes are the same length round the inside and the outside.
+ const along=[-1,1].map(side=>{const m=hw+CURB_W/2,c=[0],off=i=>{const a=P[(i+n-1)%n],b=P[(i+1)%n],dx=b[0]-a[0],dy=b[1]-a[1],l=Math.hypot(dx,dy)||1;return [P[i][0]-side*m*dy/l,P[i][1]+side*m*dx/l];};
+  let prev=off(0);for(let i=1;i<=n;i++){const q=off(i%n);c.push(c[i-1]+Math.hypot(q[0]-prev[0],q[1]-prev[1]));prev=q;}return c;});
+ laneField(P,W,H,hw+CURB_W+3,(x,y,i,f,side,d,g)=>{
+  const e=(d-hw)/g;if(Math.abs(e)<=EDGE_PX){plot(x,y,'edge');return;}
+  if(e<0||!curbs[i]||d-hw>CURB_W+g*.5)return;
+  if(Math.abs(d-hw-CURB_W)<=g*.5){plot(x,y,'curb');return;}
+  const c=along[side<0?0:1],s=c[i]+(c[i+1]-c[i])*f;if(Math.floor(s/CURB_STRIPE)%2===0)plot(x,y,'curb');
+ });
+ // Guide dashes stop where another part of the lane (more than 3 lane widths away along it) covers the centreline.
+ const shared=new Uint8Array(n);
+ if(t.cross){const cum=arcLengths(P),L=cum[n],gap=6*hw;
+  for(let i=0;i<n;i++)for(let j=0;j<n;j++){const s=Math.abs(cum[i]-cum[j]);if(Math.min(s,L-s)<gap)continue;if(Math.hypot(P[i][0]-P[j][0],P[i][1]-P[j][1])<hw+2){shared[i]=1;break;}}}
  let run=0;
  for(let i=0;i<n;i++){const a=P[i],b=P[(i+1)%n],x0=a[0],y0=a[1]*K,x1=b[0],y1=b[1]*K,m=Math.max(1,Math.round(Math.hypot(x1-x0,y1-y0)));
-  for(let k=0;k<m;k++,run++)if(run%7<2){const x=Math.round(x0+(x1-x0)*k/m),y=Math.round(y0+(y1-y0)*k/m);if(x>=0&&y>=0&&x<W&&y<H)plot(x,y,'guide');}}
+  for(let k=0;k<m;k++,run++)if(run%7<2&&!shared[i]){const x=Math.round(x0+(x1-x0)*k/m),y=Math.round(y0+(y1-y0)*k/m);if(x>=0&&y>=0&&x<W&&y<H)plot(x,y,'guide');}}
  const g=layout.gate;if(!g)return;const c=Math.cos(g.a),s=Math.sin(g.a);
  for(let q=-hw;q<hw;q+=.5)for(let al=-2;al<2;al+=.5){if((Math.floor((q+hw)/2)+Math.floor((al+2)/2))%2)continue;
   const x=Math.round(g.x-s*q+c*al),y=Math.round((g.y+c*q+s*al)*K);if(x>=0&&y>=0&&x<W&&y<H)plot(x,y,'start');}
@@ -850,7 +994,8 @@ function drawGround(gc,A,layout){
  const W=A.W,H=A.H,dot=(x,y)=>gc.fillRect(x,y,1,1);
  gc.fillStyle=paper;gc.fillRect(0,0,W,H);gc.fillStyle=ink;
  for(let y=15;y<H;y+=20)for(let x=15;x<W;x+=20)if(((x*17+y*13)%7)<4)dot(x,y);
- trackMarks(layout,(x,y)=>gc.fillRect(x,y,2,2),W,H);
+ trackMarks(layout,(x,y,k)=>{const s=k==='edge'||k==='curb'?1:2;gc.fillRect(x,y,s,s);},W,H);
+ if(layout&&layout.lot)lotMarks(layout,(x,y)=>dot(x,y),W,H,keepOuts(A));
  // The gate itself (arch, legs and its shadow) is drawn per frame from cached sprites (task 07); the ground stays plain under it.
  for(const [x,y] of [[8,8],[W-9,8],[8,H-9],[W-9,H-9]]){gc.fillRect(x-2,y,5,1);gc.fillRect(x,y-2,1,5);}
 }
@@ -858,11 +1003,14 @@ function createWorld(id='compact',arena=DEFAULT_ARENA) {
  const p=PRESETS[id],layout=layoutCourse(arena),s=layout.spawn;
  const car={x:s.x,y:s.y,px:s.x,py:s.y,a:s.a,pa:s.a,vx:0,vy:0,omega:0,steer:0,slip:0,braking:false,skidding:false,...uprightState()};
  // Each cone keeps its home (hx, hy) so resetCones() and a world reset restore the course.
- const cones=layout.cones.map(({x,y},i)=>({x,y,hx:x,hy:y,px:x,py:y,vx:0,vy:0,a:(i*.7)%TAU,pa:(i*.7)%TAU,omega:0,tipped:false}));
+ const cones=layout.cones.map(bodyFrom);
  // trackBreak: set by the simulation (edge transfer, roll start); the renderer consumes it and starts a new skid segment.
  return {id,p,arena,layout,car,cones,time:0,wraps:0,hits:0,trackBreak:false,manual:false,gear:1,shiftTime:0};
 }
-function resetCones(w){w.cones.forEach((o,i)=>Object.assign(o,{x:o.hx,y:o.hy,px:o.hx,py:o.hy,vx:0,vy:0,omega:0,a:(i*.7)%TAU,pa:(i*.7)%TAU,tipped:false}));}
+// A movable body from a layout entry: a cone, or (round 4) a shopping cart (kind 'cart', its own radius r, mass m, home heading).
+function bodyFrom(h,i){const a=Number.isFinite(h.a)?h.a:(i*.7)%TAU,o={x:h.x,y:h.y,hx:h.x,hy:h.y,ha:a,px:h.x,py:h.y,vx:0,vy:0,a,pa:a,omega:0,tipped:false};if(h.kind)Object.assign(o,{kind:h.kind,r:h.r,m:h.m});return o;}
+const bodyR=o=>o.r||CONE_R,bodyM=o=>o.m||CONE_MASS;
+function resetCones(w){w.cones.forEach((o,i)=>{const a=Number.isFinite(o.ha)?o.ha:(i*.7)%TAU;Object.assign(o,{x:o.hx,y:o.hy,px:o.hx,py:o.hy,vx:0,vy:0,omega:0,a,pa:a,tipped:false});});}
 function limitVelocity(o,max){const s=Math.hypot(o.vx,o.vy);if(s>max){o.vx*=max/s;o.vy*=max/s;}}
 // Automatic clutch and safe downshifts keep the five-speed stick approachable.
 const GEARS=[0,.36,.54,.72,.88,1.08],GEAR_TORQUE=[0,1.2,1.1,1,.9,.82],SPEED_TO_KMH=.6;
@@ -909,22 +1057,24 @@ function drive(w,input,dt){
 }
 function carCone(w,o){
  if(w.p.flying)return 0;
- const c=w.car,p=w.p,dx=o.x-c.x,dy=o.y-c.y,bound=p.length*.5+p.width*.5+CONE_R;
+ const c=w.car,p=w.p,R=bodyR(o),dx=o.x-c.x,dy=o.y-c.y,bound=p.length*.5+p.width*.5+R;
  if(Math.abs(dx)>bound||Math.abs(dy)>bound)return;
  const cs=Math.cos(c.a),sn=Math.sin(c.a),lx=dx*cs+dy*sn,ly=-dx*sn+dy*cs,hl=p.length/2,hw=p.width/2;
  let qx=clamp(lx,-hl,hl),qy=clamp(ly,-hw,hw),nx=lx-qx,ny=ly-qy,dist=Math.hypot(nx,ny),penetration;
- if(dist>=CONE_R)return;
- if(dist<1e-8){const gx=hl-Math.abs(lx),gy=hw-Math.abs(ly);if(gx<gy){nx=lx>=0?1:-1;ny=0;qx=nx*hl;penetration=CONE_R+gx;}else{nx=0;ny=ly>=0?1:-1;qy=ny*hw;penetration=CONE_R+gy;}}
- else {nx/=dist;ny/=dist;penetration=CONE_R-dist;}
+ if(dist>=R)return;
+ if(dist<1e-8){const gx=hl-Math.abs(lx),gy=hw-Math.abs(ly);if(gx<gy){nx=lx>=0?1:-1;ny=0;qx=nx*hl;penetration=R+gx;}else{nx=0;ny=ly>=0?1:-1;qy=ny*hw;penetration=R+gy;}}
+ else {nx/=dist;ny/=dist;penetration=R-dist;}
  const normalX=cs*nx-sn*ny,normalY=sn*nx+cs*ny,rx=cs*qx-sn*qy,ry=sn*qx+cs*qy;
- const invA=1/p.mass,invB=1/CONE_MASS,inertia=p.mass*(p.length*p.length+p.width*p.width)/12;
+ const invA=1/p.mass,invB=1/bodyM(o),inertia=p.mass*(p.length*p.length+p.width*p.width)/12;
  const contactVX=c.vx-c.omega*ry,contactVY=c.vy+c.omega*rx;
  const relative=(o.vx-contactVX)*normalX+(o.vy-contactVY)*normalY;
  if(relative<0){
   const cross=rx*normalY-ry*normalX,j=-(1.12)*relative/(invA+invB+cross*cross/inertia);
   c.vx-=j*normalX*invA;c.vy-=j*normalY*invA;c.omega-=cross*j/inertia;
   o.vx+=j*normalX*invB;o.vy+=j*normalY*invB;
-  if(j*invB>8){if(!o.tipped)w.hits++;o.tipped=true;o.a=Math.atan2(o.vy,o.vx);o.omega=clamp(cross*.08,-3,3);}
+  // A cart never tips: an off-centre knock spins it on its casters instead.
+  if(o.kind==='cart'){if(j*invB>4)w.hits++;o.omega=clamp(o.omega+(normalX*ry-normalY*rx)*j*invB*.004,-4,4);}
+  else if(j*invB>8){if(!o.tipped)w.hits++;o.tipped=true;o.a=Math.atan2(o.vy,o.vx);o.omega=clamp(cross*.08,-3,3);}
   // Task 10: bounded results at the faster top speeds (a cone can never outrun CONE_MAX; the car's spin stays bounds-safe).
   limitVelocity(o,CONE_MAX);c.omega=clamp(c.omega,-OMEGA_MAX,OMEGA_MAX);
  }
@@ -933,12 +1083,14 @@ function carCone(w,o){
 }
 // Plain arena coordinates: no seam wrapping (task 05), so nothing collides across an edge. The third argument is unused.
 function coneCone(a,b){
- let dx=b.x-a.x,dy=b.y-a.y,d2=dx*dx+dy*dy;
- if(d2>=4*CONE_R*CONE_R)return;
+ const R=bodyR(a)+bodyR(b);let dx=b.x-a.x,dy=b.y-a.y,d2=dx*dx+dy*dy;
+ if(d2>=R*R)return;
+ // Mass shares (both 1 for two cones, as before): a heavy cart shoves a cone aside and barely slows.
+ const ma=bodyM(a),mb=bodyM(b),wa=2*mb/(ma+mb),wb=2*ma/(ma+mb);
  let d=Math.sqrt(d2),nx=d>1e-8?dx/d:1,ny=d>1e-8?dy/d:0;
  const rel=(b.vx-a.vx)*nx+(b.vy-a.vy)*ny;
- if(rel<0){const j=-rel*.56;a.vx-=nx*j;a.vy-=ny*j;b.vx+=nx*j;b.vy+=ny*j;}
- const push=Math.max(0,2*CONE_R-d-.01)*.45;a.x-=nx*push;a.y-=ny*push;b.x+=nx*push;b.y+=ny*push;
+ if(rel<0){const j=-rel*.56;a.vx-=nx*j*wa;a.vy-=ny*j*wa;b.vx+=nx*j*wb;b.vy+=ny*j*wb;}
+ const push=Math.max(0,R-d-.01)*.45;a.x-=nx*push*wa;a.y-=ny*push*wa;b.x+=nx*push*wb;b.y+=ny*push*wb;
 }
 // ---- Edge transfer (task 05; contract §5 as amended by §11). The arena is a fixed screen, and nothing is ever drawn twice.
 // A body moves to the opposite side only once its whole sprite + shadow box is TRANSFER_MARGIN px past an edge. It keeps its
@@ -948,6 +1100,8 @@ function coneCone(a,b){
 const TRANSFER_MARGIN=2;
 // Every cone pixel (upright, 16 tipped frames and their task 07 shadows) relative to its integer anchor, plus 1 px; checked by a test.
 const CONE_BOX={l:-7,t:-10,r:8,b:5};
+// Round 4: every stray-cart pixel (any heading, with its shadow) relative to its anchor, plus a margin.
+const CART_BOX={l:-12,t:-17,r:17,b:12};
 // Moves o across at most one X edge, then one Y edge. Returns the world-unit offset applied ({dx:0, dy:0} when nothing moved).
 function transferBody(o,box,A){
  const M=TRANSFER_MARGIN,sx=o.x,sy=o.y*K,bw=box.r-box.l,bh=box.b-box.t;let dx=0,dy=0;
@@ -962,7 +1116,7 @@ function transferBody(o,box,A){
 function transferEdges(w){
  const c=w.car,A=w.arena,t=transferBody(c,carScreenBounds(w.p,c.a,c.roll||0),A);
  if(t.dx||t.dy){w.wraps++;w.trackBreak=true;}
- for(const o of w.cones)transferBody(o,CONE_BOX,A);
+ for(const o of w.cones)transferBody(o,o.kind==='cart'?CART_BOX:CONE_BOX,A);
  return t;
 }
 // Proportionally maps every object into a new arena after a viewport resize (contract §1). Tracks are cleared by the caller.
@@ -976,15 +1130,16 @@ function resizeWorld(w,arena){
  // untouched scenery, and add newly needed cones; displaced cones remain in the world.
  w.layout=layoutCourse(arena);
  w.cones=w.cones.filter((o,i)=>i<w.layout.cones.length||!home[i]);
- w.cones.forEach((o,i)=>{const h=w.layout.cones[i];if(h){o.hx=h.x;o.hy=h.y;if(home[i]){o.x=o.px=h.x;o.y=o.py=h.y;}}else{o.hx*=sx;o.hy*=sy;}});
- for(let i=w.cones.length;i<w.layout.cones.length;i++){const {x,y}=w.layout.cones[i],a=(i*.7)%TAU;w.cones.push({x,y,hx:x,hy:y,px:x,py:y,vx:0,vy:0,a,pa:a,omega:0,tipped:false});}
+ w.cones.forEach((o,i)=>{const h=w.layout.cones[i];if(h&&(h.kind||'')===(o.kind||'')){o.hx=h.x;o.hy=h.y;if(home[i]){o.x=o.px=h.x;o.y=o.py=h.y;}}else{o.hx*=sx;o.hy*=sy;}});
+ for(let i=w.cones.length;i<w.layout.cones.length;i++)w.cones.push(bodyFrom(w.layout.cones[i],i));
  w.arena=arena;w.trackBreak=true;
 }
 // ---- Task 10: gate posts are immovable circles {x, y, r} in world units (contract §11: layout.gate.posts). Plain arena
 // coordinates, no seam maths (contract §5). Only the posts collide; the opening between them is empty.
+// Round 4: the parking lot's fixed colliders (corral rails and corralled carts, layout.posts) join the gate posts.
 function gatePosts(w){
- const g=w&&w.layout&&w.layout.gate,posts=g&&Array.isArray(g.posts)?g.posts:null;
- return posts?posts.filter(q=>q&&Number.isFinite(q.x)&&Number.isFinite(q.y)&&q.r>0):[];
+ const L=w&&w.layout,g=L&&L.gate,posts=[...(g&&Array.isArray(g.posts)?g.posts:[]),...(L&&Array.isArray(L.posts)?L.posts:[])];
+ return posts.filter(q=>q&&Number.isFinite(q.x)&&Number.isFinite(q.y)&&q.r>0);
 }
 // Car (oriented box) vs post. Restitution POST_E along the normal plus Coulomb friction (POST_MU), so grazing hits scrub speed
 // and off-centre hits spin the car. Neither impulse can add energy. The car is pushed fully out: the post never moves.
@@ -1016,7 +1171,7 @@ function carPost(w,q){
 }
 // Cone vs post: the cone bounces off (restitution CONE_POST_E) and is placed back on the post's surface.
 function conePost(o,q){
- const R=q.r+CONE_R,dx=o.x-q.x,dy=o.y-q.y,d2=dx*dx+dy*dy;
+ const R=q.r+bodyR(o),dx=o.x-q.x,dy=o.y-q.y,d2=dx*dx+dy*dy;
  if(!(d2<R*R))return 0;
  const d=Math.sqrt(d2),s=Math.hypot(o.vx,o.vy),nx=d>1e-8?dx/d:s>1e-8?-o.vx/s:1,ny=d>1e-8?dy/d:s>1e-8?-o.vy/s:0;
  const vn=o.vx*nx+o.vy*ny;
@@ -1029,7 +1184,7 @@ function conePost(o,q){
 // same sum at the fastest car's speed limit, CONE_MAX and OMEGA_MAX: 4 at the 120 Hz step, so cost stays bounded.
 function substeps(w,dt=STEP){
  const c=w.car,half=Math.hypot(w.p.length,w.p.width)/2,speed=Math.hypot(c.vx,c.vy),spin=Math.abs(c.omega)*half;
- const reach=half+CONE_R+(speed+spin)*dt+SUB_MOVE;let cone=0,near=false;
+ const reach=half+CART_R+(speed+spin)*dt+SUB_MOVE;let cone=0,near=false;
  for(const o of w.cones){cone=Math.max(cone,Math.hypot(o.vx,o.vy));if(Math.abs(o.x-c.x)<reach&&Math.abs(o.y-c.y)<reach)near=true;}
  cone=Math.min(CONE_MAX,near?Math.max(cone,1.2*(speed+spin)):cone);
  const worst=(FASTEST*SPEED_CAP+CONE_MAX+OMEGA_MAX*CAR_REACH)*dt;
@@ -1106,7 +1261,10 @@ function step(w,input,dt=STEP){
   // Task 11: only a driving car obeys the input. Tipping keeps its tyres (with no input); the rest slide and tumble.
   const st=c.state||'driving';
   if(st==='driving')drive(w,input,h);else if(st==='tipping')drive(w,NO_INPUT,h);else tumble(w,h);
-  for(const o of w.cones){o.x+=o.vx*h;o.y+=o.vy*h;o.a+=o.omega*h;const drag=Math.exp(-4.1*h);o.vx*=drag;o.vy*=drag;o.omega*=drag;if(Math.hypot(o.vx,o.vy)<.1){o.vx=0;o.vy=0;o.omega=0;}}
+  for(const o of w.cones){o.x+=o.vx*h;o.y+=o.vy*h;o.a+=o.omega*h;const cart=o.kind==='cart',drag=Math.exp((cart?-1.7:-4.1)*h);o.vx*=drag;o.vy*=drag;o.omega*=cart?Math.exp(-3*h):drag;
+   // Round 4: a rolling cart swings round to roll along its length (casters), whichever end leads.
+   if(cart){const s=Math.hypot(o.vx,o.vy);if(s>1){let d=angleDelta(o.a,Math.atan2(o.vy,o.vx));if(Math.abs(d)>Math.PI/2)d=angleDelta(o.a,Math.atan2(o.vy,o.vx)+Math.PI);o.a+=d*Math.min(1,s*h*.06);}}
+   if(Math.hypot(o.vx,o.vy)<.1){o.vx=0;o.vy=0;o.omega=0;}}
   const vx0=c.vx,vy0=c.vy;
   for(let iteration=0;iteration<2;iteration++){
    for(const o of w.cones)carCone(w,o);
@@ -1134,7 +1292,7 @@ function boxDistance(p,cx,cy,a,x,y){const dx=x-cx,dy=y-cy,cs=Math.cos(a),sn=Math
 // arena and off every keepOuts zone, and the body RECOVER_GAP clear of every cone and gate post. {x, y} world units, or null.
 function recoverSpot(w,a,sx,sy){
  const A=w.arena,p=w.p,b=carScreenBounds(p,a,0),E=edgeClear(A),M=SPAWN_INSIDE,zones=keepOuts(A),g=Math.max(2,2*Math.ceil(Math.sqrt(A.W*A.H/40000)/2));
- const obstacles=[...w.cones.map(o=>({x:o.x,y:o.y,r:CONE_R})),...gatePosts(w)],reach=Math.hypot(p.length,p.width)/2+RECOVER_GAP;
+ const obstacles=[...w.cones.map(o=>({x:o.x,y:o.y,r:bodyR(o)})),...gatePosts(w)],reach=Math.hypot(p.length,p.width)/2+RECOVER_GAP;
  const bands=[];let best=null,bd=Infinity;
  for(let y=Math.ceil(Math.max(E,M-b.t)/g)*g;y<=Math.min(A.H-E,A.H-M-b.b);y+=g)for(let x=Math.ceil(Math.max(E,M-b.l)/g)*g;x<=Math.min(A.W-E,A.W-M-b.r);x+=g){
   // Every check uses the screen y the car will really have (world y = y/K, so (y/K)*K can differ from y by 1e-14).
@@ -1185,8 +1343,8 @@ function gateDrawables(w){
 function sceneItems(w,alpha=1){
  const A=w.arena,out=[],seen=(x,y,b)=>!(x+b.r<=0||x+b.l>=A.W||y+b.b<=0||y+b.t>=A.H);
  const car=carDrawable(w,alpha);if(seen(car.x,car.y,car.box))out.push(car);
- for(const o of w.cones){const p=position(o,alpha),x=Math.round(p.x),y=Math.round(p.y*K);if(seen(x,y,CONE_BOX))out.push({type:'cone',x,y,a:p.a,tipped:!!o.tipped,key:y});}
- out.push(...gateDrawables(w));
+ for(const o of w.cones){const p=position(o,alpha),x=Math.round(p.x),y=Math.round(p.y*K),cart=o.kind==='cart';if(seen(x,y,cart?CART_BOX:CONE_BOX))out.push({type:cart?'cart':'cone',x,y,a:p.a,tipped:!!o.tipped,key:y});}
+ out.push(...gateDrawables(w),...propDrawables(w));
  return out;
 }
 const drawOrder=(a,b)=>a.key-b.key||(a.type==='car')-(b.type==='car');
@@ -1488,7 +1646,8 @@ function titleRuns(A,rect,o={}){
 }
 // Where the title goes: the course's titleSpot when it is defined (r3-course), else the fallback, sized for this mask/px.
 function titleRect(layout,A,o={}){
- // The course's spot when it holds a title; otherwise (no spot, or too small) the paint's own search.
+ // The course's spot when it holds a title; otherwise (no spot, or too small) the paint's own search. The parking lot has no title.
+ if(layout&&layout.lot)return null;
  if(typeof titleSpot==='function'){const s=titleSpot(layout,A);if(s&&titleRuns(A,s,o).length)return s;}
  const px=Math.max(1,Math.round(o.px||1)),m=shearMask((o.mask||glyphMask)(TITLE_TEXT,TITLE_MAX));
  return titleFallbackSpot(layout,A,o.zones||keepOuts(A),(m.w+2)/(m.h+2),(TITLE_MAX+4)*px,(TITLE_MIN+2)*px);
@@ -1585,6 +1744,18 @@ function trackThumb(pts,w,h,o={}){
   for(let y=Math.max(0,Math.floor(Math.min(ay,by)-r));y<=Math.min(h-1,Math.ceil(Math.max(ay,by)+r));y++)
    for(let x=Math.max(0,Math.floor(Math.min(ax,bx)-r));x<=Math.min(w-1,Math.ceil(Math.max(ax,bx)+r));x++){
     const px=x+.5,py=y+.5,k=dd?clamp(((px-ax)*dx+(py-ay)*dy)/dd,0,1):0;if(Math.hypot(px-ax-k*dx,py-ay-k*dy)<=r)bits[y*w+x]=1;}}
+ return {w,h,bits};
+}
+// Round 4: 1-bit thumbnail of the parking lot (same w × h frame as trackThumb): each stall row as a comb (back line and a
+// divider every other stall), and the corral as a solid block.
+function lotThumb(L,w,h,pad=2){
+ const bits=new Uint8Array(w*h),lot=L&&L.lot;if(!lot)return {w,h,bits};
+ const s=Math.min((w-2*pad)/(lot.r-lot.l),(h-2*pad)/((lot.b-lot.t)*K)),X=x=>(x-lot.l)*s+(w-(lot.r-lot.l)*s)/2,Y=y=>(y-lot.t)*K*s+(h-(lot.b-lot.t)*K*s)/2;
+ const put=(x,y)=>{x=Math.round(x);y=Math.round(y);if(x>=0&&y>=0&&x<w&&y<h)bits[y*w+x]=1;};
+ for(const q of lot.rows){if(!q.slots.length)continue;const yb=Y(q.back),ym=Y(q.back+q.dir*LOT_STALL_D*.75);
+  for(let x=X(q.slots[0].x0);x<=X(q.slots[q.slots.length-1].x1);x+=.5)put(x,yb);
+  q.slots.forEach((sl,k)=>{if(k%2===0)for(let y=Math.min(yb,ym);y<=Math.max(yb,ym);y+=.5)put(X(sl.x0),y);});}
+ const c=lot.corral;if(c)for(let y=Y(c.y-CORRAL_HW);y<=Y(c.y+CORRAL_HW);y+=.5)for(let x=X(c.xb);x<=X(c.xf);x+=.5)put(x,y);
  return {w,h,bits};
 }
 // Steering wheel maths. Angles are radians, 0 = 12 o'clock, clockwise (screen right) positive.
@@ -1812,6 +1983,60 @@ function coneShadowSprite(tipped=false,a=0){
  }else pts=[[-3,0],[0,-2],[4,0],[1,2]].map(v=>fall(v,0)).concat([fall([.5,0],CONE_H)]);
  r.poly(hull(pts),0,false,r.shadowPixel);return r.finish();
 }
+// ---- Round 4: parking-lot art. A shopping cart (world units; local x forward = nose, the handle at the back): a see-through
+// wire basket (ink-only mesh dots on the sides, open where you look in over the rim, so nested carts show through each other) that tapers toward its floor so carts nest, ink top rim and handle, a low frame and four casters.
+// P maps a world point (x, y, height) to raster px; the cart sits at (cx, cy) with heading a.
+const CART_TOP=7.2,CART_HANDLE=8.3;
+function cartParts(cx,cy,a){
+ const cs=Math.cos(a)*CART_S,sn=Math.sin(a)*CART_S,Q=(x,y,z)=>[cx+x*cs-y*sn,cy+x*sn+y*cs,z*CART_S];
+ return {top:[[-5.2,-3.6],[4.8,-3.6],[4.8,3.6],[-5.2,3.6]].map(([x,y])=>Q(x,y,CART_TOP)),bot:[[-3.4,-2.6],[4.6,-2.6],[4.6,2.6],[-3.4,2.6]].map(([x,y])=>Q(x,y,3.2)),
+  wheels:[[-4,-2.8],[4.2,-2.8],[4.2,2.8],[-4,2.8]].map(([x,y])=>Q(x,y,.4)),frame:[-2.8,2.8].map(y=>[Q(-4.2,y,1),Q(4.4,y,1)]),
+  handle:[Q(-6.3,-3.9,CART_HANDLE),Q(-6.3,3.9,CART_HANDLE)],foot:[[-4.4,-3],[4.6,-3],[4.6,3],[-4.4,3]].map(([x,y])=>Q(x,y,0))};
+}
+function cartArt(r,P,cx,cy,a){
+ const c=cartParts(cx,cy,a),pp=v=>P(...v),top=c.top.map(pp),bot=c.bot.map(pp);
+ for(const w of c.wheels){const q=pp(w);r.pixel(q[0],q[1],0);}
+ for(const [u,v] of c.frame)r.line(pp(u),pp(v),0);
+ // Inside the rim (convex, either winding) the mesh is the floor grid seen from above; elsewhere it is the side mesh.
+ const inRim=(x,y)=>{let pos=0,neg=0;for(let i=0;i<4;i++){const a=top[i],b=top[(i+1)%4],c=(b[0]-a[0])*(y-a[1])-(b[1]-a[1])*(x-a[0]);if(c>0)pos++;else if(c<0)neg++;}return !pos||!neg;};
+ r.poly(hull([...top,...bot]),0,false,(x,y)=>{if(inRim(x+.5,y+.5)||(x&1)||(y&1))return;r.pixel(x,y,0);});
+ // Nose corner posts, the rim, and the handle with its two struts.
+ r.line(top[1],bot[1],0);r.line(top[2],bot[2],0);
+ for(let i=0;i<4;i++)r.line(top[i],top[(i+1)%4],0);
+ const h=c.handle.map(pp);r.line(h[0],h[1],0);r.line(top[0],h[0],0);r.line(top[3],h[1],0);
+}
+// Shadow: the cart's footprint swept to its rim and handle along LIGHT (screen px per unit of height), in the shared dither.
+function cartShadowArt(r,P,cx,cy,a){
+ const c=cartParts(cx,cy,a),S=([x,y,z])=>{const q=P(x,y,0);return [q[0]+LIGHT.x*z,q[1]+LIGHT.y*z];};
+ r.poly(hull([...c.foot,...c.top,...c.handle].map(S)),0,false,r.shadowPixel);
+}
+// The stray cart's frames: CART_FRAMES headings, anchor (16, 20) in a 32 px raster (every pixel inside CART_BOX).
+const CART_FRAMES=32;
+function cartSprite(a){const r=raster(32,16,20);cartArt(r,(x,y,z)=>[16+x,20+K*y-Z*z],0,0,a);return r.finish();}
+function cartShadowSprite(a){const r=raster(32,16,20);cartShadowArt(r,(x,y,z)=>[16+x,20+K*y-Z*z],0,0,a);return r.finish();}
+// Fixed props (layout.props): an integer anchor and the depth key (screen y of the prop's front ground line).
+function propAnchor(p){
+ if(p.type==='rail')return {x:Math.round((p.x0+p.x1)/2),y:Math.round((p.y0+p.y1)/2*K),key:Math.round(Math.max(p.y0,p.y1)*K)};
+ const y=Math.round(p.y*K);return {x:Math.round(p.x),y,key:y};
+}
+function propDrawables(w){const L=w&&w.layout,P=L&&Array.isArray(L.props)?L.props:[];return P.map((p,i)=>({type:'prop',i,...propAnchor(p)}));}
+// One fixed prop's sprite and shadow as raw rasters with the same anchor (ax, ay): a corral rail piece (two bars at RAIL_LOW
+// and RAIL_HIGH, uprights where p0 / p1 say), the corral's sign panel, or a corralled cart.
+const RAIL_LOW=3,RAIL_HIGH=7.5;
+function propArt(p){
+ const size=40,ax=20,ay=24,A=propAnchor(p),r=raster(size,ax,ay),sh=raster(size,ax,ay),P=(x,y,z)=>[ax+x-A.x,ay+y*K-A.y-Z*z],S=(x,y,z)=>{const q=P(x,y,0);return [q[0]+LIGHT.x*z,q[1]+LIGHT.y*z];};
+ const shLine=(u,v)=>{const n=Math.ceil(Math.hypot(v[0]-u[0],v[1]-u[1])*2)+1;for(let k=0;k<=n;k++)sh.shadowPixel(u[0]+(v[0]-u[0])*k/n,u[1]+(v[1]-u[1])*k/n);};
+ if(p.type==='rail'){
+  for(const z of [RAIL_LOW,RAIL_HIGH])shLine(S(p.x0,p.y0,z),S(p.x1,p.y1,z));
+  for(const [on,x,y] of [[p.p0,p.x0,p.y0],[p.p1,p.x1,p.y1]])if(on){shLine(S(x,y,0),S(x,y,RAIL_HIGH+.5));r.line(P(x,y,0),P(x,y,RAIL_HIGH+.5),0);}
+  for(const z of [RAIL_LOW,RAIL_HIGH])r.line(P(p.x0,p.y0,z),P(p.x1,p.y1,z),0);
+ }else if(p.type==='sign'){
+  const q=[[-5,2.5],[5,2.5],[5,RAIL_HIGH+.5],[-5,RAIL_HIGH+.5]];
+  sh.poly(hull(q.map(([u,z])=>S(p.x+u,p.y,z)).concat([S(p.x-5,p.y,0),S(p.x+5,p.y,0)])),0,false,sh.shadowPixel);
+  r.poly(q.map(([u,z])=>P(p.x+u,p.y,z)),.25,true);r.line(P(p.x-2,p.y,3),P(p.x+1,p.y,RAIL_HIGH),1);r.line(P(p.x-1,p.y,3),P(p.x+2,p.y,RAIL_HIGH),1);
+ }else if(p.type==='cart')cartArt(r,P,p.x,p.y,p.a); // corralled carts: no shadow of their own (it only muddies the stack)
+ return {sprite:r.finish(true),shadow:sh.finish(true),ax,ay};
+}
 // ---- Task 07: the drivable half-ring gate. An upright, two-tone arch over layout.gate's posts, in the plane y = gate.y.
 // Legs are the posts (round columns of radius r on the colliders, round 2; see inGate); a rounded beam joins them over the
 // opening (inner clear height gate.height, thickness 2r). The front face is ink (it faces away from the light); the top and
@@ -1886,6 +2111,7 @@ if(typeof document==='undefined'){if(typeof module!=='undefined'){
  Object.assign(module.exports,{buildCourse,fitTrack,roundedPath,circuitVerts,laneHalf,laneSelfClear,gateSpot,trackMarks,LANE_PAD,LANE_GAP,GATE_LEAD,TRACK_STEP,CONE_OFF,inGate,TRACKS,TRACK_SHAPES,TRACK_HALF,TRACK_FILL,shapeUnit,trackSelfClear,insideLoop,titleSpot,trackRadiusOk,TRACK_MIN_R}); // sim + course extra exports (r2-sim)
  Object.assign(module.exports,{wheelLimit,wheelInput,wheelAngle,GEAR_GATE,gearSlot,stickMove,stickSlot,stickPath,pathPoint,TUNING_STORE,loadTuning,saveTuning,tuningGroups,uiPx,SPEED_EM,speedFit,shiftKeyW,shiftKeyGap,shiftKeyLayout,gearCues,trackThumbSize,trackThumb}); // ui extra exports (r2-ui, r3-ui)
  Object.assign(module.exports,{stripeH,scaleRuns,PAINT_PX_CSS,TITLE_TEXT,TITLE_MAX,TITLE_MIN,TITLE_GAP,TITLE_CELL,paintPx,titleFit,titleFallbackSpot,titleRuns,titleRect,drawTitle}); // ground paint extra exports (r2-paint)
+ Object.assign(module.exports,{EDGE_PX,CURB_W,CURB_R,CURB_STRIPE,trackCurbs,curbFlags,laneField,buildParking,lotMarks,lotThumb,ACCESS_MARK,LOT_STALL_W,LOT_STALL_D,CART_R,CART_MASS,CART_BOX,CART_FRAMES,cartSprite,cartShadowSprite,propArt,propAnchor,propDrawables,bodyFrom,bodyR,bodyM,CORRAL_HW,CORRAL_HL}); // round 4: lane paint and parking lot
  Object.assign(module.exports,{TILT_MAX,TILT_PITCH,TILT_STEPS,TILT_STEP,droneTiltPoint,tiltIndex,droneTilt,droneParts,droneSprite,droneShadow}); // drone tilt
 }return;}
 
@@ -1948,6 +2174,10 @@ function drawCar(target,id,layer,i,x,y,roll=world.car.roll||0,tilt=tiltIndex(wor
 // Selector thumbnails need one frame per car, so they are rendered on their own instead of forcing every sheet.
 function toCanvas(raw){const c=makeCanvas(raw.width,raw.height);c.getContext('2d').putImageData(new ImageData(raw.data,raw.width,raw.height),0,0);return c;}
 const uprightCone=coneSprite(),tippedCones=Array.from({length:16},(_,i)=>coneSprite(true,i*TAU/16));
+// Round 4: the stray cart's heading frames, and each fixed lot prop's sprite (cached by its geometry).
+const cartFrames=Array.from({length:CART_FRAMES},(_,i)=>cartSprite(i*TAU/CART_FRAMES)),cartShades=Array.from({length:CART_FRAMES},(_,i)=>cartShadowSprite(i*TAU/CART_FRAMES));
+const propCanvases=new Map();
+function propSprites(p){const key=JSON.stringify(p);let c=propCanvases.get(key);if(!c){const art=propArt(p);c={sprite:toCanvas(art.sprite),shadow:toCanvas(art.shadow),ax:art.ax,ay:art.ay};if(propCanvases.size>400)propCanvases.clear();propCanvases.set(key,c);}return c;}
 const uprightShade=coneShadowSprite(),tippedShades=Array.from({length:16},(_,i)=>coneShadowSprite(true,i*TAU/16));
 // Gate sprites (task 07): rasterised once per gate geometry by gateArt(), converted to canvases once, reused across resizes.
 const gateCanvases=new WeakMap();
@@ -2008,11 +2238,15 @@ function drawCarItem(o,layer){drawCar(ctx,world.id,layer,o.frame,o.x,o.y,o.roll|
 function drawShadow(o){
  if(o.type==='car')drawCarItem(o,'shadow');
  else if(o.type==='cone')ctx.drawImage(o.tipped?tippedShades[frameIndex(o.a,16)]:uprightShade,o.x-10,o.y-14);
+ else if(o.type==='cart')ctx.drawImage(cartShades[frameIndex(o.a,CART_FRAMES)],o.x-16,o.y-20);
+ else if(o.type==='prop'){const c=propSprites(world.layout.props[o.i]);ctx.drawImage(c.shadow,o.x-c.ax,o.y-c.ay);}
  else if(o.type==='gate'&&o.part==='leg0'){const g=gateSprites(world.layout.gate),b=g.art.shadowBox;ctx.drawImage(g.shadow,o.x-b.ax,o.y-b.ay);}
 }
 function drawItem(o){
  if(o.type==='car')drawCarItem(o,'car');
  else if(o.type==='cone')ctx.drawImage(o.tipped?tippedCones[frameIndex(o.a,16)]:uprightCone,o.x-10,o.y-14);
+ else if(o.type==='cart')ctx.drawImage(cartFrames[frameIndex(o.a,CART_FRAMES)],o.x-16,o.y-20);
+ else if(o.type==='prop'){const c=propSprites(world.layout.props[o.i]);ctx.drawImage(c.sprite,o.x-c.ax,o.y-c.ay);}
  else if(o.type==='gate'){const g=gateSprites(world.layout.gate),b=g.art.box;ctx.drawImage(g[o.part],o.x-b.ax,o.y-b.ay);}
 }
 // Contract §6 order: ground, tracks, every shadow, then the depth-sorted drawables (cones, car, gate legs; the arch top last).
@@ -2168,7 +2402,7 @@ function syncTracks(){
  const A=world.arena,key=A.W+'x'+A.H+'|'+A.mobile+'|'+A.uiU;if(key!==thumbKey){thumbKey=key;thumbMasks={};}
  for(const b of trackButtons){
   const id=b.dataset.track,on=id===SELECTED_TRACK,c=b.querySelector('canvas');b.setAttribute('aria-pressed',String(on));
-  if(!(id in thumbMasks)){try{const sz=trackThumbSize(A.W,A.H),L=buildCourse({...A,E:edgeClear(A)},[],id);thumbMasks[id]=trackThumb(L.track.pts.map(p=>[p[0],p[1]*K]),sz.w,sz.h);}catch(_){thumbMasks[id]=null;}}
+  if(!(id in thumbMasks)){try{const sz=trackThumbSize(A.W,A.H),L=buildCourse({...A,E:edgeClear(A)},[],id);thumbMasks[id]=L.lot?lotThumb(L,sz.w,sz.h):trackThumb(L.track.pts.map(p=>[p[0],p[1]*K]),sz.w,sz.h);}catch(_){thumbMasks[id]=null;}}
   const m=thumbMasks[id];if(!m){c.width=c.height=1;continue;}
   if(c.width!==m.w||c.height!==m.h){c.width=m.w;c.height=m.h;}
   const cx=c.getContext('2d');cx.fillStyle=on?ink:paper;cx.fillRect(0,0,m.w,m.h);cx.fillStyle=on?paper:ink;
