@@ -105,13 +105,15 @@ kbd{display:inline-block;min-width:13px;padding:0 2px;border:1px solid var(--lin
 .pedal.on span{background:var(--ink);color:var(--screen)}
 .wheel-face:focus-visible,.pedal:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 /* Mouse-only devices get a smaller indicator in the same zone (still usable with a mouse); touch devices get full size. */
-@media not all and (any-pointer:coarse){.pedal-set{transform:scale(.85);transform-origin:100% 100%}}
+@media not all and (any-pointer:coarse){.pedal-set{transform:scale(.95);transform-origin:100% 100%}}
 /* Round 3 (r3-ui): the entry prompt is a big 2.5D key: light face, ink outline, ink side extruded to the bottom-right. */
 .entry{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);z-index:2;--d:clamp(4px,1vmin,7px);--sw:max(2px,.09em);--sg:max(1px,.05em);border:2px solid var(--ink);background:var(--paper);padding:.42em .75em .48em;font-size:clamp(14px,1.6vmin + 9px,26px);line-height:1.1;letter-spacing:.01em;max-width:calc(100vw - 32px);text-align:center;box-shadow:calc(var(--d)*.25) calc(var(--d)*.25) 0 var(--ink),calc(var(--d)*.5) calc(var(--d)*.5) 0 var(--ink),calc(var(--d)*.75) calc(var(--d)*.75) 0 var(--ink),var(--d) var(--d) 0 var(--ink)}
 .entry:hover{background:var(--ink);color:var(--paper)}.entry:active{transform:translate(calc(-50% + var(--d)),calc(-50% + var(--d)));box-shadow:none}
 .entry[hidden]{display:none}
 .safe-probe{position:absolute;visibility:hidden;pointer-events:none;width:0;height:0;padding:var(--safe-t) var(--safe-r) var(--safe-b) var(--safe-l)}
-@media(prefers-reduced-motion:reduce){.rim,.pedal{transition:none}.shift-key.hot{animation:none}}
+@media(prefers-reduced-motion:reduce){.rim,.pedal{transition:none}}
+/* Touch and narrow screens: the shift keys show only their arrows (no Q / E letters). */
+@media(any-pointer:coarse),(max-width:700px){.shift-key b{display:none}}
 /* Round 2: the speed readout is plain floating text in its own zone (no box: the car may drive under it), in heavy italic
    letters made of horizontal stripes like the road paint. --sp is its font size (layoutUI fits it to the zone). */
 /* Round 3 (r3-ui): layoutUI sizes --sp with speedFit() (never tiny at any zoom); the stripes scale with the letters. A zone too
@@ -124,7 +126,7 @@ kbd{display:inline-block;min-width:13px;padding:0 2px;border:1px solid var(--lin
 /* Round 2: the Supercar's gear stick, an H-pattern gate drawn in SVG; the knob is dragged (or moved by Q / E and the arrows). */
 /* Round 3 (r3-ui): no words. Two small 2.5D keycaps beside the stick (inside the gear zone, left of the plate): E with an up
    arrow at the top, Q with a down arrow at the bottom. layoutUI places them with shiftKeyLayout() (--kw ... --ph, CSS px).
-   .hot (gearTelemetry shiftUp) pulses the up key inverted; .off (no higher / lower gear possible) drops the extruded side. */
+   .hot (gearTelemetry shiftUp) turns the up key inverted (solid, no blinking); .off (no higher / lower gear possible) drops the extruded side. */
 .gearstick[hidden]{display:none}
 .gear-keys{position:absolute;left:0;top:var(--pt,0px);width:var(--kw,0px);height:var(--ph,100%);pointer-events:none}
 .shift-key{position:absolute;left:0;width:calc(var(--kw,24px) - var(--kd,3px));height:var(--kh,24px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:max(1px,calc(var(--kh,24px)*.04));border:max(1.5px,calc(var(--kh,24px)*.06)) solid var(--ink);background:var(--paper);color:var(--ink);font:italic 900 calc(var(--kh,24px)*.5)/.8 var(--heavy);box-shadow:calc(var(--kd,3px)*.34) calc(var(--kd,3px)*.34) 0 var(--ink),calc(var(--kd,3px)*.67) calc(var(--kd,3px)*.67) 0 var(--ink),var(--kd,3px) var(--kd,3px) 0 var(--ink)}
@@ -132,8 +134,7 @@ kbd{display:inline-block;min-width:13px;padding:0 2px;border:1px solid var(--lin
 .shift-key svg{display:block;width:46%;height:auto;shape-rendering:crispEdges}
 .shift-key b{font-weight:inherit;padding-right:.06em}
 .shift-key.off{border-style:dashed;box-shadow:none;transform:translate(calc(var(--kd,3px)*.5),calc(var(--kd,3px)*.5))}
-.shift-key.hot{background:var(--ink);color:var(--paper);animation:shift-pulse .5s steps(1,end) infinite}
-@keyframes shift-pulse{50%{background:var(--paper);color:var(--ink)}}
+.shift-key.hot{background:var(--ink);color:var(--paper)}
 .gear-face{position:absolute;inset:0 0 0 var(--fl,0px);touch-action:none;cursor:grab;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
 .gearstick.held .gear-face{cursor:grabbing}
 .gear-face svg{display:block;width:100%;height:100%;overflow:visible;shape-rendering:geometricPrecision}
@@ -143,7 +144,7 @@ kbd{display:inline-block;min-width:13px;padding:0 2px;border:1px solid var(--lin
 <body>
 <main class="playground" id="playground">
   <h1 class="sr-only">8-Bit Drift</h1>
-  <canvas id="game" width="400" height="240" tabindex="0" aria-label="Driving playground. W accelerates, S brakes and reverses, A and D steer. Q and E shift gears on the Supercar. R rights the car after a rollover. Escape pauses. All edges wrap." aria-describedby="driving-help">This playground needs a browser with Canvas 2D support.</canvas>
+  <canvas id="game" width="400" height="240" tabindex="0" aria-label="Driving playground. W accelerates, Space brakes and reverses, A and D steer (arrow keys work too). Q and E shift gears on the Supercar. R rights the car after a rollover. Escape pauses. All edges wrap." aria-describedby="driving-help">This playground needs a browser with Canvas 2D support.</canvas>
   <div class="ui-box hud" id="hud" role="group" aria-label="Car and settings">
     <div class="cars" role="group" aria-label="Pick your car">
       <button class="car-choice" data-car="compact" aria-pressed="true" aria-label="Compact: light and nimble" title="Compact: light &amp; nimble"><canvas width="48" height="36" aria-hidden="true"></canvas></button>
@@ -162,7 +163,7 @@ kbd{display:inline-block;min-width:13px;padding:0 2px;border:1px solid var(--lin
     <p class="readout"><span class="live" id="live" data-running="false"><span class="light" aria-hidden="true"></span><output id="status">READY</output></span><span class="fps"><output id="fps">—</output> FPS</span></p>
   </section>
   <div class="ui-box wheel" id="wheel"><div class="wheel-face" id="wheel-face" role="slider" tabindex="0" aria-label="Steering wheel" aria-orientation="horizontal" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0" aria-valuetext="centred" title="Drag to steer (or hold A / D, or the arrow keys while focused)"><div class="rim" id="rim"><svg viewBox="0 0 100 100" aria-hidden="true"><defs><pattern id="wheel-dither" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 0h1v1H0zm1 1h1v1H1z"/></pattern><pattern id="wheel-stripes" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 1h2v1H0z"/></pattern></defs><circle cx="50" cy="52" r="43" fill="none" stroke="#30342d" stroke-width="12"/><circle cx="50" cy="49" r="43" fill="none" stroke="#30342d" stroke-width="11"/><circle class="chain" cx="50" cy="49" r="43" fill="none" stroke="url(#wheel-dither)" stroke-width="4.6" stroke-dasharray="4.2 2.55" stroke-linecap="round"/><circle cx="50" cy="49" r="43" fill="none" stroke="#30342d" stroke-width="1.6" stroke-dasharray="2.2 4.55" stroke-dashoffset="-1"/><path d="M10 49C24 49 34 48 43 50M90 49C76 49 66 48 57 50M50 58V91" fill="none" stroke="#30342d" stroke-width="7" stroke-linecap="round"/><path d="M13 47H38M62 47H87M48 65V88" fill="none" stroke="url(#wheel-dither)" stroke-width="2"/><circle cx="50" cy="51" r="17" fill="#30342d"/><circle cx="50" cy="48" r="14" fill="#bfc1b1" stroke="#30342d" stroke-width="2"/><path d="M37 44A14 14 0 0 1 63 44" fill="none" stroke="url(#wheel-dither)" stroke-width="4"/><path class="marker" d="M42.5 0.5h15l-2 12h-11z" fill="url(#wheel-stripes)" stroke="#30342d" stroke-width="1.6" stroke-linejoin="round"/><path d="M47 4.5h6l-3 5z" fill="#30342d"/></svg></div></div></div>
-  <div class="ui-box pedals" id="pedals" role="group" aria-label="Pedals"><div class="pedal-set"><button class="pedal" id="pedal-brake" type="button" aria-label="Brake and reverse (hold)" title="Brake (S)"><span aria-hidden="true">BRAKE</span></button><button class="pedal" id="pedal-gas" type="button" aria-label="Gas (hold)" title="Gas (W)"><span aria-hidden="true">GAS</span></button></div></div>
+  <div class="ui-box pedals" id="pedals" role="group" aria-label="Pedals"><div class="pedal-set"><button class="pedal" id="pedal-brake" type="button" aria-label="Brake and reverse (hold)" title="Brake (Space)"><span aria-hidden="true">BRAKE</span></button><button class="pedal" id="pedal-gas" type="button" aria-label="Gas (hold)" title="Gas (W)"><span aria-hidden="true">GAS</span></button></div></div>
   <p class="sr-only" id="driving-help">W accelerates. S brakes, then reverses. A and D steer. Escape pauses. On touch screens, drag the steering wheel and hold the gas or brake pedal. If the car rolls over, press R or use the Right the car button that appears next to the car chooser. The edges are connected. The Supercar has a five-speed gear stick: Q shifts down and E shifts up, or drag the stick's knob through the H gate (on the focused stick, the arrow keys or 1 to 5 shift). The same instructions are painted on the ground.</p>
   <p class="ui-box speed" id="speed" aria-hidden="true"><span class="big" id="speed-value">0</span><span class="unit"><span>KM</span><span>/H</span></span><span class="gear-read" id="gear-read" hidden><span class="big" id="gear-value">1</span><span class="unit"><span>GEAR</span></span></span></p>
   <div class="ui-box gearstick" id="gearstick" hidden><div class="gear-keys" aria-hidden="true"><span class="shift-key up" id="shift-up"><svg viewBox="0 0 10 7"><path d="M5 0l5 5H7v2H3V5H0z" fill="currentColor"/></svg><b>E</b></span><span class="shift-key down" id="shift-down"><b>Q</b><svg viewBox="0 0 10 7"><path d="M3 0h4v2h3L5 7 0 2h3z" fill="currentColor"/></svg></span></div><div class="gear-face" id="gear-face" role="slider" tabindex="0" aria-label="Gear stick" aria-orientation="vertical" aria-valuemin="1" aria-valuemax="5" aria-valuenow="1" aria-valuetext="gear 1" aria-keyshortcuts="Q E" title="Drag the knob through the H gate (or Q / E)"><svg viewBox="0 0 110 100" aria-hidden="true"><defs><pattern id="gear-dither" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 0h1v1H0zm1 1h1v1H1z"/></pattern><pattern id="gear-stripes" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 1h2v1H0z"/></pattern></defs><path d="M6 6h102v92H6z" fill="#30342d"/><path d="M2 2h102v92H2z" fill="#bfc1b1" stroke="#30342d" stroke-width="2"/><path d="M22 26V74M55 26V74M88 26V50M22 50H88" fill="none" stroke="#30342d" stroke-width="12" stroke-linecap="round"/><path d="M22 26V74M55 26V74M88 26V50M22 50H88" fill="none" stroke="url(#gear-dither)" stroke-width="4" stroke-linecap="round" transform="translate(1.2 1.2)"/><g fill="#30342d" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-style="italic" font-size="12" text-anchor="middle"><text x="22" y="15.5">1</text><text x="22" y="94">2</text><text x="55" y="15.5">3</text><text x="55" y="94">4</text><text x="88" y="15.5">5</text></g><circle cx="55" cy="50" r="13" fill="url(#gear-dither)" stroke="#30342d" stroke-width="2"/><circle id="gear-shadow" cx="26" cy="29" r="10" fill="url(#gear-dither)"/><line id="gear-shaft" x1="55" y1="50" x2="22" y2="26" stroke="#30342d" stroke-width="6" stroke-linecap="round"/><g id="gear-knob" transform="translate(22 26)"><circle r="11.5" fill="#30342d"/><circle r="8.5" fill="none" stroke="url(#gear-stripes)" stroke-width="3"/><text id="gear-num" y="4.2" fill="#bfc1b1" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-style="italic" font-size="11" text-anchor="middle">1</text></g></svg></div></div>
@@ -186,9 +187,9 @@ const PRESETS={
  // grip rises by +33% (compact), +13% (coupe: still slides most) and +56% (van: still grips hardest at its new top speed).
  // Task 11: comHeight = centre-of-mass height (world units, ~40% of the roof); rollThreshold = dynamic load-transfer ratio at
  // which the inner wheels lift (1 = the static tipping point). Tall + grippy (Van) is the most roll-prone, low (Coupe) the least.
- compact:{name:'Compact',artId:'compact',length:31,width:15.6,height:8.1,roof:13.3,wheelbase:21,trackWidth:13,mass:1,accel:78,brake:135,max:153,reverse:45,grip:112,steer:.66,drag:.15,comHeight:5.3,rollThreshold:1.1},
- coupe:{name:'Supercar',artId:'coupe',length:36,width:16.6,height:5.8,roof:9.8,wheelbase:25,trackWidth:14,mass:.95,accel:94,brake:136,max:190,reverse:52,grip:68,steer:.64,drag:.12,comHeight:4.2,rollThreshold:1.2},
- van:{name:'Drone',artId:'van',flying:true,flightHeight:20,length:28,width:18,height:9.4,roof:18,wheelbase:20,trackWidth:15.4,mass:1,accel:74,brake:110,max:140,reverse:42,grip:125,steer:.62,drag:.17,comHeight:2,rollThreshold:10}
+ compact:{name:'Compact',artId:'compact',length:31,width:15.6,height:8.1,roof:13.3,wheelbase:21,trackWidth:13,mass:1,accel:105,brake:182,max:207,reverse:61,grip:112,steer:.66,drag:.15,comHeight:5.3,rollThreshold:1.1},
+ coupe:{name:'Supercar',artId:'coupe',length:36,width:16.6,height:5.8,roof:9.8,wheelbase:25,trackWidth:14,mass:.95,accel:127,brake:184,max:257,reverse:70,grip:68,steer:.64,drag:.12,comHeight:4.2,rollThreshold:1.2},
+ van:{name:'Drone',artId:'van',flying:true,flightHeight:20,length:28,width:18,height:9.4,roof:18,wheelbase:20,trackWidth:15.4,mass:1,accel:125,brake:186,max:236,reverse:71,grip:125,steer:.62,drag:.17,comHeight:2,rollThreshold:10}
 };
 // Art-only shape parameters (not physics). x positions are fractions of half-length, + = front. Shades: 0 ink … 1 paper.
 const CAR_ART={
@@ -225,7 +226,7 @@ const TUNING_SPEC=[
  {key:'wheelCurve',group:'wheel',label:'Centre softness',min:.3,max:5,step:.1,def:1.2},
  {key:'kickback',group:'wheel',label:'Wheel kickback',min:0,max:5,step:.05,def:.5},
  {key:'droneTilt',group:'drone',label:'Drone tilt',min:0,max:2,step:.05,def:1},
- {key:'viewShort',group:'view',label:'Zoom out',unit:'px',min:300,max:1000,step:25,def:750}
+ {key:'viewShort',group:'view',label:'Zoom out',unit:'px',min:300,max:1000,step:25,def:575}
 ];
 const TUNING_DEFAULTS=Object.freeze(Object.fromEntries(TUNING_SPEC.map(s=>[s.key,s.def])));
 const TUNING={...TUNING_DEFAULTS};
@@ -1379,7 +1380,7 @@ function paintLayout(zw,zh,o={}){
   return {items:[],w:0,h:0,mode:'none'};
  }
  const C=PAINT_COPY,shift=!!o.shift;
- // Keycaps k px wide. arr 'side': LEFT / RIGHT beside A / D, BRAKE under S; 'under': LEFT BRAKE RIGHT under A S D; 'bare': keys
+ // Keycaps k px wide. arr 'side': LEFT / RIGHT beside A / D, BRAKE beside the double-length SPACE key on its own row; 'bare': keys
  // only. GAS sits right of W, or above it on the Supercar, whose Q / E (real keyboard spots) get DOWN / UP beside or above.
  // Round 3: near-square faces, a deeper extrusion (k/6) and tighter gaps, so the keys are as big as the labels allow.
  const board=(k,arr,lh=9)=>{
@@ -1387,14 +1388,15 @@ function paintLayout(zw,zh,o={}){
   const lt=stripeH(kh*.7),lg=Math.max(3,Math.round(k/6)),labels=arr!=='bare',ol=k>=30?2:1;
   const topY=labels&&shift?ev(lh+lg):0,botY=topY+ev(kh+d+gy);
   const key=(ch,x,y)=>{const m=mask(ch,lt);return {t:'key',ch,x,y,w:k,h:kh,d,m,lt,ol};};
-  const A=key('A',0,botY),S=key('S',p,botY),D=key('D',2*p,botY),W=key('W',p-off,topY),items=[A,S,D,W];
+  const rowH=ev(kh+d+gy),spY=botY+rowH,sw=k+p,spX=Math.round(p/2),A=key('A',0,botY),D=key('D',2*p,botY),W=key('W',p-off,topY),items=[A,D,W];
+  // Space: a double-length key on a row of its own, its word shrunk until it fits (the brake).
+  let sl=lt;while(sl>5&&mask('SPACE',sl).w>sw-4)sl--;
+  const SP={t:'key',ch:'SPACE',x:spX,y:spY,w:sw,h:kh,d,m:mask('SPACE',sl),lt:sl,ol};items.push(SP);
   const Q=key('Q',-off,topY),E=key('E',2*p-off,topY);if(shift)items.push(Q,E);
   if(labels){
    const mid=K=>ev(K.y+(kh-lh)/2),left=(s,K)=>items.push(text(s,lh,K.x-lg-mask(s,lh).w,mid(K))),right=(s,K)=>items.push(text(s,lh,K.x+k+d+lg,mid(K)));
-   const centre=(s,K,y)=>items.push(text(s,lh,K.x+Math.round((k+d-mask(s,lh).w)/2),y)),below=ev(botY+kh+d+lg);
-   if(arr==='side'){left(C.left,A);right(C.right,D);}else{centre(C.left,A,below);centre(C.right,D,below);}
-   centre(C.brake,S,below);
-   if(shift){if(arr==='side'){left(C.down,Q);right(C.up,E);}else{centre(C.down,Q,0);centre(C.up,E,0);}centre(C.gas,W,0);}else right(C.gas,W);
+   left(C.left,A);right(C.right,D);items.push(text(C.brake,lh,SP.x+sw+d+lg,mid(SP)));
+   if(shift){left(C.down,Q);right(C.up,E);items.push(text(C.gas,lh,W.x+Math.round((k+d-mask(C.gas,lh).w)/2),0));}else right(C.gas,W);
   }
   return finish(items,arr);
  };
@@ -1402,7 +1404,7 @@ function paintLayout(zw,zh,o={}){
  const clear=L=>L.items.every((a,i)=>L.items.every((b,j)=>j<=i||a.x>=b.x+b.w+b.d+2||b.x>=a.x+a.w+a.d+2||a.y>=b.y+b.h+b.d+1||b.y>=a.y+a.h+a.d+1));
  // Biggest keys first, labels about a third of the key (striped from PAINT_SOLID_BELOW rows; small keys get solid labels).
  // The reference arrangement ('side') wins at any key size; 'under' only when 'side' does not fit at all.
- for(const arr of ['side','under'])for(let k=64;k>=12;k--){const lh=stripeH(clamp(k*.36,8,20)),L=board(k,arr,lh);if(fits(L)&&clear(L))return L;}
+ for(const arr of ['side'])for(let k=64;k>=12;k--){const lh=stripeH(clamp(k*.36,8,20)),L=board(k,arr,lh);if(fits(L)&&clear(L))return L;}
  for(let k=64;k>=8;k--){const L=board(k,'bare');if(fits(L))return L;}
  return {items:[],w:0,h:0,mode:'none'};
 }
@@ -2304,7 +2306,7 @@ function holdKeys(el,map){
 holdKeys(ui.wheelFace,{ArrowLeft:'arrowLeft',ArrowRight:'arrowRight'});holdKeys(ui.gas,{' ':'pedalGas',Enter:'pedalGas'});holdKeys(ui.brake,{' ':'pedalBrake',Enter:'pedalBrake'});
 
 // ---- Keyboard (task 03): listened on window, so focus on HUD buttons does not stop driving. ----
-const KEY_CODES={KeyW:'w',KeyS:'s',KeyA:'a',KeyD:'d'},KEY_CHARS={w:'w',s:'s',a:'a',d:'d'};
+const KEY_CODES={KeyW:'w',KeyA:'a',KeyD:'d',Space:'s',ArrowUp:'w',ArrowLeft:'a',ArrowRight:'d',ArrowDown:'s'},KEY_CHARS={w:'w',a:'a',d:'d',' ':'s',arrowup:'w',arrowleft:'a',arrowright:'d',arrowdown:'s'};
 // Physical key positions first (WASD on any layout); fall back to the character when no code is reported.
 const driveKey=event=>KEY_CODES[event.code]||(!event.code&&typeof event.key==='string'?KEY_CHARS[event.key.toLowerCase()]:null)||null;
 // Text fields, selects and menus own their keys; buttons, checkboxes and the canvas do not need W/A/S/D.

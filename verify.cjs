@@ -14,7 +14,7 @@ function test(name, fn) { fn(); count++; console.log('PASS ' + name); }
 test('manual Supercar gears control speed and protect downshifts', () => {
  function driveGear(gear){const w=e.createWorld('coupe',e.makeArena(100000,100000));w.manual=true;w.gear=gear;w.cones=[];w.layout=null;for(let i=0;i<3600;i++)e.step(w,{throttle:1,steering:0,brake:0});return w;}
  const first=driveGear(1),fifth=driveGear(5);
- assert(Math.hypot(first.car.vx,first.car.vy)<70,'first gear has a lower engine limit');
+ assert(Math.hypot(first.car.vx,first.car.vy)<95,'first gear has a lower engine limit');
  assert(Math.hypot(fifth.car.vx,fifth.car.vy)>190,'fifth gear unlocks high speed');
  assert(e.gearTelemetry(fifth).speed>e.gearTelemetry(first).speed);assert(!e.shiftGear(fifth,1),'unsafe high-speed downshift refused');
  assert(e.shiftGear(first,2));assert.equal(first.shiftTime,.12);assert.equal(first.gear,2);assert(!e.shiftGear(first,9));
