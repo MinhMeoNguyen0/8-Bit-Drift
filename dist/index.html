@@ -144,7 +144,7 @@ kbd{display:inline-block;min-width:13px;padding:0 2px;border:1px solid var(--lin
 <body>
 <main class="playground" id="playground">
   <h1 class="sr-only">8-Bit Drift</h1>
-  <canvas id="game" width="400" height="240" tabindex="0" aria-label="Driving playground. W accelerates, Space brakes and reverses, A and D steer (arrow keys work too). Q and E shift gears on the Supercar. R rights the car after a rollover. Escape pauses. All edges wrap." aria-describedby="driving-help">This playground needs a browser with Canvas 2D support.</canvas>
+  <canvas id="game" width="400" height="240" tabindex="0" aria-label="Driving playground. W accelerates, Space brakes, A and D steer (arrow keys work too). Q and E shift gears on the Supercar. R rights the car after a rollover. Escape pauses. All edges wrap." aria-describedby="driving-help">This playground needs a browser with Canvas 2D support.</canvas>
   <div class="ui-box hud" id="hud" role="group" aria-label="Car and settings">
     <div class="cars" role="group" aria-label="Pick your car">
       <button class="car-choice" data-car="compact" aria-pressed="true" aria-label="Compact: light and nimble" title="Compact: light &amp; nimble"><canvas width="48" height="36" aria-hidden="true"></canvas></button>
@@ -163,8 +163,8 @@ kbd{display:inline-block;min-width:13px;padding:0 2px;border:1px solid var(--lin
     <p class="readout"><span class="live" id="live" data-running="false"><span class="light" aria-hidden="true"></span><output id="status">READY</output></span><span class="fps"><output id="fps">—</output> FPS</span></p>
   </section>
   <div class="ui-box wheel" id="wheel"><div class="wheel-face" id="wheel-face" role="slider" tabindex="0" aria-label="Steering wheel" aria-orientation="horizontal" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0" aria-valuetext="centred" title="Drag to steer (or hold A / D, or the arrow keys while focused)"><div class="rim" id="rim"><svg viewBox="0 0 100 100" aria-hidden="true"><defs><pattern id="wheel-dither" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 0h1v1H0zm1 1h1v1H1z"/></pattern><pattern id="wheel-stripes" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 1h2v1H0z"/></pattern></defs><circle cx="50" cy="52" r="43" fill="none" stroke="#30342d" stroke-width="12"/><circle cx="50" cy="49" r="43" fill="none" stroke="#30342d" stroke-width="11"/><circle class="chain" cx="50" cy="49" r="43" fill="none" stroke="url(#wheel-dither)" stroke-width="4.6" stroke-dasharray="4.2 2.55" stroke-linecap="round"/><circle cx="50" cy="49" r="43" fill="none" stroke="#30342d" stroke-width="1.6" stroke-dasharray="2.2 4.55" stroke-dashoffset="-1"/><path d="M10 49C24 49 34 48 43 50M90 49C76 49 66 48 57 50M50 58V91" fill="none" stroke="#30342d" stroke-width="7" stroke-linecap="round"/><path d="M13 47H38M62 47H87M48 65V88" fill="none" stroke="url(#wheel-dither)" stroke-width="2"/><circle cx="50" cy="51" r="17" fill="#30342d"/><circle cx="50" cy="48" r="14" fill="#bfc1b1" stroke="#30342d" stroke-width="2"/><path d="M37 44A14 14 0 0 1 63 44" fill="none" stroke="url(#wheel-dither)" stroke-width="4"/><path class="marker" d="M42.5 0.5h15l-2 12h-11z" fill="url(#wheel-stripes)" stroke="#30342d" stroke-width="1.6" stroke-linejoin="round"/><path d="M47 4.5h6l-3 5z" fill="#30342d"/></svg></div></div></div>
-  <div class="ui-box pedals" id="pedals" role="group" aria-label="Pedals"><div class="pedal-set"><button class="pedal" id="pedal-brake" type="button" aria-label="Brake and reverse (hold)" title="Brake (Space)"><span aria-hidden="true">BRAKE</span></button><button class="pedal" id="pedal-gas" type="button" aria-label="Gas (hold)" title="Gas (W)"><span aria-hidden="true">GAS</span></button></div></div>
-  <p class="sr-only" id="driving-help">W accelerates. S brakes, then reverses. A and D steer. Escape pauses. On touch screens, drag the steering wheel and hold the gas or brake pedal. If the car rolls over, press R or use the Right the car button that appears next to the car chooser. The edges are connected. The Supercar has a five-speed gear stick: Q shifts down and E shifts up, or drag the stick's knob through the H gate (on the focused stick, the arrow keys or 1 to 5 shift). The same instructions are painted on the ground.</p>
+  <div class="ui-box pedals" id="pedals" role="group" aria-label="Pedals"><div class="pedal-set"><button class="pedal" id="pedal-brake" type="button" aria-label="Brake (hold)" title="Brake (Space)"><span aria-hidden="true">BRAKE</span></button><button class="pedal" id="pedal-gas" type="button" aria-label="Gas (hold)" title="Gas (W)"><span aria-hidden="true">GAS</span></button></div></div>
+  <p class="sr-only" id="driving-help">W accelerates. Space brakes. A and D steer. Escape pauses. On touch screens, drag the steering wheel and hold the gas or brake pedal. If the car rolls over, press R or use the Right the car button that appears next to the car chooser. The edges are connected. The Supercar has a five-speed gear stick: Q shifts down and E shifts up, or drag the stick's knob through the H gate (on the focused stick, the arrow keys or 1 to 5 shift). The same instructions are painted on the ground.</p>
   <p class="ui-box speed" id="speed" aria-hidden="true"><span class="big" id="speed-value">0</span><span class="unit"><span>KM</span><span>/H</span></span><span class="gear-read" id="gear-read" hidden><span class="big" id="gear-value">1</span><span class="unit"><span>GEAR</span></span></span></p>
   <div class="ui-box gearstick" id="gearstick" hidden><div class="gear-keys" aria-hidden="true"><span class="shift-key up" id="shift-up"><svg viewBox="0 0 10 7"><path d="M5 0l5 5H7v2H3V5H0z" fill="currentColor"/></svg><b>E</b></span><span class="shift-key down" id="shift-down"><b>Q</b><svg viewBox="0 0 10 7"><path d="M3 0h4v2h3L5 7 0 2h3z" fill="currentColor"/></svg></span></div><div class="gear-face" id="gear-face" role="slider" tabindex="0" aria-label="Gear stick" aria-orientation="vertical" aria-valuemin="1" aria-valuemax="5" aria-valuenow="1" aria-valuetext="gear 1" aria-keyshortcuts="Q E" title="Drag the knob through the H gate (or Q / E)"><svg viewBox="0 0 110 100" aria-hidden="true"><defs><pattern id="gear-dither" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 0h1v1H0zm1 1h1v1H1z"/></pattern><pattern id="gear-stripes" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 1h2v1H0z"/></pattern></defs><path d="M6 6h102v92H6z" fill="#30342d"/><path d="M2 2h102v92H2z" fill="#bfc1b1" stroke="#30342d" stroke-width="2"/><path d="M22 26V74M55 26V74M88 26V50M22 50H88" fill="none" stroke="#30342d" stroke-width="12" stroke-linecap="round"/><path d="M22 26V74M55 26V74M88 26V50M22 50H88" fill="none" stroke="url(#gear-dither)" stroke-width="4" stroke-linecap="round" transform="translate(1.2 1.2)"/><g fill="#30342d" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-style="italic" font-size="12" text-anchor="middle"><text x="22" y="15.5">1</text><text x="22" y="94">2</text><text x="55" y="15.5">3</text><text x="55" y="94">4</text><text x="88" y="15.5">5</text></g><circle cx="55" cy="50" r="13" fill="url(#gear-dither)" stroke="#30342d" stroke-width="2"/><circle id="gear-shadow" cx="26" cy="29" r="10" fill="url(#gear-dither)"/><line id="gear-shaft" x1="55" y1="50" x2="22" y2="26" stroke="#30342d" stroke-width="6" stroke-linecap="round"/><g id="gear-knob" transform="translate(22 26)"><circle r="11.5" fill="#30342d"/><circle r="8.5" fill="none" stroke="url(#gear-stripes)" stroke-width="3"/><text id="gear-num" y="4.2" fill="#bfc1b1" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-style="italic" font-size="11" text-anchor="middle">1</text></g></svg></div></div>
   <button class="entry" id="enter" type="button"><span>PRESS W TO DRIVE</span></button>
@@ -1013,6 +1013,7 @@ const bodyR=o=>o.r||CONE_R,bodyM=o=>o.m||CONE_MASS;
 function resetCones(w){w.cones.forEach((o,i)=>{const a=Number.isFinite(o.ha)?o.ha:(i*.7)%TAU;Object.assign(o,{x:o.hx,y:o.hy,px:o.hx,py:o.hy,vx:0,vy:0,omega:0,a,pa:a,tipped:false});});}
 function limitVelocity(o,max){const s=Math.hypot(o.vx,o.vy);if(s>max){o.vx*=max/s;o.vy*=max/s;}}
 // Automatic clutch and safe downshifts keep the five-speed stick approachable.
+const REVERSE_HOLD=.6;
 const GEARS=[0,.36,.54,.72,.88,1.08],GEAR_TORQUE=[0,1.2,1.1,1,.9,.82],SPEED_TO_KMH=.6;
 function shiftGear(w,next){
  if(!w.manual||w.id!=='coupe'||!Number.isInteger(next)||next<1||next>5||next===w.gear)return false;
@@ -1025,11 +1026,12 @@ function drive(w,input,dt){
  const manual=w.manual&&w.id==='coupe',gear=w.gear||1,cap=manual?p.max*GEARS[gear]:p.max;w.shiftTime=Math.max(0,(w.shiftTime||0)-dt);
  let forward=c.vx*cs+c.vy*sn,lateral=-c.vx*sn+c.vy*cs;
  const {steering,throttle,brake}=normalizeInput(input),gas=throttle>0,back=brake>0;
- // Brake wins over throttle. Throttle while rolling backwards brakes first; brake while rolling forwards brakes first.
- c.braking=(gas&&back)||(gas&&forward<-1.2)||(back&&forward>1.2);
+ // Brake wins over throttle and only slows the car (finite deceleration, no reverse).
+ // Brake only slows a moving car. Held at a standstill for REVERSE_HOLD seconds it then backs the car out (so it can never be pinned).
+ c.brakeHold=back&&forward<.5?(c.brakeHold||0)+dt:0;const reversing=back&&c.brakeHold>REVERSE_HOLD;c.braking=back&&!reversing&&forward>.01;
  let accel=0;
  if(c.braking){accel=-Math.sign(forward)*Math.min(p.brake*(back?brake:throttle),Math.abs(forward)/dt);}
- else if(gas)accel=p.accel*throttle*(manual?(w.shiftTime>0?0:GEAR_TORQUE[gear]*(.3+.7*clamp(Math.abs(forward)/(p.max*.15),0,1))):1);else if(back)accel=-p.accel*.64*brake;
+ else if(gas&&!back)accel=p.accel*throttle*(manual?(w.shiftTime>0?0:GEAR_TORQUE[gear]*(.3+.7*clamp(Math.abs(forward)/(p.max*.15),0,1))):1);else if(reversing)accel=-p.accel*.64*brake;
  const rolling=3.8+p.drag*Math.abs(forward)+.001*Math.abs(forward)*Math.abs(forward);
  if(Math.abs(forward)>.01)accel-=Math.sign(forward)*Math.min(rolling,Math.abs(forward)/dt);
  if(manual&&forward>=cap&&accel>0)accel=0;
@@ -1467,7 +1469,7 @@ function uiMetrics(S){
 const PAINT_SLANT=.5,PAINT_STRIPE=3,PAINT_SOLID_BELOW=9,PAINT_KEY_SOLID_BELOW=9;
 // Largest height <= v whose top and bottom rows are both ink (h ≡ -1 mod PAINT_STRIPE).
 const stripeH=v=>Math.max(1,PAINT_STRIPE*Math.floor((Math.floor(v)+1)/PAINT_STRIPE)-1);
-const PAINT_COPY={gas:'GAS',brake:'BRAKE',left:'LEFT',right:'RIGHT',down:'DOWN',up:'UP',touch:['DRAG WHEEL TO STEER','HOLD PEDALS'],touchShift:'MOVE STICK TO SHIFT'};
+const PAINT_COPY={gas:'GAS',brake:'BRAKE',turn:'TURN',shift:'SHIFT',left:'LEFT',right:'RIGHT',down:'DOWN',up:'UP',touch:['DRAG WHEEL TO STEER','HOLD PEDALS'],touchShift:'MOVE STICK TO SHIFT'};
 const GLYPHS=Object.fromEntries(Object.entries({
  A:['.#.','#.#','###','#.#','#.#'],B:['##.','#.#','##.','#.#','##.'],C:['.##','#..','#..','#..','.##'],D:['##.','#.#','#.#','#.#','##.'],
  E:['###','#..','##.','#..','###'],F:['###','#..','##.','#..','#..'],G:['.##','#..','#.#','#.#','.##'],H:['#.#','#.#','###','#.#','#.#'],
@@ -1538,24 +1540,18 @@ function paintLayout(zw,zh,o={}){
   return {items:[],w:0,h:0,mode:'none'};
  }
  const C=PAINT_COPY,shift=!!o.shift;
- // Keycaps k px wide. arr 'side': LEFT / RIGHT beside A / D, BRAKE beside the double-length SPACE key on its own row; 'bare': keys
- // only. GAS sits right of W, or above it on the Supercar, whose Q / E (real keyboard spots) get DOWN / UP beside or above.
+ // Keycaps k px wide, every row left-aligned: [Q E SHIFT] (Supercar only), [W GAS], [A D TURN] and a double-length BRAKE key
+ // on its own row. 'bare': keys only. Key letters are solid (striped letters are unreadable at keycap size).
  // Round 3: near-square faces, a deeper extrusion (k/6) and tighter gaps, so the keys are as big as the labels allow.
  const board=(k,arr,lh=9)=>{
-  const kh=ev(k*.9),d=Math.max(2,Math.round(k/6)),gy=Math.max(2,Math.round(k/9)),p=k+d+gy,off=Math.round(p/4);
+  const kh=ev(k*.9),d=Math.max(2,Math.round(k/6)),gy=Math.max(2,Math.round(k/9)),p=k+d+gy,rowH=ev(kh+d+gy);
   const lt=stripeH(kh*.7),lg=Math.max(3,Math.round(k/6)),labels=arr!=='bare',ol=k>=30?2:1;
-  const topY=labels&&shift?ev(lh+lg):0,botY=topY+ev(kh+d+gy);
-  const key=(ch,x,y)=>{const m=mask(ch,lt);return {t:'key',ch,x,y,w:k,h:kh,d,m,lt,ol};};
-  const rowH=ev(kh+d+gy),spY=botY+rowH,sw=k+p,spX=Math.round(p/2),A=key('A',0,botY),D=key('D',2*p,botY),W=key('W',p-off,topY),items=[A,D,W];
-  // Space: a double-length key on a row of its own, its word shrunk until it fits (the brake).
-  let sl=lt;while(sl>5&&mask('SPACE',sl).w>sw-4)sl--;
-  const SP={t:'key',ch:'SPACE',x:spX,y:spY,w:sw,h:kh,d,m:mask('SPACE',sl),lt:sl,ol};items.push(SP);
-  const Q=key('Q',-off,topY),E=key('E',2*p-off,topY);if(shift)items.push(Q,E);
-  if(labels){
-   const mid=K=>ev(K.y+(kh-lh)/2),left=(s,K)=>items.push(text(s,lh,K.x-lg-mask(s,lh).w,mid(K))),right=(s,K)=>items.push(text(s,lh,K.x+k+d+lg,mid(K)));
-   left(C.left,A);right(C.right,D);items.push(text(C.brake,lh,SP.x+sw+d+lg,mid(SP)));
-   if(shift){left(C.down,Q);right(C.up,E);items.push(text(C.gas,lh,W.x+Math.round((k+d-mask(C.gas,lh).w)/2),0));}else right(C.gas,W);
-  }
+  const key=(ch,x,y,w=k,h=lt)=>{let l=h;while(l>5&&mask(ch,l).w>w-4)l--;return {t:'key',ch,x,y,w,h:kh,d,m:mask(ch,l),lt:l,ol};};
+  let y=0;const items=[],row=()=>{const r=y;y+=rowH;return r;},mid=K=>ev(K.y+(kh-lh)/2),tag=(s,K)=>{if(labels)items.push(text(s,lh,K.x+K.w+d+lg,mid(K)));};
+  if(shift){const r=row(),Q=key('Q',0,r),E=key('E',p,r);items.push(Q,E);tag(C.shift,E);}
+  const W=key('W',0,row());items.push(W);tag(C.gas,W);
+  const ay=row(),A=key('A',0,ay),D=key('D',p,ay);items.push(A,D);tag(C.turn,D);
+  items.push(key('BRAKE',0,row(),p+k));
   return finish(items,arr);
  };
  // Labels must not touch each other or a keycap (1 px of paper between boxes at least).
@@ -1577,7 +1573,7 @@ function paintRuns(A,zone,o={}){
  if(zw<4||zh<4)return [];
  const L=paintLayout(zw,zh,o),ox=Math.floor((zw-L.w)/2),oy=2*Math.floor((zh-L.h)/4),raw=[],stripe=h=>h<PAINT_SOLID_BELOW?1:PAINT_STRIPE;
  for(const it of L.items){const x=ox+it.x,y=oy+it.y;
-  if(it.t==='key'){keycapRuns(x,y,it.w,it.h,it.d,raw,it.ol||1);maskRuns(it.m,x+Math.round((it.w-it.m.w)/2),y+2*Math.round((it.h-it.lt)/4),raw,it.lt<PAINT_KEY_SOLID_BELOW?1:PAINT_STRIPE);}
+  if(it.t==='key'){keycapRuns(x,y,it.w,it.h,it.d,raw,it.ol||1);maskRuns(it.m,x+Math.round((it.w-it.m.w)/2),y+2*Math.round((it.h-it.lt)/4),raw,1);}
   else maskRuns(it.m,x,y,raw,stripe(it.h));}
  return scaleRuns(raw,l,t,zw,zh,px);
 }

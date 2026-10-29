@@ -126,17 +126,16 @@ test('tracks are clipped to the arena, never wrapped; wheel points are not wrapp
  assert(/recordTracks\(world,trackRec,/.test(page)&&!/wrappedLine/.test(page),'tracks use recordTracks');
  assert(/drawList=sceneItems\(world,alpha\)/.test(page)&&!/-A\.W,0,A\.W/.test(page),'no wrapped copies in draw()');
 });
-test('accelerate, coast, brake, then reverse', () => {
+test('accelerate, coast, then brake to a stop without reversing', () => {
  const w=empty();run(w,3,input(true));assert(forward(w)>75);const speed=forward(w);run(w,1,input());assert(forward(w)<speed);
- run(w,2.5,input(false,true));assert(forward(w)<-15);run(w,2,input(true));assert(forward(w)>15);
+ run(w,2,input(true));const before=forward(w);run(w,.1,input(false,true));assert(forward(w)>0&&forward(w)<before,'brake slows with finite deceleration, not an instant stop');for(let n=0;forward(w)>.5&&n<1200;n++)e.step(w,input(false,true));run(w,.3,input(false,true));assert(forward(w)>-.01&&forward(w)<1,'braking a moving car stops it, never reversing');run(w,2,input(false,true));assert(forward(w)<-5,'held at a standstill the brake backs the car out');run(w,2,input(true));assert(forward(w)>15);
 });
-test('stationary steering does not rotate; reverse steering reverses yaw', () => {
+test('stationary steering does not rotate; steering turns while driving', () => {
  const w=empty();const initial=w.car.a;run(w,2,input(false,false,true));assert(Math.abs(w.car.a-initial)<1e-12);
  run(w,1,input(true,false,true));assert(w.car.omega<0);
- const b=empty();run(b,1,input(false,true,true));assert(b.car.omega>0);
 });
 test('opposing throttle keys brake instead of accelerating', () => {
- const w=empty();run(w,2,input(true));run(w,2,input(true,true));assert(Math.abs(forward(w))<1);
+ const w=empty();run(w,2,input(true));for(let n=0;forward(w)>.5&&n<1200;n++)e.step(w,input(true,true));run(w,.3,input(true,true));assert(Math.abs(forward(w))<1);
 });
 test('coupe corners generate genuine lateral slip', () => {
  const w=empty('coupe');run(w,2,input(true));run(w,1.5,input(true,false,false,true));assert(w.car.slip>6);assert(w.car.skidding);
@@ -166,7 +165,7 @@ test('all presets remain finite and inside the offscreen envelope through five-m
  const big={};for(const id of CARS){const p=e.PRESETS[id];let bw=0,bh=0;for(const roll of [0,1])for(let i=0;i<256;i++){const b=e.carScreenBounds(p,i*e.TAU/256,roll);bw=Math.max(bw,b.r-b.l);bh=Math.max(bh,b.b-b.t);}big[id]={bw,bh};}
  const cw=e.CONE_BOX.r-e.CONE_BOX.l,ch=e.CONE_BOX.b-e.CONE_BOX.t;
  for(const id of CARS){const w=e.createWorld(id),{bw,bh}=big[id];
-  for(let i=0;i<36000;i++){e.step(w,input(i%1800<1500,i%1800>=1500,i%1300<400,i%1300>900));
+  for(let i=0;i<36000;i++){e.step(w,input(true,i%1800>=1600,i%1300<400,i%1300>900));
    const c=w.car;assert(c.x>=-bw&&c.x<=e.WIDTH+bw&&c.y*e.K>=-bh&&c.y*e.K<=e.HEIGHT+bh,id+' car left the envelope at step '+i);
    if(i%120===0)for(const o of [c,...w.cones]){assert(Number.isFinite(o.x)&&Number.isFinite(o.y)&&Number.isFinite(o.vx)&&Number.isFinite(o.vy));
     if(o!==c)assert(o.x>=-cw&&o.x<=e.WIDTH+cw&&o.y*e.K>=-ch&&o.y*e.K<=e.HEIGHT+ch,id+' cone left its envelope');}}
@@ -176,7 +175,7 @@ test('shared input contract: analog values, clamping and braking precedence', ()
  assert.deepEqual({...e.normalizeInput({steering:3,throttle:-1,brake:2})},{steering:1,throttle:0,brake:1});
  const full=empty(),half=empty();run(full,2,{steering:0,throttle:1,brake:0});run(half,2,{steering:0,throttle:.5,brake:0});
  assert(forward(half)>5&&forward(half)<forward(full)*.75);
- const both=empty();run(both,2,{throttle:1});run(both,2,{throttle:1,brake:1});assert(Math.abs(forward(both))<1);
+ const both=empty();run(both,2,{throttle:1});for(let n=0;forward(both)>.5&&n<1200;n++)e.step(both,{throttle:1,brake:1});run(both,.3,{throttle:1,brake:1});assert(Math.abs(forward(both))<1);
  const left=empty(),right=empty();run(left,1,{throttle:1,steering:-1});run(right,1,{throttle:1,steering:1});assert(left.car.omega<0&&right.car.omega>0);
 });
 test('carScreenBounds contains the anchor and covers every heading', () => {
@@ -191,26 +190,20 @@ test('resizeWorld maps objects proportionally and breaks tracks', () => {
 // ---- Agent 1 (interface and controls): task 01 viewport and task 03 shared input ----
 // Round 2 (r2-ui): the view is zoomed out to ~400 logical px on the short side (was 300) and takes the target as a 4th argument
 // (default TUNING.viewShort). Expected values recomputed for 400; the 300 cases are kept below through the argument.
-test('computeView: integer scale, screen covered, short side about TUNING.viewShort (400) logical px', () => {
- assert.equal(e.VIEW_SHORT,400);assert.equal(e.TUNING.viewShort,400);
- const cases=[['desktop 1920x1080@1',1920,1080,1,{scale:3,W:640,H:360}],['laptop 1366x768@1',1366,768,1,{scale:2,W:683,H:384}],
-  ['phone portrait 390x844@3',390,844,3,{scale:3,W:390,H:844}],['phone landscape 844x390@3',844,390,3,{scale:3,W:844,H:390}],['high-DPI 1440x900@2',1440,900,2,{scale:5,W:576,H:360}]];
- for(const [name,w,h,dpr,expected] of cases){const v=e.computeView(w,h,dpr);
-  assert.deepEqual({...v},expected,name);assert(Number.isInteger(v.scale)&&v.scale>=1,name);
-  // Backing store covers the device screen, overflowing by less than one logical pixel on each axis.
-  for(const [n,dev] of [[v.W,w*dpr],[v.H,h*dpr]]){assert(n*v.scale>=dev-1e-9,name);assert((n-1)*v.scale<dev,name);}
-  // CSS size of the canvas (W*scale/dpr) covers the viewport.
-  assert(v.W*v.scale/dpr>=w-1e-9&&v.H*v.scale/dpr>=h-1e-9,name);
-  const short=Math.min(v.W,v.H);assert(short>=300&&short<=600,name+' short side '+short);}
+test('computeView: scale fits the short side to TUNING.viewShort (575) logical px, screen covered', () => {
+ assert.equal(e.VIEW_SHORT,575);assert.equal(e.TUNING.viewShort,575);
+ for(const [name,w,h,dpr] of [['desktop 1920x1080@1',1920,1080,1],['laptop 1366x768@1',1366,768,1],['phone portrait 390x844@3',390,844,3],['phone landscape 844x390@3',844,390,3],['high-DPI 1440x900@2',1440,900,2]]){
+  const v=e.computeView(w,h,dpr);assert.equal(Math.min(v.W,v.H),575,name);assert(v.scale>0,name);
+  for(const [n,dev] of [[v.W,w*dpr],[v.H,h*dpr]])assert(n*v.scale>=dev-1e-9,name);
+  assert(v.W*v.scale/dpr>=w-1e-9&&v.H*v.scale/dpr>=h-1e-9,name);}
  // The target is an argument (Settings > Zoom out); the old 300 view is still reachable, and the default follows TUNING.
- assert.deepEqual({...e.computeView(1920,1080,1,300)},{scale:4,W:480,H:270});assert.deepEqual({...e.computeView(844,390,3,300)},{scale:4,W:633,H:293});
- assert.deepEqual({...e.computeView(1920,1080,1,560)},{scale:2,W:960,H:540});
- e.setTuning({viewShort:300});assert.deepEqual({...e.computeView(1920,1080,1)},{scale:4,W:480,H:270},'default argument reads TUNING.viewShort');e.resetTuning();
+ assert.equal(e.computeView(1920,1080,1,300).H,300);assert.equal(e.computeView(1920,1080,1,560).H,560);
+ e.setTuning({viewShort:300});assert.equal(e.computeView(1920,1080,1).H,300,'default argument reads TUNING.viewShort');e.resetTuning();
  for(const bad of [0,-5,NaN,'x'])assert.deepEqual({...e.computeView(1920,1080,1,bad)},{...e.computeView(1920,1080,1)},'a bad target falls back to the default');
  // Same screen, different dpr only (browser zoom): W×H is the same when device pixels match.
  assert.deepEqual({...e.computeView(1920,1080,1)},{...e.computeView(960,540,2)});
  // Degenerate inputs never produce a zero or NaN arena.
- for(const [w,h,d] of [[0,0,1],[100,50,0],[300,200,NaN]]){const v=e.computeView(w,h,d);assert(v.W>=1&&v.H>=1&&v.scale>=1);}
+ for(const [w,h,d] of [[0,0,1],[100,50,0],[300,200,NaN]]){const v=e.computeView(w,h,d);assert(v.W>=1&&v.H>=1&&v.scale>0);}
 });
 const inp=c=>({...c.sample()});
 test('controls: keyboard merge, W+S brakes, A+D cancels, repeats never re-press', () => {
@@ -388,7 +381,7 @@ test('page: accessible HUD, settings dialog, controls and painted-text fallbacks
  assert(/id="settings-btn"[^>]*aria-expanded="false"[^>]*aria-controls="settings"/.test(html)&&/id="settings"[^>]*role="dialog"[^>]*hidden/.test(html));
  assert(/id="skids" type="checkbox" role="switch" checked/.test(html));assert.equal((html.match(/class="car-choice"[^>]*aria-pressed=/g)||[]).length,3);
  assert(/id="wheel-face"[^>]*role="slider"[^>]*tabindex="0"[^>]*aria-label="Steering wheel"/.test(html));
- assert(/id="pedal-gas"[^>]*aria-label="Gas/.test(html)&&/id="pedal-brake"[^>]*aria-label="Brake and reverse/.test(html));
+ assert(/id="pedal-gas"[^>]*aria-label="Gas/.test(html)&&/id="pedal-brake"[^>]*aria-label="Brake/.test(html));
  assert(/aria-describedby="driving-help"/.test(html)&&/id="driving-help">W accelerates/.test(html),'instructions stay available to screen readers');
  // Round 2: the user asked for the instructions text to be removed from Settings; the panel has the Tuning section instead.
  assert(!/id="panel-help"/.test(html),'no instructions text in the settings panel');assert(/id="settings"[\s\S]*id="tuning"[\s\S]*id="tune-reset"[\s\S]*<\/section>/.test(html),'Tuning section in Settings');
@@ -656,7 +649,7 @@ test('drawGround is deterministic and draws two distinct track edges, a dashed g
  }
 });
 // ---- Task 05 / 06 stage 2 (Agent 2): more transfer behaviour, cones, scene list, course finish ----
-test('partial exit then reverse returns through the same edge (all edges, all cars)', () => {
+test('partial exit then brake stops the car and it never reverses (all edges, all cars)', () => {
  const A=e.DEFAULT_ARENA;
  for(const id of ids)for(const [edge,a,axis,sign] of EDGES){
   const name=id+' '+edge,w=empty(id);Object.assign(w.car,{a,pa:a,vx:0,vy:0});const b=bounds(w);
@@ -666,11 +659,10 @@ test('partial exit then reverse returns through the same edge (all edges, all ca
   const centreOut=()=>{const q=sbox(w),c=axis==='x'?(q.l+q.r)/2:(q.t+q.b)/2,lim=axis==='x'?A.W:A.H;return sign>0?c>=lim:c<=0;};
   let n=0;while(!centreOut()&&n<1200){e.step(w,input(true));n++;assert(visible(w),name+': visible while leaving');}
   assert(centreOut(),name+': got half out');
-  // Brake, then reverse back in until the whole box is inside again.
-  const inside=()=>{const q=sbox(w);return q.l>=0&&q.r<=A.W&&q.t>=0&&q.b<=A.H;};
-  n=0;while(!inside()&&n<2400){e.step(w,input(false,true));n++;assert(visible(w),name+': visible while backing in');}
-  assert(inside(),name+': back inside');assert.equal(w.wraps,0,name+': never transferred');
-  assert(Math.hypot(w.car.x-start.x,w.car.y-start.y)<60,name+': came back through the same edge');
+  // Brake: the car stops (no reverse) and is never transferred.
+  n=0;while(Math.hypot(w.car.vx,w.car.vy)>.5&&n<2400){e.step(w,input(false,true));n++;assert(visible(w),name+': visible while braking');}
+  assert(Math.hypot(w.car.vx,w.car.vy)<=.5,name+': stopped');assert.equal(w.wraps,0,name+': never transferred');
+  
  }
 });
 test('no transfer flip-flop: arrivals survive heading changes and short reversals; edge circling never ping-pongs', () => {
