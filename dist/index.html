@@ -532,6 +532,7 @@ function buildCourse(A,zones){
  for(let i=0;i<P.length;i++)for(let j=0;j<32;j++){const t=j/32,a=P[(i+P.length-1)%P.length],b=P[i],c=P[(i+1)%P.length],d=P[(i+2)%P.length];pts.push([0,1].map(k=>.5*((2*b[k])+(-a[k]+c[k])*t+(2*a[k]-5*b[k]+4*c[k]-d[k])*t*t+(-a[k]+3*b[k]-3*c[k]+d[k])*t*t*t)));}
  // Longest low-curvature segment gives the start gate an unobstructed approach.
  let best=0,score=-1;for(let i=0;i<pts.length;i++){const a=pts[i],b=pts[(i+8)%pts.length],c=pts[(i+16)%pts.length],v=[b[0]-a[0],b[1]-a[1]],q=[c[0]-b[0],c[1]-b[1]],sc=Math.hypot(...v)-10*Math.abs(Math.atan2(v[0]*q[1]-v[1]*q[0],v[0]*q[0]+v[1]*q[1]));if(sc>score){score=sc;best=i;}}
+ if(SELECTED_TRACK==='signature')best=13*32+4;
  const gp=pts[(best+8)%pts.length],a=pts[best],b=pts[(best+16)%pts.length],ang=Math.atan2(b[1]-a[1],b[0]-a[0]),dx=Math.cos(ang),dy=Math.sin(ang),off=hw+12;
  const posts=[-1,1].map(k=>({x:gp[0]-dy*off*k,y:gp[1]+dx*off*k,r:POST_R})),cones=[];
  for(let i=0;i<pts.length;i+=32){const p=pts[i],a=pts[(i+pts.length-1)%pts.length],b=pts[(i+1)%pts.length],l=Math.hypot(b[0]-a[0],b[1]-a[1]);for(const side of [-1,1]){const x=p[0]-side*(hw+6)*(b[1]-a[1])/l,y=p[1]+side*(hw+6)*(b[0]-a[0])/l;if(x>5&&x<A.W-5&&y*K>5&&y*K<A.H-bottom&&posts.every(q=>Math.hypot(q.x-x,q.y-y)>20))cones.push({x,y});}}
