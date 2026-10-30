@@ -128,7 +128,8 @@ kbd{display:inline-block;min-width:13px;padding:0 2px;border:1px solid var(--lin
 
 
 .gearstick[hidden]{display:none}
-.gear-keys{position:absolute;left:0;top:var(--pt,0px);width:var(--kw,0px);height:var(--ph,100%);pointer-events:none}
+.playground[data-mobile="true"][data-auto="true"] .gearstick{display:none}
+.gear-keys{position:absolute;left:0;top:var(--pt,0px);width:var(--kw,0px);height:var(--ph,100%)}
 .playground[data-auto="true"] .gear-keys,.playground[data-auto="true"] .shift-bar{display:none}
 .shift-key{position:absolute;left:0;width:calc(var(--kw,24px) - var(--kd,3px));height:var(--kh,24px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:max(1px,calc(var(--kh,24px)*.04));border:max(1.5px,calc(var(--kh,24px)*.06)) solid var(--ink);background:var(--paper);color:var(--ink);font:italic 900 calc(var(--kh,24px)*.5)/.8 var(--heavy);box-shadow:calc(var(--kd,3px)*.34) calc(var(--kd,3px)*.34) 0 var(--ink),calc(var(--kd,3px)*.67) calc(var(--kd,3px)*.67) 0 var(--ink),var(--kd,3px) var(--kd,3px) 0 var(--ink)}
 .shift-key.up{top:0}.shift-key.down{bottom:var(--kd,3px)}
@@ -222,7 +223,7 @@ kbd{display:inline-block;min-width:13px;padding:0 2px;border:1px solid var(--lin
   <div class="ui-box pedals" id="pedals" role="group" aria-label="Pedals"><div class="pedal-set"><button class="pedal" id="pedal-brake" type="button" aria-label="Brake (hold)" title="Brake (Space)"><span aria-hidden="true">BRAKE</span></button><button class="pedal" id="pedal-gas" type="button" aria-label="Gas (hold)" title="Gas (W)"><span aria-hidden="true">GAS</span></button></div></div>
   <p class="sr-only" id="driving-help">W accelerates. Space brakes. A and D steer. Escape pauses. On touch screens, drag the steering wheel and hold the gas or brake pedal. Hold R for a new race, or tap the new race button on touch screens. If the car rolls over, tap R or use the Right the car button that appears next to the car chooser. The edges are connected. Every car has a gear stick. The Supercar is a manual with five gears and reverse under fifth: Q shifts down and E shifts up, and Q in first gear selects reverse when the car is stopped. The other cars are automatics with Park, Reverse, Neutral and Drive; they start in Drive, Q moves the stick down toward Drive and E moves it up toward Park. Reverse and Park only engage when the car is stopped. You can also drag the stick's knob through its gate (on the focused stick, the arrow keys move it, and 1 to 5 pick a gear on the Supercar). The Drone flies with two sticks, like a real drone's remote in Mode 2. The left stick (W and S, A and D) climbs, descends and turns on the spot; the right stick (the arrow keys) tilts the drone to fly forward, back, left and right. Let go and it levels out, holds its height and drifts to a stop. On touch screens, drag the two sticks. The same instructions are painted on the ground.</p>
   <p class="ui-box speed" id="speed" aria-hidden="true"><span class="big" id="speed-value">0</span><span class="unit"><span>KM</span><span>/H</span></span><span class="gear-read" id="gear-read"><span class="big" id="gear-value">1</span><span class="unit"><span id="gear-unit">GEAR</span></span></span></p>
-  <div class="ui-box gearstick" id="gearstick"><div class="paddles" id="paddles" role="group" aria-label="Paddle shifters"><div class="shift-lights" id="shift-lights" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><button class="paddle down" id="paddle-down" type="button" aria-label="Downshift paddle" aria-keyshortcuts="Q" title="Downshift (Q)"><span class="sym" aria-hidden="true">&minus;</span><span class="tag" aria-hidden="true">DOWN</span><b aria-hidden="true">Q</b></button><div class="gear-lcd" aria-hidden="true"><span class="num" id="paddle-gear">1</span><span class="tag">GEAR</span></div><button class="paddle up" id="paddle-up" type="button" aria-label="Upshift paddle" aria-keyshortcuts="E" title="Upshift (E)"><span class="sym" aria-hidden="true">+</span><span class="tag" aria-hidden="true">UP</span><b aria-hidden="true">E</b></button></div><div class="gear-keys" aria-hidden="true"><span class="shift-key up" id="shift-up"><svg viewBox="0 0 10 7"><path d="M5 0l5 5H7v2H3V5H0z" fill="currentColor"/></svg><b>E</b></span><span class="shift-key down" id="shift-down"><b>Q</b><svg viewBox="0 0 10 7"><path d="M3 0h4v2h3L5 7 0 2h3z" fill="currentColor"/></svg></span></div><div class="shift-bar" id="shift-bar" aria-hidden="true"><i></i></div><div class="gear-face" id="gear-face" role="slider" tabindex="0" aria-label="Gear stick" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="5" aria-valuenow="1" aria-valuetext="gear 1" aria-keyshortcuts="Q E" title="Drag the knob through the H gate (or Q / E)"><svg viewBox="0 0 110 106" preserveAspectRatio="xMinYMid meet" aria-hidden="true"><defs><pattern id="gear-dither" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 0h1v1H0zm1 1h1v1H1z"/></pattern><pattern id="gear-stripes" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 1h2v1H0z"/></pattern></defs><path d="M6 6h102v100H6z" fill="#30342d"/><path d="M2 2h102v100H2z" fill="#bfc1b1" stroke="#30342d" stroke-width="2"/><g id="gate-manual"><path d="M22 28V76M55 28V76M88 28V76M22 52H88" fill="none" stroke="#30342d" stroke-width="12" stroke-linecap="round"/><path d="M22 28V76M55 28V76M88 28V76M22 52H88" fill="none" stroke="url(#gear-dither)" stroke-width="4" stroke-linecap="round" transform="translate(1.2 1.2)"/><g fill="#30342d" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-style="italic" font-size="12" text-anchor="middle"><text x="22" y="17">1</text><text x="22" y="95">2</text><text x="55" y="17">3</text><text x="55" y="95">4</text><text x="88" y="17">5</text><text x="88" y="95">R</text></g></g><g id="gate-auto" display="none"><path d="M62 22V82M62 22h9M62 42h9M62 62h9M62 82h9" fill="none" stroke="#30342d" stroke-width="12" stroke-linecap="round"/><path d="M62 22V82" fill="none" stroke="url(#gear-dither)" stroke-width="4" stroke-linecap="round" transform="translate(1.2 1.2)"/><g fill="#30342d" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-style="italic" font-size="14" text-anchor="middle"><text x="30" y="27">P</text><text x="30" y="47">R</text><text x="30" y="67">N</text><text x="30" y="87">D</text></g></g><circle id="gear-pivot" cx="55" cy="52" r="13" fill="url(#gear-dither)" stroke="#30342d" stroke-width="2"/><circle id="gear-shadow" cx="26" cy="31" r="10" fill="url(#gear-dither)"/><line id="gear-shaft" x1="55" y1="52" x2="22" y2="28" stroke="#30342d" stroke-width="6" stroke-linecap="round"/><g id="gear-knob" transform="translate(22 28)"><circle r="11.5" fill="#30342d"/><circle r="8.5" fill="none" stroke="url(#gear-stripes)" stroke-width="3"/><text id="gear-num" y="4.2" fill="#bfc1b1" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-style="italic" font-size="11" text-anchor="middle">1</text></g></svg></div></div>
+  <div class="ui-box gearstick" id="gearstick"><div class="paddles" id="paddles" role="group" aria-label="Paddle shifters"><div class="shift-lights" id="shift-lights" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><button class="paddle down" id="paddle-down" type="button" aria-label="Downshift paddle" aria-keyshortcuts="Q" title="Downshift (Q)"><span class="sym" aria-hidden="true">&minus;</span><span class="tag" aria-hidden="true">DOWN</span><b aria-hidden="true">Q</b></button><div class="gear-lcd" aria-hidden="true"><span class="num" id="paddle-gear">1</span><span class="tag">GEAR</span></div><button class="paddle up" id="paddle-up" type="button" aria-label="Upshift paddle" aria-keyshortcuts="E" title="Upshift (E)"><span class="sym" aria-hidden="true">+</span><span class="tag" aria-hidden="true">UP</span><b aria-hidden="true">E</b></button></div><div class="gear-keys"><button type="button" class="shift-key up" id="shift-up" aria-label="Shift up"><svg viewBox="0 0 10 7"><path d="M5 0l5 5H7v2H3V5H0z" fill="currentColor"/></svg><b>E</b></button><button type="button" class="shift-key down" id="shift-down" aria-label="Shift down"><b>Q</b><svg viewBox="0 0 10 7"><path d="M3 0h4v2h3L5 7 0 2h3z" fill="currentColor"/></svg></button></div><div class="shift-bar" id="shift-bar" aria-hidden="true"><i></i></div><div class="gear-face" id="gear-face" role="slider" tabindex="0" aria-label="Gear stick" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="5" aria-valuenow="1" aria-valuetext="gear 1" aria-keyshortcuts="Q E" title="Drag the knob through the H gate (or Q / E)"><svg viewBox="0 0 110 106" preserveAspectRatio="xMinYMid meet" aria-hidden="true"><defs><pattern id="gear-dither" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 0h1v1H0zm1 1h1v1H1z"/></pattern><pattern id="gear-stripes" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 1h2v1H0z"/></pattern></defs><path d="M6 6h102v100H6z" fill="#30342d"/><path d="M2 2h102v100H2z" fill="#bfc1b1" stroke="#30342d" stroke-width="2"/><g id="gate-manual"><path d="M22 28V76M55 28V76M88 28V76M22 52H88" fill="none" stroke="#30342d" stroke-width="12" stroke-linecap="round"/><path d="M22 28V76M55 28V76M88 28V76M22 52H88" fill="none" stroke="url(#gear-dither)" stroke-width="4" stroke-linecap="round" transform="translate(1.2 1.2)"/><g fill="#30342d" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-style="italic" font-size="12" text-anchor="middle"><text x="22" y="17">1</text><text x="22" y="95">2</text><text x="55" y="17">3</text><text x="55" y="95">4</text><text x="88" y="17">5</text><text x="88" y="95">R</text></g></g><g id="gate-auto" display="none"><path d="M62 22V82M62 22h9M62 42h9M62 62h9M62 82h9" fill="none" stroke="#30342d" stroke-width="12" stroke-linecap="round"/><path d="M62 22V82" fill="none" stroke="url(#gear-dither)" stroke-width="4" stroke-linecap="round" transform="translate(1.2 1.2)"/><g fill="#30342d" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-style="italic" font-size="14" text-anchor="middle"><text x="30" y="27">P</text><text x="30" y="47">R</text><text x="30" y="67">N</text><text x="30" y="87">D</text></g></g><circle id="gear-pivot" cx="55" cy="52" r="13" fill="url(#gear-dither)" stroke="#30342d" stroke-width="2"/><circle id="gear-shadow" cx="26" cy="31" r="10" fill="url(#gear-dither)"/><line id="gear-shaft" x1="55" y1="52" x2="22" y2="28" stroke="#30342d" stroke-width="6" stroke-linecap="round"/><g id="gear-knob" transform="translate(22 28)"><circle r="11.5" fill="#30342d"/><circle r="8.5" fill="none" stroke="url(#gear-stripes)" stroke-width="3"/><text id="gear-num" y="4.2" fill="#bfc1b1" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-style="italic" font-size="11" text-anchor="middle">1</text></g></svg></div></div>
   <div class="ui-box flypad" id="fly-left" role="group" aria-label="Left stick: push up to climb and down to descend (W and S), left and right to turn (A and D)"><div class="fly-face" id="fly-left-face" title="Left stick: push up to climb and down to descend (W and S), left and right to turn (A and D)"><svg viewBox="0 0 100 100" aria-hidden="true"><defs><pattern id="flyl-dither" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 0h1v1H0zm1 1h1v1H1z"/></pattern><pattern id="flyl-stripes" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 1h2v1H0z"/></pattern></defs><path d="M8 8h90v90H8z" fill="#30342d"/><path d="M3 3h90v90H3z" fill="#bfc1b1" stroke="#30342d" stroke-width="2.5"/><path d="M18 18h60v60H18z" fill="url(#flyl-dither)" stroke="#30342d" stroke-width="2"/><path d="M48 18V78M18 48H78" stroke="#30342d" stroke-width="1.6"/><text x="48" y="13.6" text-anchor="middle">UP</text><text x="48" y="89.6" text-anchor="middle">DOWN</text><path d="M13.5 56A9 9 0 0 1 13.5 40" fill="none" stroke="#30342d" stroke-width="2.6"/><path d="M8.6 42.4l4.9-6.4 3.6 7.1z" fill="#30342d"/><path d="M82.5 56A9 9 0 0 0 82.5 40" fill="none" stroke="#30342d" stroke-width="2.6"/><path d="M87.4 42.4l-4.9-6.4-3.6 7.1z" fill="#30342d"/><g class="fly-knob" id="fly-left-knob"><circle cx="52" cy="52" r="12.5" fill="url(#flyl-dither)"/><circle cx="48" cy="48" r="12.5" fill="#30342d"/><circle cx="48" cy="48" r="8.5" fill="url(#flyl-stripes)"/><circle cx="48" cy="48" r="3" fill="#30342d"/></g></svg></div></div>
   <div class="ui-box flypad" id="fly-right" role="group" aria-label="Right stick: push to fly forward, back, left and right (the arrow keys)"><div class="fly-face" id="fly-right-face" title="Right stick: push to fly forward, back, left and right (the arrow keys)"><svg viewBox="0 0 100 100" aria-hidden="true"><defs><pattern id="flyr-dither" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 0h1v1H0zm1 1h1v1H1z"/></pattern><pattern id="flyr-stripes" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 1h2v1H0z"/></pattern></defs><path d="M8 8h90v90H8z" fill="#30342d"/><path d="M3 3h90v90H3z" fill="#bfc1b1" stroke="#30342d" stroke-width="2.5"/><path d="M18 18h60v60H18z" fill="url(#flyr-dither)" stroke="#30342d" stroke-width="2"/><path d="M48 18V78M18 48H78" stroke="#30342d" stroke-width="1.6"/><text x="48" y="13.6" text-anchor="middle">FWD</text><text x="48" y="89.6" text-anchor="middle">BACK</text><path d="M7 48l7-6v12z" fill="#30342d"/><path d="M89 48l-7-6v12z" fill="#30342d"/><g class="fly-knob" id="fly-right-knob"><circle cx="52" cy="52" r="12.5" fill="url(#flyr-dither)"/><circle cx="48" cy="48" r="12.5" fill="#30342d"/><circle cx="48" cy="48" r="8.5" fill="url(#flyr-stripes)"/><circle cx="48" cy="48" r="3" fill="#30342d"/></g></svg></div></div>
   <button class="entry" id="enter" type="button"><span>PRESS W TO DRIVE</span></button>
@@ -1213,6 +1214,14 @@ function shiftOk(w,next){
  if(w.p.trans==='manual'||w.p.trans==='paddle'||!AUTO_GEARS.includes(next))return false;
  return !((next==='P'&&speed>REV_SHIFT)||(next==='R'&&fwd>REV_SHIFT)||(next==='D'&&fwd<-REV_SHIFT));
 }
+// Mobile automatic: either pedal first stops travel in the other direction, then drives in its own direction.
+function simpleAutoInput(w,input){
+ const i=normalizeInput(input),speed=forwardSpeed(w.car);
+ if(i.throttle&&i.brake)return i; // keep the existing brake-and-gas burnout
+ if(i.brake){if(speed<=.05){w.gear='R';return {...i,throttle:i.brake,brake:0};}return {...i,throttle:0};}
+ if(i.throttle){if(speed>=-.05){w.gear='D';return i;}return {...i,throttle:0,brake:i.throttle};}
+ return i;
+}
 function shiftGear(w,next){if(!shiftOk(w,next))return false;w.gear=next;if(isManual(w))w.shiftTime=w.p.shiftTime||.12;return true;}
 // The gear one step from the current one for E (dir +1) or Q (dir -1), or 0 at the end. Manual: R 1 2 3 4 5 (E shifts up, Q
 // from first selects R). Automatic: the knob moves the way the key's arrow points, so E goes up toward P and Q down toward D.
@@ -2001,6 +2010,14 @@ function controlZones(view,safe){
   const D=Math.max(32,Math.min(uiMetrics(Math.min(cw,ch)/1.4).D,p.l-UI_GAP-wheel.l));wheel.r=wheel.l+D;wheel.t=Math.round(ch/1.4-D*.6);
   if(mobile){const i=z.find(q=>q.id==='instructions');i.r=i.l;i.b=i.t;}}
 
+ if(mobile){
+  const hud=z.find(q=>q.id==='hud'),wheel=z.find(q=>q.id==='wheel'),p=z.find(q=>q.id==='pedals'),g=z.find(q=>q.id==='gear');
+  const row=Math.max(28/1.4,Math.min(36/1.4,(hud.b-hud.t)*.6)),ratio=row/(hud.b-hud.t);
+  hud.l=hud.r-(hud.r-hud.l)*ratio;hud.b=hud.t+row;
+  const h=Math.max(54/1.4,Math.min(78/1.4,(g.b-g.t)*.55)),w=h*1.5;
+  g.r=p.r;g.l=g.r-w;g.b=p.t-12/1.4;g.t=g.b-h;g.flyOrigin={...g};
+  const D=wheel.r-wheel.l;wheel.b=Math.min(ch/1.4-(safe&&safe.bottom||0)*u/1.4-12/1.4,wheel.b);wheel.t=wheel.b-D;
+ }
  const hud=z.find(q=>q.id==='hud'),speed=z.find(q=>q.id==='speed'),rec=z.find(q=>q.id==='recover'),help=z.find(q=>q.id==='instructions'),gap=UI_GAP;
  if(mobile&&cw<500){const old=hud.b-hud.t,row=Math.min(old,Math.max(20,cw*.09/1.4));hud.l=hud.r-(hud.r-hud.l)*row/old;hud.b=hud.t+row;}
  const row=hud.b-hud.t;
@@ -2107,6 +2124,7 @@ const colEnd=()=>GEAR_GATE.bot;
 // Moves the knob from p toward the target t (both {x,y}) without leaving the gate: inside a column it slides only along it
 // (it drops into the neutral channel when the target is sideways and the knob is within `catch` of it); on the neutral
 // channel it slides sideways and enters a column once the target pulls up/down and the knob is within `catch` of it.
+function mobileStickMove(t){return {x:gateCol(t.x),y:clamp(t.y,GEAR_GATE.top,GEAR_GATE.bot)};}
 function stickMove(p,t){
  const G=GEAR_GATE;let x=p.x,y=p.y;
  for(let i=0;i<3;i++){
@@ -2566,7 +2584,7 @@ if(typeof document==='undefined'){if(typeof module!=='undefined'){
  Object.assign(module.exports,{visibleBounds,cameraGeometry,renderMetrics,titleRasterSpec,groundDots,pitStopGeometry,pitPoint,gasPumpPoint,pitPosts,pitOverlap,carPit,conePit,drawPitBay,pitArt,pitDrawables,VIEW_SHORT,computeView,createControls,UI_MARGIN,UI_GAP,uiMetrics,controlZones,WHEEL_DEAD,turnDelta,pointerAngle,wheelDrag,wheelValue,wheelKickback,createModes,recoverAvailable,tryRecover,isRecoverKey,recoverFromKey}); // ui (r2-ui)
  Object.assign(module.exports,{PAINT_SLANT,PAINT_STRIPE,PAINT_SOLID_BELOW,PAINT_KEY_SOLID_BELOW,PAINT_COPY,GLYPHS,glyphMask,shearMask,maskRuns,keycapRuns,wrapPhrases,paintLayout,paintRuns,drawPaint}); // ground paint (r2-paint)
  Object.assign(module.exports,{buildCourse,fitTrack,roundedPath,circuitVerts,laneHalf,laneSelfClear,gateSpot,trackMarks,LANE_PAD,LANE_GAP,GATE_LEAD,TRACK_STEP,CONE_OFF,inGate,TRACKS,TRACK_SHAPES,TRACK_HALF,TRACK_FILL,shapeUnit,trackSelfClear,insideLoop,titleSpot,trackRadiusOk,TRACK_MIN_R}); // sim + course extra exports (r2-sim)
- Object.assign(module.exports,{wheelLimit,wheelInput,wheelAngle,GEAR_GATE,STICK_VB,gearSlot,stickMove,stickSlot,stickPath,AUTO_GATE,autoSlot,autoMove,autoSlotAt,autoPath,stickGate,pathPoint,shiftBarW,TUNING_STORE,loadTuning,saveTuning,tuningGroups,uiPx,SPEED_EM,speedFit,shiftKeyW,shiftKeyGap,shiftKeyLayout,gearCues,trackThumbSize,trackThumb}); // ui extra exports (r2-ui, r3-ui)
+ Object.assign(module.exports,{wheelLimit,wheelInput,wheelAngle,GEAR_GATE,STICK_VB,gearSlot,stickMove,mobileStickMove,stickSlot,simpleAutoInput,stickPath,AUTO_GATE,autoSlot,autoMove,autoSlotAt,autoPath,stickGate,pathPoint,shiftBarW,TUNING_STORE,loadTuning,saveTuning,tuningGroups,uiPx,SPEED_EM,speedFit,shiftKeyW,shiftKeyGap,shiftKeyLayout,gearCues,trackThumbSize,trackThumb}); // ui extra exports (r2-ui, r3-ui)
  Object.assign(module.exports,{stripeH,scaleRuns,PAINT_PX_CSS,TITLE_TEXT,TITLE_MAX,TITLE_MIN,TITLE_GAP,TITLE_CELL,paintPx,titleFit,titleFallbackSpot,titleRuns,titleRect,drawTitle}); // ground paint extra exports (r2-paint)
  Object.assign(module.exports,{EDGE_PX,CURB_W,CURB_R,CURB_STRIPE,trackCurbs,curbFlags,laneField,buildParking,lotMarks,lotThumb,ACCESS_MARK,LOT_STALL_W,LOT_STALL_D,CART_R,CART_MASS,CART_BOX,CART_FRAMES,cartSprite,cartShadowSprite,propArt,propAnchor,propDrawables,bodyFrom,bodyR,bodyM,CORRAL_HW,CORRAL_HL,CORRAL_CARTS,RAIL_R});
  Object.assign(module.exports,{LOT_BAND,LOT_MAX,LOT_PLANS,LOT_TITLE,LOT_TITLE_MIN,lotRects,lotGeom,lotFit,lotBox,onAsphalt,inIsland,lotTitleRect,titleOpts,viewFor});
@@ -2708,7 +2726,7 @@ function resetTrackLayer(A){tracks=makeCanvas(Math.ceil(A.viewR-A.viewL),Math.ce
 let race=null,raceKey='',raceBest=null,raceSessionOnly=false,raceRecordsCache=raceRecords(tuneStore),raceDebug=false;
 let world=fitTransmission(createWorld()),enabled=true,mode='paused',raf=0,lastTime=0,accumulator=0,lastUI=0,trackPixels=0,drawList=[],view=null;
 const trackRec=createTrackRecorder();
-const controls=createControls({onEngage:()=>{if(!race||!['ready','finished'].includes(race.state))modes.engage();},reverse:()=>world.gear==='R'});
+const controls=createControls({onEngage:()=>{if(!race||!['ready','finished'].includes(race.state))modes.engage();},reverse:()=>world.gear==='R'&&!(view&&view.mobile&&world.p.trans==='auto')});
 const modes=createModes(controls,(next,prev)=>onModeChange(next,prev));
 const raceHud=$('race-hud'),raceTimeRead=$('race-time'),raceQualityRead=$('race-quality'),raceStatus=$('race-status'),raceResult=$('race-result'),raceBreakdown=$('race-breakdown'),raceResultBest=$('race-result-best'),raceRestart=$('new-race-button'),raceDebugBox=$('race-debug');
 function raceSetup(){const route=raceRoute(world.layout);race=raceNew(route);if(route){const handling=Object.fromEntries(TUNING_SPEC.filter(s=>s.group!=='view'&&!RACE_COSMETIC_KEYS.has(s.key)).map(s=>[s.key,TUNING[s.key]]));raceKey=raceFingerprint(route,SELECTED_TRACK,world.id,handling);raceBest=raceRecordsCache[raceKey]||null;}else{raceKey='';raceBest=null;}raceDisplay();if(mode==='paused'&&!ui.enter.hidden)setEntry(race.state==='ready'?'TAP OR PRESS W TO START RACE':entryText());}
@@ -2735,7 +2753,7 @@ $('race-debug-toggle').addEventListener('change',e=>{raceDebug=e.target.checked;
  },true);
  root.addEventListener('pointerdown',e=>{if(!race||mode==='menu'||e.target.closest('#settings,#settings-btn,#new-race-button,.car-choice,#recover'))return;
   if((race.state==='ready'||race.state==='finished'||race.state==='racing'&&mode==='paused')&&e.isPrimary&&e.button===0){
-   const gas=!!e.target.closest('#pedal-gas,#pedal-brake,.fly-face');if(race.state==='ready')raceBegin();else if(race.state==='finished')raceDismiss();else resume();
+   const gas=!!e.target.closest('#pedal-gas,#pedal-brake,.fly-face,#wheel-face,#gear-face,#shift-up,#shift-down,#paddle-up,#paddle-down');if(race.state==='ready')raceBegin();else if(race.state==='finished')raceDismiss();else resume();
    if(!gas){e.preventDefault();e.stopImmediatePropagation();}
   }},true);
 
@@ -2792,7 +2810,7 @@ function updateUI(){
  Object.assign(canvas.dataset,{car:world.id,x:c.x.toFixed(2),y:c.y.toFixed(2),speed:Math.hypot(c.vx,c.vy).toFixed(2),heading:c.a.toFixed(3),state:c.state||'driving',roll:(c.roll||0).toFixed(2),wraps:String(world.wraps),hits:String(world.hits),tracks:String(trackPixels),simTime:world.time.toFixed(3),running:String(running),mode,arena:world.arena.W+'x'+world.arena.H,scale:String(view?view.scale:0),input:input.steering.toFixed(2)+','+input.throttle.toFixed(2)+','+input.brake.toFixed(2),movingCones:String(world.cones.filter(o=>Math.hypot(o.vx,o.vy)>.2).length)});
 }
 // The physics input for one step: the merged pedals and wheel, plus the thumb sticks when the Drone flies.
-function frameInput(){const input=controls.sample();if(world.p.flying)input.sticks=controls.sticks();return input;}
+function frameInput(){let input=controls.sample();if(view.mobile&&world.p.trans==='auto')input=simpleAutoInput(world,input);if(world.p.flying)input.sticks=controls.sticks();return input;}
 function animate(time){
  raf=0;if(mode!=='running')return;
  if(!lastTime)lastTime=time;
@@ -2826,7 +2844,7 @@ const setMode=next=>modes.set(next),pause=()=>setMode('paused'),resume=()=>modes
 function fitTransmission(w){w.manual=w.p.trans==='manual'||w.p.trans==='paddle';w.gear=w.manual?1:'D';return w;}
 // The Drone flies with the thumb sticks; the cars drive with the wheel, pedals and gear stick (CSS reads data-fly). The F1 Car
 // swaps the gear stick for paddle shifters (CSS reads data-paddle).
-const syncFly=()=>{root.dataset.fly=String(!!world.p.flying);root.dataset.paddle=String(isPaddle(world));root.dataset.auto=String(world.p.trans==='auto');};
+const syncFly=()=>{root.dataset.fly=String(!!world.p.flying);root.dataset.paddle=String(isPaddle(world));root.dataset.auto=String(world.p.trans==='auto');ui.brake.setAttribute('aria-label',view&&view.mobile&&world.p.trans==='auto'?'Brake and reverse':'Brake');};
 function reset(id=world.id){world=fitTransmission(createWorld(id,world.arena));syncFly();world.trackBreak=true;controls.releaseAll();endStick(false);clearTracks();accumulator=0;lastTime=0;
  buildGround(world.arena);groundKey=groundKeyFor();
  draw();updateUI();renderControls();syncRecover();if(!ui.enter.hidden)setEntry(entryText());ui.announce.textContent=PRESETS[id].name+' ready. Scene reset.';}
@@ -3037,7 +3055,7 @@ function animateKnob(g){
 }
 // One shift request from any source; returns true when the gear changed. A refusal is announced.
 function requestGear(g,source){
- if(mode==='menu'||!g||g===world.gear||world.p.flying)return false; // the Drone has no gearbox
+ if(mode==='menu'||!g||g===world.gear||world.p.flying||(view&&view.mobile&&world.p.trans==='auto'))return false; // the Drone has no gearbox
  if(shiftGear(world,g)){resume();if(source!=='drag'&&!isPaddle(world))animateKnob(g);renderControls();say(gearName(g)+'.');return true;}
  const stop=typeof g==='string'||world.gear==='R'; // R, P and D (or leaving R) wait for a stop; a downshift waits for less speed
  say((stop?'Stop the car before shifting to ':'Too fast for ')+gearName(g).toLowerCase()+'.');return false;
@@ -3052,16 +3070,19 @@ function endStick(spring=true){
 ui.stickFace.addEventListener('pointerdown',e=>{
  if(!primaryPress(e))return;e.preventDefault();leaveMenu();
  if(stick)return; // another finger already holds the stick
- if(knobAnim){cancelAnimationFrame(knobAnim.raf);knobAnim=null;}
+ if(knobAnim){cancelAnimationFrame(knobAnim.raf);knobAnim=null;placeKnob(stickGate(isManual(world)).slot(world.gear||1));}
  // Relative drag: the knob follows the finger's movement from wherever it touched (a finger covers the small knob).
  stick={id:e.pointerId,from:stickPoint(e),knob:{...knob}};capture(ui.stickFace,e.pointerId);ui.stickFace.focus({preventScroll:true});renderStick();
 });
 ui.stickFace.addEventListener('pointermove',e=>{
  if(!stick||e.pointerId!==stick.id)return;
- const G=stickGate(isManual(world)),p=stickPoint(e),next=G.move(knob,{x:stick.knob.x+p.x-stick.from.x,y:stick.knob.y+p.y-stick.from.y});placeKnob(next);
- const g=G.at(next);if(g&&g!==world.gear&&!requestGear(g,'drag'))endStick(true); // refused: spring back to the engaged gear
+ const G=stickGate(isManual(world)),p=stickPoint(e),target={x:stick.knob.x+p.x-stick.from.x,y:stick.knob.y+p.y-stick.from.y};
+ const next=view.mobile&&isManual(world)?mobileStickMove(target):G.move(knob,target);placeKnob(next);
+ // On mobile commit on release, so crossing an intermediate gear never cancels a diagonal shift.
+ if(!view.mobile){const g=G.at(next);if(g&&g!==world.gear&&!requestGear(g,'drag'))endStick(true);}
 });
-for(const type of ['pointerup','pointercancel','lostpointercapture'])ui.stickFace.addEventListener(type,e=>{if(stick&&e.pointerId===stick.id)endStick(true);});
+ui.stickFace.addEventListener('pointerup',e=>{if(stick&&e.pointerId===stick.id){const g=stickGate(isManual(world)).at(knob);if(g&&g!==world.gear)requestGear(g,'drag');endStick(true);}});
+for(const type of ['pointercancel','lostpointercapture'])ui.stickFace.addEventListener(type,e=>{if(stick&&e.pointerId===stick.id)endStick(true);});
 ui.stickFace.addEventListener('contextmenu',e=>e.preventDefault());
 // Keyboard on the focused stick: arrows step one gear like E (up / right) and Q (down / left); on the Supercar 1-5 pick a
 // gear directly and Home / End go to 1 / 5; on an automatic Home / End go to P / D.
@@ -3075,6 +3096,9 @@ const primaryPress=e=>!(e.pointerType==='mouse'&&e.button!==0);
 const capture=(el,id)=>{try{el.setPointerCapture(id);}catch(_){/* synthetic or already-ended pointer */}};
 // Grabbing a control while the menu is open closes it first; the grab itself is the intentional action that resumes.
 const leaveMenu=()=>{if(mode==='menu')closeMenu(false);};
+for(const [el,dir] of [[ui.shiftUp,1],[ui.shiftDown,-1]]){
+ el.addEventListener('click',()=>{leaveMenu();requestGear(gearStep(world,dir),'button');});
+}
 // Paddle shifters (F1 Car): each pull is one gear, like the real paddles behind the wheel. A touch or click shifts on press;
 // Enter / Space on a focused paddle (a click with no pointer) shifts too. Q / E show the pull on the paddle for a moment.
 const paddleOf=dir=>dir>0?ui.paddleUp:ui.paddleDown;
@@ -3152,6 +3176,7 @@ window.addEventListener('keydown',event=>{
  // A short R press recovers; holding it for 1.8 seconds starts a fresh race.
  if(recoverFromKey(event,mode,ownsKeys(document.activeElement))){event.preventDefault();if(!raceHoldTimer&&!raceHoldTriggered)raceHoldTimer=setTimeout(()=>{raceHoldTimer=0;raceHoldTriggered=true;if(race&&race.route&&mode!=='menu')raceReset(false);},1000);return;}
  if((event.key===' '||event.key==='Enter')&&event.target.closest&&event.target.closest('#pedal-gas,#pedal-brake,#paddle-up,#paddle-down'))return;
+ if((event.key===' '||event.key==='Enter')&&event.target.closest&&event.target.closest('#shift-up,#shift-down'))return;
  const key=driveKey(event);if(!key)return;
  if(event.ctrlKey||event.metaKey||event.altKey)return; // leave browser and OS shortcuts alone
  if(!modes.acceptsKeys()||ownsKeys(document.activeElement))return;
@@ -3202,7 +3227,7 @@ function applyView(){
  view={...next,dpr,cssW,cssH,u,safe,mobile};uiZones=controlZones(view,safe);
  const mobileShort=VIEW_SHORT,A=makeArena(mobileShort*2,mobileShort);A.fixedMobile=true;A.safe=safe;A.uiU=u;A.uiW=cssW;A.uiH=cssH;A.mobile=mobile;
  // Both courses use the same world reference; each slider selects its own visible span.
- const camera=cameraGeometry(cssW,cssH,viewFor(),VIEW_SHORT,A.W,A.H),worldScale=camera.scale,visibleW=camera.w,visibleH=camera.h;view.worldScale=worldScale;
+ const rotated=mobile&&cssH>cssW, camera=cameraGeometry(rotated?cssH:cssW,rotated?cssW:cssH,mobile?Math.max(viewFor(),VIEW_SHORT*1.1):viewFor(),VIEW_SHORT,A.W,A.H),worldScale=camera.scale,visibleW=camera.w,visibleH=camera.h;view.worldScale=worldScale;
  Object.assign(A,{viewL:camera.l,viewT:camera.t,viewR:camera.r,viewB:camera.b});
  const arenaChanged=first||world.arena.W!==A.W||world.arena.H!==A.H||!world.arena.fixedMobile||!ground;
  const cameraChanged=arenaChanged||Math.abs((world.arena.viewL??0)-A.viewL)>.001||Math.abs((world.arena.viewT??0)-A.viewT)>.001||Math.abs((world.arena.viewR??A.W)-A.viewR)>.001||Math.abs((world.arena.viewB??A.H)-A.viewB)>.001;
@@ -3212,7 +3237,7 @@ function applyView(){
  const rendering=renderMetrics(visibleW,visibleH,worldScale);view.renderDensity=rendering.density;
  if(cameraChanged){canvas.width=rendering.width;canvas.height=rendering.height;ctx.imageSmoothingEnabled=false;buildSurface(A);resetTrackLayer(A);world.trackBreak=true;}
  const gk=groundKeyFor();if(arenaChanged||cameraChanged||gk!==groundKey){buildGround(world.arena);groundKey=gk;}
- canvas.style.width=rendering.cssWidth+'px';canvas.style.height=rendering.cssHeight+'px';canvas.style.left='0px';canvas.style.top='0px';
+ canvas.style.width=rendering.cssWidth+'px';canvas.style.height=rendering.cssHeight+'px';canvas.style.transformOrigin='0 0';canvas.style.transform=rotated?'translateX('+cssW+'px) rotate(90deg)':'';canvas.style.left='0px';canvas.style.top='0px';root.dataset.mobile=String(mobile);ui.brake.setAttribute('aria-label',mobile&&world.p.trans==='auto'?'Brake and reverse':'Brake');
  watchPixelRatio(dpr);layoutUI();if(race)raceDisplay();
  const pg=paintGeom();if((pg?pg.key:'')!==paintKey)buildGround(world.arena);if(mode==='menu')syncTracks();
  draw();updateUI();renderControls();syncRecover();
