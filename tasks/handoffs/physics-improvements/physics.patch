@@ -1,0 +1,120 @@
+diff --git a/dist/index.html b/tasks/handoffs/physics-improvements/index.html
+index 6e1382a..d169574 100644
+--- a/dist/index.html
++++ b/tasks/handoffs/physics-improvements/index.html
+@@ -295,11 +295,16 @@ function eightUV(t){const s=Math.sin(t),c=Math.cos(t),d=1+s*s;return [c/d,s*c/d*
+ function eightPoint(f,t){const [u,v]=eightUV(t);return f.vertical?[f.cx+f.b*v,f.cy+f.a*u]:[f.cx+f.a*u,f.cy+f.b*v];}
+ // Largest figure-eight (long axis along the arena's long side) whose whole outline clears the edge strip and controls.
+ function fitEight(A,zones){
+- const vertical=A.H>A.W,ratio=.52,cx=A.W/2,cy=A.H/2;
+- const cap=Math.min(vertical?A.H:A.W,(vertical?A.W:A.H)/ratio)*.4;
+- const fits=a=>Array.from({length:72},(_,i)=>eightUV(i*TAU/72)).every(([u,v])=>vertical?pointClear(A,zones,cx+a*ratio*v,cy+a*u,CONE_MARGIN):pointClear(A,zones,cx+a*u,cy+a*ratio*v,CONE_MARGIN));
+- let lo=16,hi=cap;if(fits(hi))lo=hi;else for(let k=0;k<10;k++){const mid=(lo+hi)/2;if(fits(mid))lo=mid;else hi=mid;}
+- return {cx,cy,a:lo,b:lo*ratio,vertical};
++ const vertical=A.H>A.W,ratio=.52,uv=Array.from({length:72},(_,i)=>eightUV(i*TAU/72)),cap=Math.min(vertical?A.H:A.W,(vertical?A.W:A.H)/ratio)*.4;
++ let best=null;
++ for(let cy=A.E;cy<=A.H-A.E;cy+=4)for(let cx=A.E;cx<=A.W-A.E;cx+=4){
++  const fits=a=>uv.every(([u,v])=>vertical?pointClear(A,zones,cx+a*ratio*v,cy+a*u,CONE_MARGIN):pointClear(A,zones,cx+a*u,cy+a*ratio*v,CONE_MARGIN));
++  if(!fits(16))continue;
++  let lo=16,hi=cap;if(fits(hi))lo=hi;else for(let k=0;k<9;k++){const mid=(lo+hi)/2;if(fits(mid))lo=mid;else hi=mid;}
++  const score=lo-.12*Math.hypot(cx-A.W/2,cy-A.H/2);
++  if(!best||score>best.score+1e-9)best={cx,cy,a:lo,b:lo*ratio,vertical,score};
++ }
++ return best||{cx:A.W/2,cy:A.H/2,a:16,b:16*ratio,vertical,score:0};
+ }
+ // Drivable crossing (task 06): the four cones at the crossing leave a corridor along the figure's long axis at least
+ // CROSS_GAP screen px wide between cone edges: the widest car (the Van, 18) + 8 px. Each branch ends where its offset
+@@ -396,13 +401,21 @@ function layoutCourse(A=DEFAULT_ARENA){
+  return JSON.parse(json);
+ }
+ function buildCourse(A,zones){
+- const f=fitEight(A,zones),off=GATE_OPEN/2+POST_R;
+- // The gate straddles the crossing, and the car begins just before it facing through the opening.
+- // Keep the crossing and the posts clear of cones; the route itself remains visible beneath them.
+- const cones=eightCones(f).filter(([x,y])=>Math.abs(x-f.cx)>off+POST_R+CONE_MARGIN||Math.abs(y-f.cy)>GATE_LANE);
+- const gate={x:f.cx,y:f.cy,off},spawn={x:f.cx,y:(f.cy+12)/K,a:-Math.PI/2};
++ const fit=fitEight(A,zones);
++ let f,cones,gate,spawn,bays;
++ for(const s of [1,.92,.85,.78,.7,.62,.55,.48,.4]){
++  f={...fit,a:fit.a*s,b:fit.b*s};cones=eightCones(f);
++  gate=placeGate(A,zones,f,cones);if(!gate)continue;
++  spawn=placeSpawn(A,zones,f,cones,gate);if(!spawn)continue;
++  bays=placeParking(A,zones,f,cones,gate,spawn);if(bays)break;
++ }
++ const parking=[];
++ if(bays){const back=bays.openDown?bays.y:bays.y+BAY_D,w=bays.n*BAY_W;parking.push({x0:bays.x,y0:back/K,x1:bays.x+w,y1:back/K});for(let i=0;i<=bays.n;i++)parking.push({x0:bays.x+i*BAY_W,y0:bays.y/K,x1:bays.x+i*BAY_W,y1:(bays.y+BAY_D)/K});}
++ // Degenerate arenas still get a usable (if crowded) layout rather than an exception.
++ if(!gate)gate={x:A.W/2,y:A.E+POST_R,off:GATE_OPEN/2+POST_R};
++ if(!spawn)spawn={x:A.W/2,y:A.H/2/K,a:-Math.PI/2};
+  return {
+-  cones:cones.map(([x,y])=>({x,y:y/K})),parking:[],
++  cones:cones.map(([x,y])=>({x,y:y/K})),parking,
+   gate:{x:gate.x,y:gate.y/K,width:GATE_OPEN,height:GATE_HIGH,a:Math.PI/2,lane:GATE_LANE/K,posts:[-1,1].map(s=>({x:gate.x+s*gate.off,y:gate.y/K,r:POST_R}))},
+   spawn,figure:{x:f.cx,y:f.cy/K,rx:f.vertical?f.b:f.a,ry:(f.vertical?f.a:f.b)/K,vertical:f.vertical}
+  };
+@@ -416,10 +429,7 @@ function drawGround(gc,A,layout){
+  const W=A.W,H=A.H,dot=(x,y)=>gc.fillRect(x,y,1,1);
+  gc.fillStyle=paper;gc.fillRect(0,0,W,H);gc.fillStyle=ink;
+  for(let y=15;y<H;y+=20)for(let x=15;x<W;x+=20)if(((x*17+y*13)%7)<4)dot(x,y);
+- // A light dotted centerline makes the figure eight easy to follow without hiding the tyre tracks.
+- const f=layout.figure,curve={cx:f.x,cy:f.y*K,a:f.vertical?f.ry*K:f.rx,b:f.vertical?f.rx:f.ry*K,vertical:f.vertical};
+- let prev=eightPoint(curve,0),n=0;
+- for(let i=1;i<=480;i++){const next=eightPoint(curve,i*TAU/480);plotLine(prev[0],prev[1],next[0],next[1],(x,y)=>{if((n++%6)<3)dot(x,y);},W,H);prev=next;}
++ for(const s of layout.parking)plotLine(s.x0,s.y0*K,s.x1,s.y1*K,(x,y)=>{if((x+y)%3!==0)dot(x,y);},W,H);
+  // The gate itself (arch, legs and its shadow) is drawn per frame from cached sprites (task 07); the ground stays plain under it.
+  for(const [x,y] of [[8,8],[W-9,8],[8,H-9],[W-9,H-9]]){gc.fillRect(x-2,y,5,1);gc.fillRect(x,y-2,1,5);}
+ }
+@@ -745,9 +755,9 @@ const drawOrder=(a,b)=>a.key-b.key||(a.type==='car')-(b.type==='car');
+ // offscreen draws nothing and resumes when it re-enters. A segment is never drawn across a break: trackBreak (transfer,
+ // pause/menu, resize, car change, reset, recovery, roll start), recording switched off, a non-'driving' car state, or a tyre
+ // jump longer than maxSeg (a safety net) all start a new mark.
+-const SKID={minSpeed:12,slipOn:9,slipHold:6,angleOn:.12,angleHold:.08,brakeFrac:.7,dot:2,gap:9,maxSeg:12};
+-function createTrackRecorder(){return {prev:null,fwd:null,on:false,dist:[0,0]};}
+-function breakTracks(rec){rec.prev=null;rec.fwd=null;rec.on=false;}
++const SKID={minSpeed:12,slipOn:9,slipHold:6,angleOn:.12,angleHold:.08,brakeFrac:.7,delay:.25,dot:2,gap:9,maxSeg:12};
++function createTrackRecorder(){return {prev:null,fwd:null,on:false,heat:0,dist:[0,0]};}
++function breakTracks(rec){rec.prev=null;rec.fwd=null;rec.on=false;rec.heat=0;}
+ // One physics step of recording. plot(x, y, tyre) receives integer in-arena pixels. Consumes w.trackBreak. Returns pixels plotted.
+ function recordTracks(w,rec,plot,enabled=true,dt=STEP){
+  if(w.trackBreak){breakTracks(rec);w.trackBreak=false;}
+@@ -755,7 +765,10 @@ function recordTracks(w,rec,plot,enabled=true,dt=STEP){
+  if(!enabled||(c.state!==undefined&&c.state!=='driving')){breakTracks(rec);return 0;}
+  const cs=Math.cos(c.a),sn=Math.sin(c.a),fwd=c.vx*cs+c.vy*sn,slip=Math.abs(-sn*c.vx+cs*c.vy),angle=Math.atan2(slip,Math.abs(fwd));
+  const decel=rec.fwd===null?0:(Math.abs(rec.fwd)-Math.abs(fwd))/dt,hold=rec.on;
+- const on=Math.hypot(c.vx,c.vy)>SKID.minSpeed&&((slip>(hold?SKID.slipHold:SKID.slipOn)&&angle>(hold?SKID.angleHold:SKID.angleOn))||decel>SKID.brakeFrac*w.p.brake);
++ // Require sustained slip or hard braking before leaving rubber. Brief spikes cool twice as fast as they build.
++ const stressed=Math.hypot(c.vx,c.vy)>SKID.minSpeed&&((slip>(hold?SKID.slipHold:SKID.slipOn)&&angle>(hold?SKID.angleHold:SKID.angleOn))||(c.braking&&decel>SKID.brakeFrac*w.p.brake));
++ rec.heat=clamp(rec.heat+(stressed?dt:-2*dt),0,SKID.delay);
++ const on=stressed&&(hold||rec.heat>=SKID.delay-1e-9);
+  rec.fwd=fwd;rec.on=on;
+  if(!on){rec.prev=null;return 0;}
+  const cur=wheelPoints(w),A=w.arena;let n=0;
+@@ -1105,7 +1118,14 @@ function buildCarAtlases(){
+  return {atlases,shadows,ms:(typeof performance!=='undefined'?performance.now():Date.now())-t0};
+ }
+ // The same pure functions can be tested in Node without altering the delivered page.
+-if(typeof document==='undefined'){if(typeof module!=='undefined')module.exports={WIDTH,HEIGHT,K,Z,WORLD_H,STEP,TAU,PRESETS,CAR_ART,FRAMES,SHADOW_INK,LIGHT,DEFAULT_ARENA,VIEW_SHORT,computeView,createControls,edgeClear,CROSS_GAP,carBoxAll,SPAWN_INSIDE,CONE_COUNT,CONE_R,CONTROL_ZONES,keepOuts,layoutCourse,drawGround,resetCones,TRANSFER_MARGIN,CONE_BOX,transferBody,transferEdges,sceneItems,carDrawable,gateDrawables,drawOrder,SKID,createTrackRecorder,breakTracks,recordTracks,coneSprite,coneShadowSprite,CONE_H,archShape,inArch,gateArt,GATE_SPLIT,GATE_FRONT,plotLine,frameIndex,carModel,carShadowPolys,frameBounds,spriteBox,raster,carSprite,carShadow,buildCarAtlases,makeArena,normalizeInput,keysToInput,carScreenBounds,resizeWorld,wrap,delta,angleDelta,createWorld,drive,step,carCone,coneCone,position,wheelPoints,SPEED_CAP,OMEGA_MAX,CONE_MAX,FASTEST,SUB_MOVE,gatePosts,carPost,conePost,substeps,limitVelocity,UI_MARGIN,UI_GAP,uiMetrics,controlZones,GROUND_TEXT,GLYPHS,TEXT_ROWS,TEXT_LINE,textWidth,groundTextLines,textBlock,drawGroundText,WHEEL_MAX,WHEEL_DEAD,turnDelta,pointerAngle,wheelDrag,wheelValue,createModes,recoverAvailable,tryRecover,isRecoverKey,recoverFromKey,ROLL_STEPS,ROLL_G,LOAD_W,LOAD_ZETA,IMPACT_GAIN,TIP_COMMIT,TIP_DROP,TIP_MIN,TIP_SOFT,ROLL_SPIN,ROLL_DECEL,ROLL_SETTLE,ROLL_FRICTION,REST_SPEED,RECOVER_TIME,RECOVER_GAP,CAR_STATES,uprightState,rollKappa,tipAngle,tumble,rollover,rollFrame,rolledModel,rollShadowPolys,rollSpritePoints,rollFrameBounds,rollSpriteBox,carRollSprite,carRollShadow,carHidden,canRecover,recover,recoverSpot,boxDistance};return;}
++// Small visual steering feedback from lateral tyre slip. It never changes the driver's actual input.
++function wheelKickback(c,time){
++ if(c.state&&c.state!=='driving')return 0;
++ const lateral=-Math.sin(c.a)*c.vx+Math.cos(c.a)*c.vy;
++ const strength=clamp((Math.abs(lateral)-5)/35,0,1);
++ return strength*(clamp(-lateral/100,-.12,.12)+.045*Math.sin(time*22));
++}
++if(typeof document==='undefined'){if(typeof module!=='undefined')module.exports={WIDTH,HEIGHT,K,Z,WORLD_H,STEP,TAU,PRESETS,CAR_ART,FRAMES,SHADOW_INK,LIGHT,DEFAULT_ARENA,VIEW_SHORT,computeView,createControls,edgeClear,CROSS_GAP,carBoxAll,SPAWN_INSIDE,CONE_COUNT,CONE_R,CONTROL_ZONES,keepOuts,layoutCourse,drawGround,resetCones,TRANSFER_MARGIN,CONE_BOX,transferBody,transferEdges,sceneItems,carDrawable,gateDrawables,drawOrder,SKID,createTrackRecorder,breakTracks,recordTracks,coneSprite,coneShadowSprite,CONE_H,archShape,inArch,gateArt,GATE_SPLIT,GATE_FRONT,plotLine,frameIndex,carModel,carShadowPolys,frameBounds,spriteBox,raster,carSprite,carShadow,buildCarAtlases,makeArena,normalizeInput,keysToInput,carScreenBounds,resizeWorld,wrap,delta,angleDelta,createWorld,drive,step,carCone,coneCone,position,wheelPoints,SPEED_CAP,OMEGA_MAX,CONE_MAX,FASTEST,SUB_MOVE,gatePosts,carPost,conePost,substeps,limitVelocity,UI_MARGIN,UI_GAP,uiMetrics,controlZones,GROUND_TEXT,GLYPHS,TEXT_ROWS,TEXT_LINE,textWidth,groundTextLines,textBlock,drawGroundText,WHEEL_MAX,WHEEL_DEAD,turnDelta,pointerAngle,wheelDrag,wheelValue,wheelKickback,createModes,recoverAvailable,tryRecover,isRecoverKey,recoverFromKey,ROLL_STEPS,ROLL_G,LOAD_W,LOAD_ZETA,IMPACT_GAIN,TIP_COMMIT,TIP_DROP,TIP_MIN,TIP_SOFT,ROLL_SPIN,ROLL_DECEL,ROLL_SETTLE,ROLL_FRICTION,REST_SPEED,RECOVER_TIME,RECOVER_GAP,CAR_STATES,uprightState,rollKappa,tipAngle,tumble,rollover,rollFrame,rolledModel,rollShadowPolys,rollSpritePoints,rollFrameBounds,rollSpriteBox,carRollSprite,carRollShadow,carHidden,canRecover,recover,recoverSpot,boxDistance};return;}
+ 
+ // ---- Browser only below. Rendering reads world.arena (W×H); WIDTH/HEIGHT/WORLD_H stay only as the Node test default. ----
+ const root=document.getElementById('playground'),canvas=document.getElementById('game'),ctx=canvas.getContext('2d',{alpha:false});
+@@ -1295,9 +1315,10 @@ let drag=null,shown='';
+ function renderControls(){
+  const v=controls.visual();
+  if(drag&&controls.owner('wheel')!==drag.id)drag=null; // released elsewhere (blur, menu, rotation, reset)
+- const key=v.steering.toFixed(3)+','+v.throttle.toFixed(2)+','+v.brake.toFixed(2)+','+v.owned.wheel;
++ const feedback=mode==='running'?wheelKickback(world.car,world.time):0;
++ const key=v.steering.toFixed(3)+','+v.throttle.toFixed(2)+','+v.brake.toFixed(2)+','+v.owned.wheel+','+feedback.toFixed(3);
+  if(key===shown)return;shown=key;
+- ui.rim.style.transform='rotate('+(v.steering*WHEEL_MAX*180/Math.PI).toFixed(2)+'deg)';
++ ui.rim.style.transform='rotate('+((v.steering*WHEEL_MAX+feedback)*180/Math.PI).toFixed(2)+'deg)';
+  ui.wheel.classList.toggle('held',v.owned.wheel);
+  const pct=Math.round(v.steering*100);
+  ui.wheelFace.setAttribute('aria-valuenow',String(pct));ui.wheelFace.setAttribute('aria-valuetext',pct===0?'centred':Math.abs(pct)+'% '+(pct<0?'left':'right'));

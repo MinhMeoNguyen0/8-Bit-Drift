@@ -1,0 +1,57 @@
+diff --git a/dist/index.html b/dist/index.html
+--- a/dist/index.html
++++ b/dist/index.html
+@@ -745,9 +755,9 @@ const drawOrder=(a,b)=>a.key-b.key||(a.type==='car')-(b.type==='car');
+ // offscreen draws nothing and resumes when it re-enters. A segment is never drawn across a break: trackBreak (transfer,
+ // pause/menu, resize, car change, reset, recovery, roll start), recording switched off, a non-'driving' car state, or a tyre
+ // jump longer than maxSeg (a safety net) all start a new mark.
+-const SKID={minSpeed:12,slipOn:9,slipHold:6,angleOn:.12,angleHold:.08,brakeFrac:.7,dot:2,gap:9,maxSeg:12};
+-function createTrackRecorder(){return {prev:null,fwd:null,on:false,dist:[0,0]};}
+-function breakTracks(rec){rec.prev=null;rec.fwd=null;rec.on=false;}
++const SKID={minSpeed:12,slipOn:9,slipHold:6,angleOn:.12,angleHold:.08,brakeFrac:.7,delay:.25,dot:2,gap:9,maxSeg:12};
++function createTrackRecorder(){return {prev:null,fwd:null,on:false,heat:0,dist:[0,0]};}
++function breakTracks(rec){rec.prev=null;rec.fwd=null;rec.on=false;rec.heat=0;}
+ // One physics step of recording. plot(x, y, tyre) receives integer in-arena pixels. Consumes w.trackBreak. Returns pixels plotted.
+ function recordTracks(w,rec,plot,enabled=true,dt=STEP){
+  if(w.trackBreak){breakTracks(rec);w.trackBreak=false;}
+@@ -755,7 +765,10 @@ function recordTracks(w,rec,plot,enabled=true,dt=STEP){
+  if(!enabled||(c.state!==undefined&&c.state!=='driving')){breakTracks(rec);return 0;}
+  const cs=Math.cos(c.a),sn=Math.sin(c.a),fwd=c.vx*cs+c.vy*sn,slip=Math.abs(-sn*c.vx+cs*c.vy),angle=Math.atan2(slip,Math.abs(fwd));
+  const decel=rec.fwd===null?0:(Math.abs(rec.fwd)-Math.abs(fwd))/dt,hold=rec.on;
+- const on=Math.hypot(c.vx,c.vy)>SKID.minSpeed&&((slip>(hold?SKID.slipHold:SKID.slipOn)&&angle>(hold?SKID.angleHold:SKID.angleOn))||decel>SKID.brakeFrac*w.p.brake);
++ // Require sustained slip or hard braking before leaving rubber. Brief spikes cool twice as fast as they build.
++ const stressed=Math.hypot(c.vx,c.vy)>SKID.minSpeed&&((slip>(hold?SKID.slipHold:SKID.slipOn)&&angle>(hold?SKID.angleHold:SKID.angleOn))||(c.braking&&decel>SKID.brakeFrac*w.p.brake));
++ rec.heat=clamp(rec.heat+(stressed?dt:-2*dt),0,SKID.delay);
++ const on=stressed&&(hold||rec.heat>=SKID.delay-1e-9);
+  rec.fwd=fwd;rec.on=on;
+  if(!on){rec.prev=null;return 0;}
+  const cur=wheelPoints(w),A=w.arena;let n=0;
+@@ -1105,7 +1118,14 @@ function buildCarAtlases(){
+  return {atlases,shadows,ms:(typeof performance!=='undefined'?performance.now():Date.now())-t0};
+ }
+ // The same pure functions can be tested in Node without altering the delivered page.
+-if(typeof document==='undefined'){if(typeof module!=='undefined')module.exports={WIDTH,HEIGHT,K,Z,WORLD_H,STEP,TAU,PRESETS,CAR_ART,FRAMES,SHADOW_INK,LIGHT,DEFAULT_ARENA,VIEW_SHORT,computeView,createControls,edgeClear,CROSS_GAP,carBoxAll,SPAWN_INSIDE,CONE_COUNT,CONE_R,CONTROL_ZONES,keepOuts,layoutCourse,drawGround,resetCones,TRANSFER_MARGIN,CONE_BOX,transferBody,transferEdges,sceneItems,carDrawable,gateDrawables,drawOrder,SKID,createTrackRecorder,breakTracks,recordTracks,coneSprite,coneShadowSprite,CONE_H,archShape,inArch,gateArt,GATE_SPLIT,GATE_FRONT,plotLine,frameIndex,carModel,carShadowPolys,frameBounds,spriteBox,raster,carSprite,carShadow,buildCarAtlases,makeArena,normalizeInput,keysToInput,carScreenBounds,resizeWorld,wrap,delta,angleDelta,createWorld,drive,step,carCone,coneCone,position,wheelPoints,SPEED_CAP,OMEGA_MAX,CONE_MAX,FASTEST,SUB_MOVE,gatePosts,carPost,conePost,substeps,limitVelocity,UI_MARGIN,UI_GAP,uiMetrics,controlZones,GROUND_TEXT,GLYPHS,TEXT_ROWS,TEXT_LINE,textWidth,groundTextLines,textBlock,drawGroundText,WHEEL_MAX,WHEEL_DEAD,turnDelta,pointerAngle,wheelDrag,wheelValue,createModes,recoverAvailable,tryRecover,isRecoverKey,recoverFromKey,ROLL_STEPS,ROLL_G,LOAD_W,LOAD_ZETA,IMPACT_GAIN,TIP_COMMIT,TIP_DROP,TIP_MIN,TIP_SOFT,ROLL_SPIN,ROLL_DECEL,ROLL_SETTLE,ROLL_FRICTION,REST_SPEED,RECOVER_TIME,RECOVER_GAP,CAR_STATES,uprightState,rollKappa,tipAngle,tumble,rollover,rollFrame,rolledModel,rollShadowPolys,rollSpritePoints,rollFrameBounds,rollSpriteBox,carRollSprite,carRollShadow,carHidden,canRecover,recover,recoverSpot,boxDistance};return;}
++// Small visual steering feedback from lateral tyre slip. It never changes the driver's actual input.
++function wheelKickback(c,time){
++ if(c.state&&c.state!=='driving')return 0;
++ const lateral=-Math.sin(c.a)*c.vx+Math.cos(c.a)*c.vy;
++ const strength=clamp((Math.abs(lateral)-5)/35,0,1);
++ return strength*(clamp(-lateral/100,-.12,.12)+.045*Math.sin(time*22));
++}
++if(typeof document==='undefined'){if(typeof module!=='undefined')module.exports={WIDTH,HEIGHT,K,Z,WORLD_H,STEP,TAU,PRESETS,CAR_ART,FRAMES,SHADOW_INK,LIGHT,DEFAULT_ARENA,VIEW_SHORT,computeView,createControls,edgeClear,CROSS_GAP,carBoxAll,SPAWN_INSIDE,CONE_COUNT,CONE_R,CONTROL_ZONES,keepOuts,layoutCourse,drawGround,resetCones,TRANSFER_MARGIN,CONE_BOX,transferBody,transferEdges,sceneItems,carDrawable,gateDrawables,drawOrder,SKID,createTrackRecorder,breakTracks,recordTracks,coneSprite,coneShadowSprite,CONE_H,archShape,inArch,gateArt,GATE_SPLIT,GATE_FRONT,plotLine,frameIndex,carModel,carShadowPolys,frameBounds,spriteBox,raster,carSprite,carShadow,buildCarAtlases,makeArena,normalizeInput,keysToInput,carScreenBounds,resizeWorld,wrap,delta,angleDelta,createWorld,drive,step,carCone,coneCone,position,wheelPoints,SPEED_CAP,OMEGA_MAX,CONE_MAX,FASTEST,SUB_MOVE,gatePosts,carPost,conePost,substeps,limitVelocity,UI_MARGIN,UI_GAP,uiMetrics,controlZones,GROUND_TEXT,GLYPHS,TEXT_ROWS,TEXT_LINE,textWidth,groundTextLines,textBlock,drawGroundText,WHEEL_MAX,WHEEL_DEAD,turnDelta,pointerAngle,wheelDrag,wheelValue,wheelKickback,createModes,recoverAvailable,tryRecover,isRecoverKey,recoverFromKey,ROLL_STEPS,ROLL_G,LOAD_W,LOAD_ZETA,IMPACT_GAIN,TIP_COMMIT,TIP_DROP,TIP_MIN,TIP_SOFT,ROLL_SPIN,ROLL_DECEL,ROLL_SETTLE,ROLL_FRICTION,REST_SPEED,RECOVER_TIME,RECOVER_GAP,CAR_STATES,uprightState,rollKappa,tipAngle,tumble,rollover,rollFrame,rolledModel,rollShadowPolys,rollSpritePoints,rollFrameBounds,rollSpriteBox,carRollSprite,carRollShadow,carHidden,canRecover,recover,recoverSpot,boxDistance};return;}
+ 
+ // ---- Browser only below. Rendering reads world.arena (W×H); WIDTH/HEIGHT/WORLD_H stay only as the Node test default. ----
+ const root=document.getElementById('playground'),canvas=document.getElementById('game'),ctx=canvas.getContext('2d',{alpha:false});
+@@ -1295,9 +1315,10 @@ let drag=null,shown='';
+ function renderControls(){
+  const v=controls.visual();
+  if(drag&&controls.owner('wheel')!==drag.id)drag=null; // released elsewhere (blur, menu, rotation, reset)
+- const key=v.steering.toFixed(3)+','+v.throttle.toFixed(2)+','+v.brake.toFixed(2)+','+v.owned.wheel;
++ const feedback=mode==='running'?wheelKickback(world.car,world.time):0;
++ const key=v.steering.toFixed(3)+','+v.throttle.toFixed(2)+','+v.brake.toFixed(2)+','+v.owned.wheel+','+feedback.toFixed(3);
+  if(key===shown)return;shown=key;
+- ui.rim.style.transform='rotate('+(v.steering*WHEEL_MAX*180/Math.PI).toFixed(2)+'deg)';
++ ui.rim.style.transform='rotate('+((v.steering*WHEEL_MAX+feedback)*180/Math.PI).toFixed(2)+'deg)';
+  ui.wheel.classList.toggle('held',v.owned.wheel);
+  const pct=Math.round(v.steering*100);
+  ui.wheelFace.setAttribute('aria-valuenow',String(pct));ui.wheelFace.setAttribute('aria-valuetext',pct===0?'centred':Math.abs(pct)+'% '+(pct<0?'left':'right'));

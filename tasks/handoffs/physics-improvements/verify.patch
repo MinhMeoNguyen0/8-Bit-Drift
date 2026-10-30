@@ -1,0 +1,170 @@
+diff --git a/verify.cjs b/tasks/handoffs/physics-improvements/verify.cjs
+index 61529e8..702cb56 100644
+--- a/verify.cjs
++++ b/tasks/handoffs/physics-improvements/verify.cjs
+@@ -503,31 +503,62 @@ function clearOf(A,sx,sy,m=0){
+ }
+ const layouts = ARENAS.map(([W,H])=>{const A=e.makeArena(W,H);return {A,name:W+'x'+H,L:e.layoutCourse(A)};});
+ const maxLength = Math.max(...Object.values(e.PRESETS).map(p=>p.length));
+-test('course: centered figure eight, gate and starting point', () => {
++test('course: cone count and a figure-eight (two hollow loops, crossing in the middle) on every arena', () => {
+  for(const {A,name,L} of layouts){
+-  const f=L.figure,g=L.gate,s=L.spawn;
+-  assert.equal(f.x,A.W/2,`${name}: figure x`);assert(Math.abs(f.y*e.K-A.H/2)<1e-9,`${name}: figure y`);
+-  assert.equal(g.x,f.x,`${name}: gate x`);assert.equal(g.y,f.y,`${name}: gate y`);
+-  assert.equal(s.x,g.x,`${name}: start aligned to gate`);assert(s.y>g.y,`${name}: start before gate`);
+-  assert(Math.abs(s.a+Math.PI/2)<1e-9,`${name}: start facing through gate`);
+-  assert.equal(L.parking.length,0,`${name}: no parking places`);
+-  assert(L.cones.length>=16,`${name}: enough cones to show both loops`);
+-  const vertical=A.H>A.W,along=c=>vertical?c.y*e.K:c.x,center=vertical?A.H/2:A.W/2;
+-  const left=L.cones.filter(c=>along(c)<center),right=L.cones.filter(c=>along(c)>center);
+-  assert.equal(left.length,right.length,`${name}: balanced loops`);
+-  for(const c of L.cones){
+-   assert(clearOf(A,...screen(A,c.x,c.y),e.CONE_R),`${name}: cone outside playable area`);
+-   for(const p of g.posts)assert(Math.hypot(c.x-p.x,c.y-p.y)>p.r+e.CONE_R,`${name}: cone overlaps gate post`);
++  assert.equal(L.cones.length,e.CONE_COUNT,name);assert(L.cones.length>=16,name);
++  const pts=L.cones.map(c=>screen(A,c.x,c.y)),vertical=A.H>A.W;
++  const along=([x,y])=>vertical?y:x,across=([x,y])=>vertical?x:y;
++  const cx=pts.reduce((s,p)=>s+p[0],0)/pts.length,cy=pts.reduce((s,p)=>s+p[1],0)/pts.length,c=[cx,cy];
++  const spanAlong=Math.max(...pts.map(along))-Math.min(...pts.map(along)),spanAcross=Math.max(...pts.map(across))-Math.min(...pts.map(across));
++  assert(spanAlong>spanAcross*1.3,`${name}: long axis follows the arena's long side`);
++  assert(spanAlong>Math.max(A.W,A.H)*.4,`${name}: figure is large enough to read`);
++  // Centred in the free area, not hugging a side.
++  assert(Math.abs(along(c)-(vertical?A.H:A.W)/2)<(vertical?A.H:A.W)*.15,`${name}: figure roughly centred`);
++  const loops=[pts.filter(p=>along(p)<along(c)),pts.filter(p=>along(p)>along(c))];
++  for(const loop of loops){
++   assert.equal(loop.length,pts.length/2,`${name}: loops are balanced`);
++   const lx=loop.reduce((s,p)=>s+p[0],0)/loop.length,ly=loop.reduce((s,p)=>s+p[1],0)/loop.length;
++   assert(Math.abs(along([lx,ly])-along(c))>spanAlong*.2,`${name}: loop centres lie apart`);
++   // Hollow and closed: cones surround the loop centre with no angular gap above 100°, and none sits on it.
++   const angles=loop.map(([x,y])=>Math.atan2(y-ly,x-lx)).sort((a,b)=>a-b);
++   const gaps=angles.map((a,i)=>(i?a-angles[i-1]:a+2*Math.PI-angles[angles.length-1]));
++   assert(Math.max(...gaps)<100*Math.PI/180,`${name}: loop is closed`);
++   assert(Math.min(...loop.map(([x,y])=>Math.hypot(x-lx,y-ly)))>spanAcross*.25,`${name}: loop is hollow`);
+   }
+-  const inner=g.posts[1].x-g.posts[1].r-(g.posts[0].x+g.posts[0].r);
+-  assert(Math.abs(inner-g.width)<1e-9,`${name}: posts frame the opening`);
++  // The crossing: the four cones nearest the centre are close to it and sit in four different quadrants (an X).
++  // 15% of the span (was 10% in stage 1): the crossing is now opened into a corridor the Van fits through.
++  const near=[...pts].sort((a,b)=>Math.hypot(a[0]-cx,a[1]-cy)-Math.hypot(b[0]-cx,b[1]-cy)).slice(0,4);
++  assert(near.every(([x,y])=>Math.hypot(x-cx,y-cy)<spanAlong*.15),`${name}: crossing near the middle`);
++  assert.equal(new Set(near.map(([x,y])=>(x>cx?1:0)+(y>cy?2:0))).size,4,`${name}: branches cross`);
+  }
+ });
+-test('course: all cars can drive straight through the gate from the start', () => {
+- for(const id of Object.keys(e.PRESETS)){
+-  const w=e.createWorld(id),gateY=w.layout.gate.y;
+-  for(let i=0;i<240;i++)e.step(w,input(true));
+-  assert(w.car.y<gateY,`${id}: passed through gate`);
++test('course: cones, parking, gate posts and spawn avoid the edge strip and control zones', () => {
++ for(const {A,name,L} of layouts){
++  for(const c of L.cones)assert(clearOf(A,...screen(A,c.x,c.y),e.CONE_R),`${name}: cone ${c.x},${c.y}`);
++  assert(L.parking.length>=4,`${name}: at least two bays (back line + 3 dividers)`);
++  for(const s of L.parking)for(let k=0;k<=10;k++){const x=s.x0+(s.x1-s.x0)*k/10,y=s.y0+(s.y1-s.y0)*k/10;assert(clearOf(A,...screen(A,x,y)),`${name}: parking line`);}
++  for(const p of L.gate.posts)assert(clearOf(A,...screen(A,p.x,p.y),p.r),`${name}: gate post`);
++  assert(clearOf(A,...screen(A,L.spawn.x,L.spawn.y),12),`${name}: spawn (with car body margin)`);
++  for(const v of [L.spawn.x,L.spawn.y,L.spawn.a,L.gate.x,L.gate.y,...L.cones.flatMap(c=>[c.x,c.y]),...L.parking.flatMap(s=>[s.x0,s.y0,s.x1,s.y1])])assert(Number.isFinite(v));
++ }
++});
++test('course: spawn is a car length clear of cones, the gate and parking; gate slot is cone-free', () => {
++ const grown=1.25; // spawn keeps 1.25 × the longest (already enlarged) car clear
++ for(const {A,name,L} of layouts){
++  const s=L.spawn,g=L.gate,clear=maxLength*grown;
++  for(const c of L.cones)assert(Math.hypot(c.x-s.x,c.y-s.y)>=clear,`${name}: spawn clear of cones`);
++  for(const p of g.posts)assert(Math.hypot(p.x-s.x,p.y-s.y)>=clear,`${name}: spawn clear of gate posts`);
++  const inner=g.posts[1].x-g.posts[1].r-(g.posts[0].x+g.posts[0].r);
++  assert(Math.abs(inner-g.width)<1e-9,`${name}: posts frame the declared opening`);
++  // Slot: the posts' span and the approach lanes above/below contain no cone; no cone touches a post.
++  for(const c of L.cones){
++   assert(!(c.x>g.posts[0].x-g.posts[0].r-e.CONE_R&&c.x<g.posts[1].x+g.posts[1].r+e.CONE_R&&Math.abs(c.y-g.y)<g.lane+e.CONE_R),`${name}: cone inside gate slot`);
++   for(const p of g.posts)assert(Math.hypot(c.x-p.x,c.y-p.y)>p.r+e.CONE_R+2,`${name}: cone on a post`);
++  }
++  assert(!(s.x>g.posts[0].x-10&&s.x<g.posts[1].x+10&&Math.abs(s.y-g.y)<g.lane+10),`${name}: spawn not in the gate lane`);
++  for(const seg of L.parking){const t=Math.max(0,Math.min(1,((s.x-seg.x0)*(seg.x1-seg.x0)+(s.y-seg.y0)*(seg.y1-seg.y0))/((seg.x1-seg.x0)**2+(seg.y1-seg.y0)**2||1)));
++   assert(Math.hypot(seg.x0+(seg.x1-seg.x0)*t-s.x,seg.y0+(seg.y1-seg.y0)*t-s.y)>maxLength*.75,`${name}: spawn clear of parking`);}
++  for(const c of L.cones)for(const seg of L.parking){const mx=(seg.x0+seg.x1)/2,my=(seg.y0+seg.y1)/2;assert(Math.hypot(c.x-mx,c.y-my)>6,`${name}: cone on parking line`);}
+  }
+ });
+ test('course: gate opening fits every (grown) car with the contract clearance', () => {
+@@ -540,7 +571,7 @@ test('course: gate opening fits every (grown) car with the contract clearance',
+ test('course: layout is deterministic and survives unusual arenas', () => {
+  for(const {A,L} of layouts)assert.equal(JSON.stringify(e.layoutCourse(A)),JSON.stringify(L));
+  for(const [W,H] of [[200,150],[150,300],[640,250],[800,480],[250,250]]){const L=e.layoutCourse(e.makeArena(W,H));
+-  assert(L.cones.every(c=>Number.isFinite(c.x)&&Number.isFinite(c.y))&&Number.isFinite(L.spawn.x+L.spawn.y+L.spawn.a));}
++  assert.equal(L.cones.length,e.CONE_COUNT);assert(L.cones.every(c=>Number.isFinite(c.x)&&Number.isFinite(c.y))&&Number.isFinite(L.spawn.x+L.spawn.y+L.spawn.a));}
+ });
+ test('createWorld places cones and car from layoutCourse; resetCones restores homes', () => {
+  for(const {A,name,L} of layouts){
+@@ -561,20 +592,12 @@ test('resizeWorld rebuilds layout and cone homes for the new arena', () => {
+  w.cones.forEach((o,i)=>{assert.equal(o.hx,w.layout.cones[i].x);assert.equal(o.hy,w.layout.cones[i].y);if(i)assert(o.x===o.hx&&o.y===o.hy&&o.px===o.x,'home cone follows the layout');});
+  assert(Math.abs(k.x-kx)<1e-9&&Math.abs(k.y-ky)<1e-9,'displaced cone scales proportionally');
+ });
+-test('drawGround is deterministic and draws the figure-eight route', () => {
++test('drawGround is deterministic, quiet, clipped to the arena and shows the parking lines', () => {
+  function render(A,L){const ink=new Set();const ctx={fillStyle:'',fillRect(x,y,w,h){if(this.fillStyle==='#30342d'){for(let i=0;i<w;i++)for(let j=0;j<h;j++){const px=x+i,py=y+j;assert(px>=0&&py>=0&&px<A.W&&py<A.H,'ink outside arena');ink.add(px+','+py);}}}};e.drawGround(ctx,A,L);return ink;}
+  for(const {A,name,L} of layouts){
+   const a=render(A,L),b=render(A,L);assert.deepEqual([...a].sort(),[...b].sort(),name);
+-  assert(a.size/(A.W*A.H)<.03,`${name}: ground too busy`);
+-  const f=L.figure;
+-  // Check samples around both loops, allowing for the intentional gaps in the dotted line.
+-  for(let i=0;i<16;i++){
+-   const t=i*2*Math.PI/16,si=Math.sin(t),co=Math.cos(t),d=1+si*si,u=co/d,v=si*co/d*2*Math.SQRT2;
+-   const x=Math.round(f.x+(f.vertical?f.rx*v:f.rx*u));
+-   const y=Math.round(f.y*e.K+(f.vertical?f.ry*e.K*u:f.ry*e.K*v));
+-   let hit=false;for(let dx=-3;dx<=3;dx++)for(let dy=-3;dy<=3;dy++)if(a.has((x+dx)+','+(y+dy)))hit=true;
+-   assert(hit,`${name}: route missing at sample ${i}`);
+-  }
++  assert(a.size/(A.W*A.H)<.03,`${name}: ground too busy (${a.size})`);
++  for(const s of L.parking){const mx=Math.round((s.x0+s.x1)/2),my=Math.round((s.y0+s.y1)/2*e.K);let hit=false;for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)if(a.has((mx+dx)+','+(my+dy)))hit=true;assert(hit,`${name}: parking line drawn`);}
+  }
+ });
+ // ---- Task 05 / 06 stage 2 (Agent 2): more transfer behaviour, cones, scene list, course finish ----
+@@ -990,6 +1013,21 @@ const big=()=>e.makeArena(4000,4000);
+ function drive09(id,secs,ctl,arena=big()){const w=skidWorld(id,arena);if(arena.W===4000){w.car.x=2000;w.car.y=2000;w.car.px=2000;w.car.py=2000;}
+  const rec=e.createTrackRecorder(),out=[];for(let i=0;i<Math.round(secs/e.STEP);i++)skidStep(w,rec,ctl(i,w),out);return {w,rec,out};}
+ const cruise09=(steer,frac)=>(i,w)=>({steering:typeof steer==='function'?steer(i):steer,throttle:Math.hypot(w.car.vx,w.car.vy)<frac*w.p.max?1:0,brake:0});
++test('task 09: sustained slip builds before marking and brief slip cools', () => {
++ const w=skidWorld('coupe',e.makeArena(400,240)),rec=e.createTrackRecorder();
++ Object.assign(w.car,{x:200,y:150,a:0,vx:0,vy:60});let pixels=0;
++ const tick=()=>{w.car.y+=.5;pixels+=e.recordTracks(w,rec,()=>{});};
++ for(let i=0;i<24;i++)tick();assert.equal(pixels,0,'brief slip leaves no marks');
++ Object.assign(w.car,{vx:60,vy:0});for(let i=0;i<12;i++)tick();assert(rec.heat<1e-9,'slip buildup cools');
++ Object.assign(w.car,{vx:0,vy:60});for(let i=0;i<50;i++)tick();assert(pixels>0,'sustained slip leaves marks');
++ e.breakTracks(rec);assert.equal(rec.heat,0,'break clears buildup');
++});
++test('wheel kickback is bounded, slip-responsive and absent at rest', () => {
++ const c={state:'driving',a:0,vx:60,vy:0};assert.equal(e.wheelKickback(c,0),0);
++ c.vy=40;const k=e.wheelKickback(c,0);assert.notEqual(k,0);assert(Math.abs(k)<.17);
++ assert.notEqual(e.wheelKickback(c,0),e.wheelKickback(c,.05),'feedback changes over time');
++ c.state='resting';assert.equal(e.wheelKickback(c,0),0);
++});
+ test('task 09: tight turns and hard braking mark the ground; gentle driving leaves no trail', () => {
+  const rep={};
+  for(const id of ids){
+@@ -1010,7 +1048,7 @@ test('task 09: marks are broken dots from the rear tyres only', () => {
+  assert(n>0&&n<travel*.75,`dotted, not solid: ${n} px over ${travel.toFixed(0)} px of tyre travel`);
+  // Not from the front tyres or the body centre: with the car parked sideways-sliding, pixels sit at the rear axle only.
+  const v=skidWorld('van',big()),r2=e.createTrackRecorder(),pts=[];Object.assign(v.car,{x:2000,y:2000,a:0,vx:0,vy:60});
+- for(let i=0;i<30;i++){v.car.y+=.5;e.recordTracks(v,r2,(x,y)=>pts.push([x,y]));}
++ for(let i=0;i<60;i++){v.car.y+=.5;e.recordTracks(v,r2,(x,y)=>pts.push([x,y]));}
+  for(const [x] of pts)assert(Math.abs(x+.5-(2000-v.p.wheelbase/2))<=1.5,'rear axle only');assert(pts.length>0);
+ });
+ test('task 09: all four edges and corners: marks clipped at the edge, no connecting lines, they resume after re-entry', () => {
+@@ -1043,13 +1081,13 @@ test('task 09: trackBreak, recording off, a non-driving car state and a resize a
+  const A=e.makeArena(SKIDW.W,SKIDW.H),w=skidWorld('coupe',A),rec=e.createTrackRecorder();
+  const slide=(n,dx=.6,opt={})=>{let total=0,first=null;for(let i=0;i<n;i++){w.car.x+=dx;Object.assign(w.car,{a:0,vx:0,vy:60});const px=skidStep(w,rec,null,null,opt.enabled!==false);if(i===0)first=px.length;total+=px.length;}return {total,first};};
+  Object.assign(w.car,{x:150,y:150});
+- assert(slide(20).total>0,'sliding marks');
+- w.trackBreak=true;w.car.x+=5;let r=slide(1,0);assert.equal(r.total,0,'trackBreak: no line from the old point');assert.equal(w.trackBreak,false,'consumed');assert(slide(10).total>0,'resumes');
++ assert(slide(60).total>0,'sliding marks');
++ w.trackBreak=true;w.car.x+=5;let r=slide(1,0);assert.equal(r.total,0,'trackBreak: no line from the old point');assert.equal(w.trackBreak,false,'consumed');assert(slide(50).total>0,'resumes');
+  r=slide(5,.6,{enabled:false});assert.equal(r.total,0,'recording off draws nothing');w.trackBreak=true;slide(1,.6,{enabled:false});assert.equal(w.trackBreak,false,'consumed while off');
+- w.car.x+=5;r=slide(10);assert.equal(r.first,0,'toggle back on: no line across the gap');assert(r.total>0);
++ w.car.x+=5;r=slide(50);assert.equal(r.first,0,'toggle back on: no line across the gap');assert(r.total>0);
+  for(const state of ['tipping','rolling','resting','recovering']){w.car.state=state;assert.equal(slide(3).total,0,state+': no marks');w.car.state='driving';w.car.x+=5;assert.equal(slide(2).first,0,state+': no line across');}
+  delete w.car.state;slide(3);
+- e.resizeWorld(w,e.makeArena(480,270));assert(w.trackBreak);r=slide(10);assert.equal(r.first,0,'resize: no line from the old arena');assert(r.total>0);
++ e.resizeWorld(w,e.makeArena(480,270));assert(w.trackBreak);r=slide(50);assert.equal(r.first,0,'resize: no line from the old arena');assert(r.total>0);
+ });
+ test('task 09: the track layer is bounded; clear, reset, toggle and car change keep their semantics', () => {
+  // 3 minutes of hard edge-crossing driving: the recorder holds two points and a few numbers, every pixel is in the arena.

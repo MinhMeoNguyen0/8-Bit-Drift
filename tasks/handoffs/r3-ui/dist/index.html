@@ -1,0 +1,2142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="A tiny, one-bit driving playground. Pick a car, scatter some cones, and leave a few tracks. Everything is drawn in code.">
+<meta name="theme-color" content="#bfc1b1">
+<title>8-Bit Drift — a driving playground</title>
+<style>
+/* Round 3 (r3-ui): two inks only, like the canvas (ink #30342d, paper #bfc1b1); every DOM text is heavy italic capitals. */
+:root{color-scheme:light;--paper:#bfc1b1;--ink:#30342d;--muted:#30342d;--line:#30342d;--screen:#bfc1b1;--panel:#bfc1b1;--heavy:"Arial Black","Arial Bold",Arial,sans-serif;--safe-t:env(safe-area-inset-top,0px);--safe-r:env(safe-area-inset-right,0px);--safe-b:env(safe-area-inset-bottom,0px);--safe-l:env(safe-area-inset-left,0px)}
+*{box-sizing:border-box}
+/* Task 01: one full-viewport playground. The page itself never scrolls; the canvas is sized from computeView(). */
+html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none;background:var(--screen);color:var(--ink)}
+body{font:italic 900 12px/1.25 var(--heavy);text-transform:uppercase;letter-spacing:.02em;-webkit-text-size-adjust:100%}
+button,input{font:inherit;color:inherit;text-transform:inherit}button{cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.playground{position:fixed;left:0;top:0;width:100%;height:100vh;height:100dvh;overflow:hidden;background:var(--screen);-webkit-user-select:none;user-select:none}
+#game{position:absolute;left:0;top:0;display:block;image-rendering:crisp-edges;image-rendering:pixelated;outline:none;-webkit-touch-callout:none}
+#game:focus-visible{outline:2px solid var(--ink);outline-offset:-4px}
+.sr-only{position:absolute;clip-path:inset(50%);width:1px;height:1px;overflow:hidden;white-space:nowrap}
+/* Tasks 02 + 04: compact HUD, settings, wheel and pedals. layoutUI() places every box from controlZones(view) in logical px;
+   --u is CSS px per logical px (scale / devicePixelRatio), so the controls keep the same share of the screen as the game. */
+.playground{--u:2px;--b:48px;--pg:12px;--fs:min(15px,calc(var(--u)*7));--glass:rgba(191,193,177,.86);--glass-hi:#bfc1b1;--ink-a:#30342d}
+.ui-box{position:absolute;left:0;top:0;width:0;height:0}
+.hud{display:flex;gap:calc(var(--u)*3);font-size:var(--fs);z-index:2}
+.cars{display:flex;flex:1;min-width:0;border:1px solid var(--ink);background:var(--glass)}
+.car-choice{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;padding:calc(var(--u)*1.5);border:0;background:transparent}
+.car-choice+.car-choice{border-left:1px solid var(--line)}
+.car-choice canvas{width:100%;height:100%;object-fit:contain;image-rendering:pixelated;pointer-events:none}
+.car-choice:hover{background:var(--glass-hi);box-shadow:inset 0 0 0 1px var(--ink)}
+.car-choice[aria-pressed="true"]{background:var(--paper);box-shadow:inset 0 0 0 max(2px,calc(var(--u)*1.2)) var(--ink)}
+.icon-btn{flex:0 0 auto;height:100%;aspect-ratio:1;display:grid;place-items:center;padding:0;border:1px solid var(--ink);background:var(--glass)}
+.icon-btn:hover{background:var(--glass-hi);box-shadow:inset 0 0 0 1px var(--ink)}
+.icon-btn svg{width:62%;height:62%;display:block}
+.icon-btn[aria-expanded="true"]{background:var(--ink);color:var(--paper)}
+/* Stage 3: "Right the car" sits in its own zone on the HUD row (controlZones "recover"). Shown only while a recovery is possible;
+   inverse colours so it stands out. A two-line label fits the slot (2.6 HUD buttons wide) at every scale. */
+.recover{z-index:2;display:flex;align-items:center;justify-content:center;gap:calc(var(--u)*2.5);padding:0 calc(var(--u)*2.5);border:1px solid var(--ink);background:var(--ink);color:var(--paper);font-size:clamp(9px,calc(var(--u)*6.5),13px);letter-spacing:.3px;line-height:1.05;text-align:left;white-space:nowrap;overflow:hidden;box-shadow:2px 2px 0 var(--ink-a)}
+.recover[hidden]{display:none}
+.recover:hover{background:#454a40}
+.recover svg{flex:0 0 auto;width:min(calc(var(--b)*.52),24px);height:auto;aspect-ratio:1;display:block}
+.recover .label span{display:block}
+/* The R hint is for keyboards; touch-only screens drop it to leave room for the label. */
+@media not all and (any-pointer:fine){.recover kbd{display:none}}
+.recover kbd{border-color:var(--paper);line-height:1.15}
+/* Focus is visible on every control: a paper ring inside the ink outline keeps it readable on dark (pressed/inverse) buttons. */
+.recover:focus-visible,.icon-btn[aria-expanded="true"]:focus-visible,.pedal.on:focus-visible{box-shadow:0 0 0 2px var(--paper)}
+.car-choice:focus-visible{outline-offset:-4px}
+.panel{position:absolute;z-index:3;display:flex;flex-direction:column;gap:5px;padding:7px;background:var(--glass-hi);border:1px solid var(--ink);box-shadow:3px 3px 0 var(--ink-a);font-size:clamp(11px,var(--fs),14px);line-height:1.3;overflow:auto;overscroll-behavior:contain}
+.panel[hidden]{display:none}
+/* Stage 3: short landscape screens (phones on their side) get a two-column panel. Round 2: the right column is the Tuning
+   list, which scrolls on its own (--panel-max is set by layoutUI), so the buttons on the left never scroll away. */
+.panel.wide:not([hidden]){display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.4fr);grid-template-rows:auto auto auto auto auto auto 1fr;grid-template-areas:"head tune" "track tune" "skid tune" "clear tune" "reset tune" "read tune" ". tune";gap:5px 10px;align-items:start}
+.panel.wide .panel-head{grid-area:head}.panel.wide .track-pick{grid-area:track}.panel.wide .switch-row{grid-area:skid}.panel.wide #clear{grid-area:clear}.panel.wide #reset{grid-area:reset}
+.panel.wide .readout{grid-area:read;align-self:center}.panel.wide .tuning{grid-area:tune;align-self:stretch;max-height:calc(var(--panel-max,300px) - 16px);overflow:auto;overscroll-behavior:contain;padding-right:2px}
+.panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+/* Round 3 (r3-ui): big headings are striped like the speed readout and the road paint (ink lines with see-through gaps). */
+.panel h2,.entry span{background:repeating-linear-gradient(180deg,currentColor 0 var(--sw,2px),transparent var(--sw,2px) calc(var(--sw,2px) + var(--sg,1px)));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;padding-right:.12em}
+.panel h2{margin:0;font-size:1.7em;line-height:1;letter-spacing:.01em}
+.tuning summary{cursor:pointer;font-size:1.2em;line-height:1.1}
+.panel .close{height:clamp(30px,var(--b),40px);width:clamp(30px,var(--b),40px)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:clamp(32px,var(--b),40px);padding:0 10px;border:2px solid var(--ink);background:var(--paper);text-align:left;box-shadow:2px 2px 0 var(--ink)}
+button.row:hover{background:var(--ink);color:var(--paper)}button.row:active{transform:translate(2px,2px);box-shadow:none}
+/* Round 3 (r3-ui): Settings > Track, one pixel-art thumbnail button per TRACKS entry (drawn in two inks by syncTracks). */
+.track-pick{display:flex;flex-direction:column;gap:4px;min-width:0}
+.track-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.track-choice{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:3px;min-width:0;padding:4px 3px 3px;border:2px solid var(--ink);background:var(--paper);box-shadow:2px 2px 0 var(--ink);font-size:max(8px,.68em);line-height:1.05;letter-spacing:0;text-align:center}
+.track-choice canvas{display:block;width:100%;max-width:84px;height:auto;max-height:clamp(26px,9vh,60px);object-fit:contain;image-rendering:pixelated;pointer-events:none}
+.track-choice span{overflow-wrap:anywhere}
+.track-choice[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.track-choice:hover{box-shadow:2px 2px 0 var(--ink),inset 0 0 0 1px var(--ink)}.track-choice:active{transform:translate(2px,2px);box-shadow:none}
+.switch-row{cursor:pointer}
+.switch-row input{appearance:none;-webkit-appearance:none;flex:0 0 auto;width:30px;height:16px;border:1px solid var(--ink);background:transparent;margin:0;position:relative;cursor:pointer}
+.switch-row input:before{content:"";position:absolute;top:3px;left:3px;width:8px;height:8px;background:var(--ink)}
+.switch-row input:checked{background:var(--ink)}.switch-row input:checked:before{left:17px;background:var(--paper)}
+/* Round 2: Settings > Tuning, generated from TUNING_SPEC (one labelled slider per key, its live value, Reset tuning). */
+.tuning{display:flex;flex-direction:column;gap:6px;min-width:0}
+.tuning h3{margin:2px 0 0;font-size:inherit;letter-spacing:1px}
+.tune-group{display:flex;flex-direction:column;gap:2px;margin:0;padding:3px 8px 6px;border:1px dashed var(--line);min-width:0}
+.tune-group legend{padding:0 4px;color:var(--muted);letter-spacing:.5px}
+.tune{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:0 8px}
+.tune output{font-variant-numeric:tabular-nums;text-align:right}
+.tune input{grid-column:1/-1;width:100%;height:26px;margin:0;background:transparent;-webkit-appearance:none;appearance:none;cursor:pointer}
+.tune input::-webkit-slider-runnable-track{height:4px;background:var(--ink)}
+.tune input::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:22px;margin-top:-9px;border:2px solid var(--ink);background:var(--paper);box-shadow:2px 2px 0 var(--ink-a)}
+.tune input::-moz-range-track{height:4px;background:var(--ink)}
+.tune input::-moz-range-thumb{width:10px;height:18px;border:2px solid var(--ink);border-radius:0;background:var(--paper)}
+.readout{display:flex;gap:8px;margin:0;color:var(--muted);letter-spacing:.5px;font-variant-numeric:tabular-nums}
+.live{display:flex;align-items:center;gap:5px}.light{width:6px;height:6px;box-shadow:inset 0 0 0 1px var(--ink)}.live[data-running="true"] .light{background:var(--ink)}
+kbd{display:inline-block;min-width:13px;padding:0 2px;border:1px solid var(--line);text-align:center;font:inherit}
+/* Steering wheel, pedals and (round 2) the gear stick: the only elements with touch-action:none. The instructions are
+   painted on the ground (buildGround), so there is no DOM overlay above the car any more. */
+.wheel,.pedals,.gearstick{z-index:1}
+.wheel-face{position:absolute;left:0;top:0;width:100%;aspect-ratio:1;touch-action:none;cursor:grab;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+.wheel.held .wheel-face{cursor:grabbing}
+.rim{position:absolute;inset:0;transition:transform .2s ease-out;pointer-events:none}
+.rim svg{display:block;width:100%;height:100%;shape-rendering:geometricPrecision;image-rendering:pixelated}
+.wheel.held .rim{transition:none}
+.pedal-set{position:absolute;inset:0;display:flex;gap:var(--pg)}
+.pedal{flex:1;min-width:0;position:relative;touch-action:none;display:flex;align-items:flex-end;justify-content:center;padding:0 0 calc(var(--u)*4);border:0;clip-path:polygon(12% 0,88% 0,88% 4%,96% 4%,96% 8%,100% 8%,100% 94%,94% 94%,94% 100%,6% 100%,6% 94%,0 94%,0 8%,4% 8%,4% 4%,12% 4%);background:var(--ink);color:var(--ink);font-size:clamp(8px,calc(var(--u)*5.5),13px);letter-spacing:.5px;transform:translateY(calc(var(--press,0)*var(--u)*2.5));transition:transform 60ms;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+.pedal:before{content:"";position:absolute;inset:calc(var(--u)*2) calc(var(--u)*2) calc(var(--u)*4);clip-path:polygon(10% 0,90% 0,90% 4%,100% 4%,100% 100%,0 100%,0 4%,10% 4%);background:repeating-linear-gradient(0deg,transparent 0 calc(var(--u)*3),var(--ink) calc(var(--u)*3) calc(var(--u)*4),transparent calc(var(--u)*4) calc(var(--u)*7)),repeating-conic-gradient(var(--ink) 0 25%,var(--screen) 0 50%) 0 0 / calc(var(--u)*2) calc(var(--u)*2);}
+.pedal span{z-index:1;background:var(--screen);padding:0 calc(var(--u)*1)}
+.pedal.on:before{background:repeating-linear-gradient(0deg,var(--ink) 0 calc(var(--u)*3),var(--screen) calc(var(--u)*3) calc(var(--u)*4),var(--ink) calc(var(--u)*4) calc(var(--u)*7))}
+.pedal.on span{background:var(--ink);color:var(--screen)}
+.wheel-face:focus-visible,.pedal:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+/* Mouse-only devices get a smaller indicator in the same zone (still usable with a mouse); touch devices get full size. */
+@media not all and (any-pointer:coarse){.pedal-set{transform:scale(.85);transform-origin:100% 100%}}
+/* Round 3 (r3-ui): the entry prompt is a big 2.5D key: light face, ink outline, ink side extruded to the bottom-right. */
+.entry{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);z-index:2;--d:clamp(4px,1vmin,7px);--sw:max(2px,.09em);--sg:max(1px,.05em);border:2px solid var(--ink);background:var(--paper);padding:.42em .75em .48em;font-size:clamp(14px,1.6vmin + 9px,26px);line-height:1.1;letter-spacing:.01em;max-width:calc(100vw - 32px);text-align:center;box-shadow:calc(var(--d)*.25) calc(var(--d)*.25) 0 var(--ink),calc(var(--d)*.5) calc(var(--d)*.5) 0 var(--ink),calc(var(--d)*.75) calc(var(--d)*.75) 0 var(--ink),var(--d) var(--d) 0 var(--ink)}
+.entry:hover{background:var(--ink);color:var(--paper)}.entry:active{transform:translate(calc(-50% + var(--d)),calc(-50% + var(--d)));box-shadow:none}
+.entry[hidden]{display:none}
+.safe-probe{position:absolute;visibility:hidden;pointer-events:none;width:0;height:0;padding:var(--safe-t) var(--safe-r) var(--safe-b) var(--safe-l)}
+@media(prefers-reduced-motion:reduce){.rim,.pedal{transition:none}.shift-key.hot{animation:none}}
+/* Round 2: the speed readout is plain floating text in its own zone (no box: the car may drive under it), in heavy italic
+   letters made of horizontal stripes like the road paint. --sp is its font size (layoutUI fits it to the zone). */
+/* Round 3 (r3-ui): layoutUI sizes --sp with speedFit() (never tiny at any zoom); the stripes scale with the letters. A zone too
+   narrow for "188 KM/H 5 GEAR" on one line (portrait phones) stacks the gear under the speed (.stack). */
+.speed{z-index:1;display:flex;align-items:center;gap:calc(var(--sp,24px)*.28);margin:0;color:var(--ink);pointer-events:none;white-space:nowrap;overflow:visible}
+.speed.stack{flex-wrap:wrap;align-content:flex-start;row-gap:calc(var(--sp,24px)*.08)}.speed.stack .gear-read{flex-basis:100%}
+.speed .big{font:italic 900 var(--sp,24px)/1 var(--heavy);letter-spacing:-.03em;font-variant-numeric:tabular-nums;color:var(--ink);--sw:max(2px,calc(var(--sp,24px)*.075));background:repeating-linear-gradient(180deg,var(--ink) 0 var(--sw),transparent var(--sw) calc(var(--sw) + max(1px,calc(var(--sp,24px)*.045))));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;padding-right:.08em}
+.speed .unit{display:flex;flex-direction:column;font:italic 900 calc(var(--sp,24px)*.3)/1.05 var(--heavy);letter-spacing:.02em}
+.speed .gear-read[hidden]{display:none}.speed .gear-read{display:flex;align-items:center;gap:calc(var(--sp,24px)*.12)}
+/* Round 2: the Supercar's gear stick, an H-pattern gate drawn in SVG; the knob is dragged (or moved by Q / E and the arrows). */
+/* Round 3 (r3-ui): no words. Two small 2.5D keycaps beside the stick (inside the gear zone, left of the plate): E with an up
+   arrow at the top, Q with a down arrow at the bottom. layoutUI places them with shiftKeyLayout() (--kw ... --ph, CSS px).
+   .hot (gearTelemetry shiftUp) pulses the up key inverted; .off (no higher / lower gear possible) drops the extruded side. */
+.gearstick[hidden]{display:none}
+.gear-keys{position:absolute;left:0;top:var(--pt,0px);width:var(--kw,0px);height:var(--ph,100%);pointer-events:none}
+.shift-key{position:absolute;left:0;width:calc(var(--kw,24px) - var(--kd,3px));height:var(--kh,24px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:max(1px,calc(var(--kh,24px)*.04));border:max(1.5px,calc(var(--kh,24px)*.06)) solid var(--ink);background:var(--paper);color:var(--ink);font:italic 900 calc(var(--kh,24px)*.5)/.8 var(--heavy);box-shadow:calc(var(--kd,3px)*.34) calc(var(--kd,3px)*.34) 0 var(--ink),calc(var(--kd,3px)*.67) calc(var(--kd,3px)*.67) 0 var(--ink),var(--kd,3px) var(--kd,3px) 0 var(--ink)}
+.shift-key.up{top:0}.shift-key.down{bottom:var(--kd,3px)}
+.shift-key svg{display:block;width:46%;height:auto;shape-rendering:crispEdges}
+.shift-key b{font-weight:inherit;padding-right:.06em}
+.shift-key.off{border-style:dashed;box-shadow:none;transform:translate(calc(var(--kd,3px)*.5),calc(var(--kd,3px)*.5))}
+.shift-key.hot{background:var(--ink);color:var(--paper);animation:shift-pulse .5s steps(1,end) infinite}
+@keyframes shift-pulse{50%{background:var(--paper);color:var(--ink)}}
+.gear-face{position:absolute;inset:0 0 0 var(--fl,0px);touch-action:none;cursor:grab;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+.gearstick.held .gear-face{cursor:grabbing}
+.gear-face svg{display:block;width:100%;height:100%;overflow:visible;shape-rendering:geometricPrecision}
+.gear-face:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+</style>
+</head>
+<body>
+<main class="playground" id="playground">
+  <h1 class="sr-only">8-Bit Drift</h1>
+  <canvas id="game" width="400" height="240" tabindex="0" aria-label="Driving playground. W accelerates, S brakes and reverses, A and D steer. Q and E shift gears on the Supercar. R rights the car after a rollover. Escape pauses. All edges wrap." aria-describedby="driving-help">This playground needs a browser with Canvas 2D support.</canvas>
+  <div class="ui-box hud" id="hud" role="group" aria-label="Car and settings">
+    <div class="cars" role="group" aria-label="Pick your car">
+      <button class="car-choice" data-car="compact" aria-pressed="true" aria-label="Compact: light and nimble" title="Compact: light &amp; nimble"><canvas width="48" height="36" aria-hidden="true"></canvas></button>
+      <button class="car-choice" data-car="coupe" aria-pressed="false" aria-label="Supercar: fast and agile" title="Supercar: fast and agile"><canvas width="48" height="36" aria-hidden="true"></canvas></button>
+      <button class="car-choice" data-car="van" aria-pressed="false" aria-label="Drone: flies over cones" title="Drone: flies over cones"><canvas width="48" height="36" aria-hidden="true"></canvas></button>
+    </div>
+    <button class="icon-btn" id="settings-btn" type="button" aria-label="Settings" title="Settings" aria-haspopup="dialog" aria-expanded="false" aria-controls="settings"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" shape-rendering="crispEdges"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="9" y="2" width="3" height="4" fill="currentColor"/><rect x="4" y="6" width="3" height="4" fill="currentColor"/><rect x="10" y="10" width="3" height="4" fill="currentColor"/></svg></button>
+  </div>
+  <button class="ui-box recover" id="recover" type="button" hidden aria-label="Right the car" aria-keyshortcuts="R" title="Right the car (R)"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M12.6 9.6A5 5 0 1 1 11.2 4.4" stroke="currentColor" stroke-width="1.8" fill="none"/><path d="M8.6 1.4h4.6V6z" fill="currentColor"/></svg><span class="label" aria-hidden="true"><span>RIGHT</span><span>THE CAR</span></span><kbd aria-hidden="true">R</kbd></button>
+  <section class="panel" id="settings" role="dialog" aria-modal="false" aria-labelledby="settings-title" hidden>
+    <div class="panel-head"><h2 id="settings-title">SETTINGS</h2><button class="icon-btn close" id="settings-close" type="button" aria-label="Close settings" title="Close (Esc)"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" fill="none"/></svg></button></div>
+    <label class="row switch-row" for="skids"><span>Skid marks</span><input id="skids" type="checkbox" role="switch" checked></label>
+    <button class="row" id="clear" type="button">Clear tracks</button>
+    <button class="row" id="reset" type="button">Reset scene</button>
+    <div class="track-pick" role="group" aria-labelledby="track-title"><span id="track-title">Track</span><div class="track-row" id="track-row"></div></div><details class="tuning" id="tuning"><summary id="tuning-title">TUNING</summary><div id="tune-list"></div><button class="row" id="tune-reset" type="button">Reset tuning</button></details>
+    <p class="readout"><span class="live" id="live" data-running="false"><span class="light" aria-hidden="true"></span><output id="status">READY</output></span><span class="fps"><output id="fps">—</output> FPS</span></p>
+  </section>
+  <div class="ui-box wheel" id="wheel"><div class="wheel-face" id="wheel-face" role="slider" tabindex="0" aria-label="Steering wheel" aria-orientation="horizontal" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0" aria-valuetext="centred" title="Drag to steer (or hold A / D, or the arrow keys while focused)"><div class="rim" id="rim"><svg viewBox="0 0 100 100" aria-hidden="true"><defs><pattern id="wheel-dither" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 0h1v1H0zm1 1h1v1H1z"/></pattern><pattern id="wheel-stripes" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 1h2v1H0z"/></pattern></defs><circle cx="50" cy="52" r="43" fill="none" stroke="#30342d" stroke-width="12"/><circle cx="50" cy="49" r="43" fill="none" stroke="#30342d" stroke-width="11"/><circle class="chain" cx="50" cy="49" r="43" fill="none" stroke="url(#wheel-dither)" stroke-width="4.6" stroke-dasharray="4.2 2.55" stroke-linecap="round"/><circle cx="50" cy="49" r="43" fill="none" stroke="#30342d" stroke-width="1.6" stroke-dasharray="2.2 4.55" stroke-dashoffset="-1"/><path d="M10 49C24 49 34 48 43 50M90 49C76 49 66 48 57 50M50 58V91" fill="none" stroke="#30342d" stroke-width="7" stroke-linecap="round"/><path d="M13 47H38M62 47H87M48 65V88" fill="none" stroke="url(#wheel-dither)" stroke-width="2"/><circle cx="50" cy="51" r="17" fill="#30342d"/><circle cx="50" cy="48" r="14" fill="#bfc1b1" stroke="#30342d" stroke-width="2"/><path d="M37 44A14 14 0 0 1 63 44" fill="none" stroke="url(#wheel-dither)" stroke-width="4"/><path class="marker" d="M42.5 0.5h15l-2 12h-11z" fill="url(#wheel-stripes)" stroke="#30342d" stroke-width="1.6" stroke-linejoin="round"/><path d="M47 4.5h6l-3 5z" fill="#30342d"/></svg></div></div></div>
+  <div class="ui-box pedals" id="pedals" role="group" aria-label="Pedals"><div class="pedal-set"><button class="pedal" id="pedal-brake" type="button" aria-label="Brake and reverse (hold)" title="Brake (S)"><span aria-hidden="true">BRAKE</span></button><button class="pedal" id="pedal-gas" type="button" aria-label="Gas (hold)" title="Gas (W)"><span aria-hidden="true">GAS</span></button></div></div>
+  <p class="sr-only" id="driving-help">W accelerates. S brakes, then reverses. A and D steer. Escape pauses. On touch screens, drag the steering wheel and hold the gas or brake pedal. If the car rolls over, press R or use the Right the car button that appears next to the car chooser. The edges are connected. The Supercar has a five-speed gear stick: Q shifts down and E shifts up, or drag the stick's knob through the H gate (on the focused stick, the arrow keys or 1 to 5 shift). The same instructions are painted on the ground.</p>
+  <p class="ui-box speed" id="speed" aria-hidden="true"><span class="big" id="speed-value">0</span><span class="unit"><span>KM</span><span>/H</span></span><span class="gear-read" id="gear-read" hidden><span class="big" id="gear-value">1</span><span class="unit"><span>GEAR</span></span></span></p>
+  <div class="ui-box gearstick" id="gearstick" hidden><div class="gear-keys" aria-hidden="true"><span class="shift-key up" id="shift-up"><svg viewBox="0 0 10 7"><path d="M5 0l5 5H7v2H3V5H0z" fill="currentColor"/></svg><b>E</b></span><span class="shift-key down" id="shift-down"><b>Q</b><svg viewBox="0 0 10 7"><path d="M3 0h4v2h3L5 7 0 2h3z" fill="currentColor"/></svg></span></div><div class="gear-face" id="gear-face" role="slider" tabindex="0" aria-label="Gear stick" aria-orientation="vertical" aria-valuemin="1" aria-valuemax="5" aria-valuenow="1" aria-valuetext="gear 1" aria-keyshortcuts="Q E" title="Drag the knob through the H gate (or Q / E)"><svg viewBox="0 0 110 100" aria-hidden="true"><defs><pattern id="gear-dither" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 0h1v1H0zm1 1h1v1H1z"/></pattern><pattern id="gear-stripes" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 1h2v1H0z"/></pattern></defs><path d="M6 6h102v92H6z" fill="#30342d"/><path d="M2 2h102v92H2z" fill="#bfc1b1" stroke="#30342d" stroke-width="2"/><path d="M22 26V74M55 26V74M88 26V50M22 50H88" fill="none" stroke="#30342d" stroke-width="12" stroke-linecap="round"/><path d="M22 26V74M55 26V74M88 26V50M22 50H88" fill="none" stroke="url(#gear-dither)" stroke-width="4" stroke-linecap="round" transform="translate(1.2 1.2)"/><g fill="#30342d" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-style="italic" font-size="12" text-anchor="middle"><text x="22" y="15.5">1</text><text x="22" y="94">2</text><text x="55" y="15.5">3</text><text x="55" y="94">4</text><text x="88" y="15.5">5</text></g><circle cx="55" cy="50" r="13" fill="url(#gear-dither)" stroke="#30342d" stroke-width="2"/><circle id="gear-shadow" cx="26" cy="29" r="10" fill="url(#gear-dither)"/><line id="gear-shaft" x1="55" y1="50" x2="22" y2="26" stroke="#30342d" stroke-width="6" stroke-linecap="round"/><g id="gear-knob" transform="translate(22 26)"><circle r="11.5" fill="#30342d"/><circle r="8.5" fill="none" stroke="url(#gear-stripes)" stroke-width="3"/><text id="gear-num" y="4.2" fill="#bfc1b1" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-style="italic" font-size="11" text-anchor="middle">1</text></g></svg></div></div>
+  <button class="entry" id="enter" type="button"><span>PRESS W TO DRIVE</span></button>
+  <p id="announcement" class="sr-only" role="status" aria-live="polite"></p>
+  <div class="safe-probe" id="safe-probe" aria-hidden="true"></div>
+</main>
+<script>
+(() => {
+'use strict';
+// Pure simulation. No DOM, media files, or third-party code is needed here.
+const WIDTH=400, HEIGHT=240, K=.66, Z=Math.sqrt(1-K*K), WORLD_H=HEIGHT/K, STEP=1/120, TAU=Math.PI*2;
+const INK=[48,52,45], PAPER=[191,193,177], ink='#30342d', paper='#bfc1b1';
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const wrap=(v,n)=>((v%n)+n)%n;
+const delta=(v,n)=>wrap(v+n/2,n)-n/2;
+const angleDelta=(a,b)=>delta(b-a,TAU);
+const PRESETS={
+ // Task 08: every dimension is ~28-31% larger than the original (24/28/28 long), so the drawn sprites grow >= 20%. trackWidth = rear tyre centre-to-centre distance.
+ // Task 10: faster. Top speed +28-30%, acceleration +26%, braking +24-29%, reverse +12-14%. Cornering load rises with speed², so
+ // grip rises by +33% (compact), +13% (coupe: still slides most) and +56% (van: still grips hardest at its new top speed).
+ // Task 11: comHeight = centre-of-mass height (world units, ~40% of the roof); rollThreshold = dynamic load-transfer ratio at
+ // which the inner wheels lift (1 = the static tipping point). Tall + grippy (Van) is the most roll-prone, low (Coupe) the least.
+ compact:{name:'Compact',artId:'compact',length:31,width:15.6,height:8.1,roof:13.3,wheelbase:21,trackWidth:13,mass:1,accel:78,brake:135,max:153,reverse:45,grip:112,steer:.66,drag:.15,comHeight:5.3,rollThreshold:1.1},
+ coupe:{name:'Supercar',artId:'coupe',length:36,width:16.6,height:5.8,roof:9.8,wheelbase:25,trackWidth:14,mass:.95,accel:94,brake:136,max:190,reverse:52,grip:68,steer:.64,drag:.12,comHeight:4.2,rollThreshold:1.2},
+ van:{name:'Drone',artId:'van',flying:true,flightHeight:20,length:28,width:18,height:9.4,roof:18,wheelbase:20,trackWidth:15.4,mass:1,accel:74,brake:110,max:140,reverse:42,grip:125,steer:.62,drag:.17,comHeight:2,rollThreshold:10}
+};
+// Art-only shape parameters (not physics). x positions are fractions of half-length, + = front. Shades: 0 ink … 1 paper.
+const CAR_ART={
+ compact:{tyre:2.6,tyreW:2.4,sill:1.7,cf:[2.6,2.4],cr:[1.4,1.6],hoodDrop:1.6,tailDrop:.4,cabin:[-.9,.3],roofSpan:[-.82,-.08],inset:1,tumble:1.1,pillars:[.47],trim:.5,arch:1,paint:0,side:0,glass:1,rearGlass:.75,roofShade:.25,light:1,tail:1},
+ coupe:{tyre:2.4,tyreW:2.4,sill:1.4,cf:[3.2,2.8],cr:[2.2,2],hoodDrop:1.5,tailDrop:.9,cabin:[-.62,.2],roofSpan:[-.4,-.14],inset:1.2,tumble:1.3,pillars:[],paint:1,side:.5,glass:0,rearGlass:0,roofShade:1,light:1,tail:0},
+ van:{tyre:2.7,tyreW:2.4,sill:2,cf:[2.2,2.2],cr:[1,1.2],hoodDrop:1.4,tailDrop:0,cabin:[-.97,.5],roofSpan:[-.97,.3],inset:.7,tumble:.7,pillars:[.28,.62],paint:1,side:.75,glass:0,rearGlass:0,roofShade:.5,light:0,tail:0}
+};
+const CONE_MASS=.045, CONE_R=2.25;
+// Task 10 collision limits, all derived from the presets so retuning stays safe.
+// SPEED_CAP: a car's speed never exceeds max × SPEED_CAP. OMEGA_MAX stays below 5.9 rad/s, the half-frame-per-step limit that
+// keeps carScreenBounds valid (contract §11). A cone is hit to about 1.07 × the car's contact speed; CONE_MAX bounds it.
+const SPEED_CAP=1.1,OMEGA_MAX=4.4,FASTEST=Math.max(...Object.values(PRESETS).map(p=>p.max)),CONE_MAX=Math.ceil(1.3*FASTEST);
+const CAR_REACH=Math.max(...Object.values(PRESETS).map(p=>Math.hypot(p.length,p.width)/2));
+// Collision substeps: nothing may move more than SUB_MOVE (half a cone radius) relative to anything else per substep.
+const SUB_MOVE=CONE_R*.5,POST_E=.3,POST_MU=.3,CONE_POST_E=.45;
+// Contract (tasks/CONTRACT.md): arena W×H in logical screen px; world y = screen y / K, so WH = H/K.
+function makeArena(W=WIDTH,H=HEIGHT){return {W,H,WH:H/K};}
+const DEFAULT_ARENA=makeArena();
+// Shadow offset in screen px per unit of object height (down-right). Shared by car, cone and gate shadows.
+const LIGHT={x:.45,y:.3};
+// Shared driving input: steering in [-1,1] (positive = D/right), throttle and brake in [0,1].
+function normalizeInput(i){return {steering:clamp(+i.steering||0,-1,1),throttle:clamp(+i.throttle||0,0,1),brake:clamp(+i.brake||0,0,1)};}
+function keysToInput(k){return {steering:(k.d?1:0)-(k.a?1:0),throttle:k.w?1:0,brake:k.s?1:0};}
+// ---- Round 2: live tuning (Settings > Tuning; tasks/ROUND2.md). TUNING holds the current values and is read on every use
+// (drive(), the wheel, the view), so a change applies at once. Physics keys are multipliers on every preset (1 = the preset's
+// own number); presets themselves stay constant (contract §11). Tests that change TUNING must call resetTuning() afterwards.
+const TUNING_SPEC=[
+ {key:'steerAngle',group:'car',label:'Steering angle',min:.2,max:3,step:.05,def:.9},
+ {key:'steerFade',group:'car',label:'Steering fade at speed',min:0,max:.98,step:.02,def:.48},
+ {key:'steerSpeed',group:'car',label:'Front wheel speed',unit:'/s',min:1,max:60,step:1,def:12},
+ {key:'turnRate',group:'car',label:'Turn response',min:.15,max:6,step:.05,def:1.35},
+ {key:'grip',group:'car',label:'Grip (less drift)',min:.1,max:4,step:.05,def:1.15},
+ {key:'wheelRange',group:'wheel',label:'Wheel turn each way',unit:'°',min:45,max:1080,step:15,def:270},
+ {key:'wheelCurve',group:'wheel',label:'Centre softness',min:.3,max:5,step:.1,def:1.2},
+ {key:'kickback',group:'wheel',label:'Wheel kickback',min:0,max:5,step:.05,def:.5},
+ {key:'droneTilt',group:'drone',label:'Drone tilt',min:0,max:2,step:.05,def:1},
+ {key:'viewShort',group:'view',label:'Zoom out',unit:'px',min:300,max:1000,step:25,def:750}
+];
+const TUNING_DEFAULTS=Object.freeze(Object.fromEntries(TUNING_SPEC.map(s=>[s.key,s.def])));
+const TUNING={...TUNING_DEFAULTS};
+// Merges known keys only, clamped to the spec range and snapped to its step. Returns a copy of the current values.
+function setTuning(patch){
+ for(const s of TUNING_SPEC){if(!patch||!Object.hasOwn(patch,s.key))continue;const v=+patch[s.key];if(!Number.isFinite(v))continue;
+  TUNING[s.key]=+clamp(Math.round((v-s.min)/s.step)*s.step+s.min,s.min,s.max).toFixed(4);}
+ return {...TUNING};
+}
+const resetTuning=()=>setTuning(TUNING_DEFAULTS);
+const FRAMES=64;
+// Task 11: roll frames are 30° steps about the car's long axis (frame k shows roll k·30°; 3 = right side, 6 = roof, 9 = left side).
+const ROLL_STEPS=12;
+function frameIndex(a,count){return wrap(Math.round(a/TAU*count),count);}
+// Car geometry in car-local units (x forward, y right, z up), shared by the sprite, its shadow and carScreenBounds.
+const models=new WeakMap();
+function carModel(p){
+ let m=models.get(p);if(m)return m;
+ const art=CAR_ART[p.artId||String(p.name).toLowerCase()]||CAR_ART.compact,L=p.length/2,B=p.width/2,h=p.height,R=p.roof;
+ const xb=art.cabin[0]*L,xf=art.cabin[1]*L,rbx=art.roofSpan[0]*L,rfx=art.roofSpan[1]*L,bw=B-art.inset,rw=bw-art.tumble;
+ // Bonnet and boot fall away from the cabin, so the nose and tail read in silhouette.
+ const deckZ=x=>x>xf?h-art.hoodDrop*(x-xf)/(L-xf):x<xb?h-art.tailDrop*(xb-x)/(L+xb):h;
+ const [fx,fy]=art.cf,[bx,by]=art.cr;
+ const plan=[[L,-(B-fy)],[L,B-fy],[L-fx,B],[-L+bx,B],[-L,B-by],[-L,-(B-by)],[-L+bx,-B],[L-fx,-B]];
+ const body={pts:[...plan.map(([x,y])=>[x,y,art.sill]),...plan.map(([x,y])=>[x,y,deckZ(x)])],faces:[{idx:[8,9,10,11,12,13,14,15],kind:'deck'}]};
+ plan.forEach((_,i)=>{const j=(i+1)%8;body.faces.push({idx:[i,j,8+j,8+i],kind:'side',edge:i});});
+ const cabin={pts:[[xf,-bw,h],[xf,bw,h],[xb,bw,h],[xb,-bw,h],[rfx,-rw,R],[rfx,rw,R],[rbx,rw,R],[rbx,-rw,R]],
+  faces:[{idx:[4,5,6,7],kind:'roof'},{idx:[0,1,5,4],kind:'screen'},{idx:[2,3,7,6],kind:'rear'},{idx:[1,2,6,5],kind:'window',side:1},{idx:[3,0,4,7],kind:'window',side:-1}]};
+ const r=art.tyre,half=art.tyreW/2,tyres=[];
+ for(const axle of [-p.wheelbase/2,p.wheelbase/2])for(const side of [-1,1]){
+  const ring=Array.from({length:8},(_,k)=>{const t=(k+.5)*TAU/8;return [axle+r*Math.cos(t),r+r*Math.sin(t)];});
+  const yIn=side*(p.trackWidth/2-half),yOut=side*(p.trackWidth/2+half);
+  tyres.push({axle,side,ring,pts:[...ring.map(([x,z])=>[x,yIn,z]),...ring.map(([x,z])=>[x,yOut,z])]});
+ }
+ m={art,L,B,h,R,plan,deckZ,xb,xf,rbx,rfx,bw,rw,body,cabin,tyres};models.set(p,m);return m;
+}
+function hull(points){
+ const s=points.slice().sort((a,b)=>a[0]-b[0]||a[1]-b[1]),cross=(o,a,b)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]),lo=[],hi=[];
+ for(const q of s){while(lo.length>1&&cross(lo[lo.length-2],lo[lo.length-1],q)<=0)lo.pop();lo.push(q);}
+ for(let i=s.length-1;i>=0;i--){const q=s[i];while(hi.length>1&&cross(hi[hi.length-2],hi[hi.length-1],q)<=0)hi.pop();hi.push(q);}
+ return lo.slice(0,-1).concat(hi.slice(0,-1));
+}
+// ---- Drone tilt (user request after round 2): the Drone leans toward where it is accelerating, like a quadcopter, instead of
+// turning flat like a car. car.tiltR = bank about its forward axis (+ = right side down, i.e. into a right turn); car.tiltP =
+// pitch about its side axis (+ = nose down, speeding up; − = nose up, braking). Both are radians, |tilt| <= TILT_MAX, and are
+// drawn in TILT_STEPS steps each way (cached frames), so carScreenBounds can cover every frame that can be drawn.
+const TILT_MAX=.3,TILT_PITCH=.75,TILT_ACC=170,TILT_RATE=7,TILT_STEPS=5,TILT_STEP=TILT_MAX/TILT_STEPS;
+// A drone-local point [x forward, y right, z up], rotated by bank tr then pitch tp about the body centre (flightHeight + 1).
+function droneTiltPoint(p,v,tr=0,tp=0){
+ if(!tr&&!tp)return v;
+ const zc=p.flightHeight+1,cr=Math.cos(tr),sr=Math.sin(tr),cp=Math.cos(tp),sp=Math.sin(tp),[x,y,z]=v,dz=z-zc;
+ const y1=y*cr+dz*sr,z1=-y*sr+dz*cr;
+ return [x*cp+z1*sp,y1,-x*sp+z1*cp+zc];
+}
+// Quantised tilt indices for drawing, in [-TILT_STEPS, TILT_STEPS] (0, 0 for every non-flying car).
+function tiltIndex(c){const q=v=>clamp(Math.round((v||0)/TILT_STEP),-TILT_STEPS,TILT_STEPS)||0;return {r:q(c.tiltR),p:q(c.tiltP)};}
+// One physics step of tilt from the step's velocity change (dvx, dvy) in world units: the target follows the acceleration in
+// the drone's own frame (TUNING.droneTilt scales it, 0 = never tilts) and the body eases toward it. Deterministic.
+function droneTilt(w,dvx,dvy,dt){
+ const c=w.car;if(!w.p.flying){c.tiltR=c.tiltP=0;return;}
+ const cs=Math.cos(c.a),sn=Math.sin(c.a),ax=(dvx*cs+dvy*sn)/dt,ay=(-dvx*sn+dvy*cs)/dt,g=TUNING.droneTilt,k=1-Math.exp(-TILT_RATE*dt);
+ const tr=clamp(ay/TILT_ACC*g,-1,1)*TILT_MAX,tp=clamp(ax/TILT_ACC*g,-1,1)*TILT_MAX*TILT_PITCH;
+ c.tiltR=clamp((c.tiltR||0)+(tr-(c.tiltR||0))*k,-TILT_MAX,TILT_MAX);c.tiltP=clamp((c.tiltP||0)+(tp-(c.tiltP||0))*k,-TILT_MAX,TILT_MAX);
+}
+// Ground shadow in screen px relative to the anchor (contract §6): each part's footprint swept by LIGHT × its height.
+// The Drone's shadow is its (tilted) rotors, arms, body and canopy cast from their real heights.
+function carShadowPolys(p,a,tr=0,tp=0){
+ if(p.flying){
+  // A tilted flat part still projects to a convex polygon in the same vertex order.
+  const cs=Math.cos(a),sn=Math.sin(a);
+  return droneShadowParts(p).map(poly=>poly.map(v=>{const [u,w,q]=droneTiltPoint(p,v,tr,tp);return [u*cs-w*sn+LIGHT.x*q,K*(u*sn+w*cs)+LIGHT.y*q];}));
+ }
+ const m=carModel(p),cs=Math.cos(a),sn=Math.sin(a),g=([x,y],z)=>[x*cs-y*sn+LIGHT.x*z,K*(x*sn+y*cs)+LIGHT.y*z];
+ const body=hull([...m.plan.map(v=>g(v,0)),...m.plan.map(v=>g(v,m.deckZ(v[0])))]);
+ const cabin=hull([...m.cabin.pts.map(([x,y,z])=>g([x,y],z))]);
+ return [body,cabin];
+}
+// The Drone's parts in drone-local coordinates (x forward, y right, z up), shared by its sprite and its bounds.
+function droneParts(p){
+ const z=p.flightHeight,ring=(x,y,rad,h)=>Array.from({length:12},(_,i)=>[x+rad*Math.cos(i*TAU/12),y+rad*Math.sin(i*TAU/12),h]),rotors=[];
+ for(const x of [-7,7])for(const y of [-7,7])rotors.push({arm:[[0,0,z],[x,y,z]],disc:ring(x,y,3.4,z),hub:ring(x,y,1,z+.6)});
+ return {rotors,body:[[-7,-4,z],[7,-4,z],[7,4,z],[-7,4,z]],canopy:[[-5,-3,z+2],[5,-3,z+2],[5,3,z+2],[-5,3,z+2]],nose:[[4,-2,z+3],[7,0,z+3],[4,2,z+3]]};
+}
+// The Drone's shadow-casting parts (drone-local, with heights): four rotor discs, four arms, the body and the canopy.
+const shadowPartsCache=new WeakMap();
+function droneShadowParts(p){
+ let s=shadowPartsCache.get(p);if(s)return s;
+ const z=p.flightHeight;s=[];
+ for(const x of [-7,7])for(const y of [-7,7]){
+  s.push(Array.from({length:16},(_,i)=>[x+3.4*Math.cos(i*TAU/16),y+3.4*Math.sin(i*TAU/16),z]));
+  const l=Math.hypot(x,y),nx=-y/l*.8,ny=x/l*.8;
+  s.push([[nx,ny,z],[x+nx,y+ny,z],[x-nx,y-ny,z],[-nx,-ny,z]]);
+ }
+ s.push([[-7,-4,z],[7,-4,z],[7,4,z],[-7,4,z]],[[-5,-3,z+2],[5,-3,z+2],[5,3,z+2],[-5,3,z+2]]);
+ shadowPartsCache.set(p,s);return s;
+}
+// Every drone-local point the sprite or shadow can use, tilted to every drawable tilt step (computed once per preset):
+// sprite points as [x, y, z] and shadow points as [x, y, h]. frameBounds only has to rotate these per heading.
+const tiltCloudCache=new WeakMap();
+function droneTiltCloud(p){
+ let c=tiltCloudCache.get(p);if(c)return c;
+ const d=droneParts(p),sprite=[...d.rotors.flatMap(o=>[...o.arm,...o.disc,...o.hub]),...d.body,...d.canopy,...d.nose],shadow=droneShadowParts(p).flat(),n=(2*TILT_STEPS+1)**2;
+ c={sprite:new Float64Array(n*sprite.length*3),shadow:new Float64Array(n*shadow.length*3)};let i=0,j=0;
+ for(let r=-TILT_STEPS;r<=TILT_STEPS;r++)for(let q=-TILT_STEPS;q<=TILT_STEPS;q++){const tr=r*TILT_STEP,tp=q*TILT_STEP;
+  for(const v of sprite){c.sprite.set(droneTiltPoint(p,v,tr,tp),i);i+=3;}for(const v of shadow){c.shadow.set(droneTiltPoint(p,v,tr,tp),j);j+=3;}}
+ tiltCloudCache.set(p,c);return c;
+}
+// Every vertex the sprite can touch, projected to screen px relative to the anchor (tr, tp: the Drone's tilt).
+function carSpritePoints(p,a,tr=0,tp=0){
+ if(p.flying){const cs=Math.cos(a),sn=Math.sin(a),d=droneParts(p);
+  return [...d.rotors.flatMap(o=>[...o.arm,...o.disc,...o.hub]),...d.body,...d.canopy,...d.nose].map(v=>{const [x,y,z]=droneTiltPoint(p,v,tr,tp);return [x*cs-y*sn,K*(x*sn+y*cs)-Z*z];});}
+ const m=carModel(p),cs=Math.cos(a),sn=Math.sin(a),out=[];
+ for(const s of [m.body,m.cabin,...m.tyres])for(const [x,y,z] of s.pts)out.push([x*cs-y*sn,K*(x*sn+y*cs)-Z*z]);
+ return out;
+}
+// ---- Task 11: rolled geometry. Frame k turns the car k·30° about its long axis (through mid-roof height; + = toward its
+// right side), then lifts it so its lowest point rests on the ground. Shared by roll sprites, roll shadows and bounds.
+const rolledCache=new WeakMap();
+function rollFrame(roll){return wrap(Math.round(roll/(TAU/ROLL_STEPS)),ROLL_STEPS);}
+function rolledModel(p,k){
+ let arr=rolledCache.get(p);if(!arr)rolledCache.set(p,arr=[]);if(arr[k])return arr[k];
+ const m=carModel(p),phi=k*TAU/ROLL_STEPS,cs=Math.cos(phi),sn=Math.sin(phi),zc=m.R/2;
+ const rot=([x,y,z])=>[x,y*cs+(z-zc)*sn,-y*sn+(z-zc)*cs+zc];
+ // The body gains a floor face (the underside shows once the car is on its side or roof).
+ const solids=[{kind:'body',pts:m.body.pts.map(rot),faces:[...m.body.faces,{idx:[7,6,5,4,3,2,1,0],kind:'floor'}]},{kind:'cabin',pts:m.cabin.pts.map(rot),faces:m.cabin.faces},...m.tyres.map(t=>({kind:'tyre',pts:t.pts.map(rot)}))];
+ const lift=-Math.min(...solids.flatMap(s=>s.pts.map(v=>v[2])));
+ for(const s of solids)s.pts=s.pts.map(([x,y,z])=>[x,y,z+lift]);
+ return arr[k]={phi,solids};
+}
+// Ground-anchored roll shadow: every part's footprint swept by LIGHT × its height (the same rule as the upright shadow).
+function rollShadowPolys(p,a,k){
+ const cs=Math.cos(a),sn=Math.sin(a),g=(x,y,z)=>[x*cs-y*sn+LIGHT.x*z,K*(x*sn+y*cs)+LIGHT.y*z];
+ return rolledModel(p,k).solids.map(s=>hull(s.pts.flatMap(([x,y,z])=>[g(x,y,0),g(x,y,z)])));
+}
+function rollSpritePoints(p,a,k){
+ const cs=Math.cos(a),sn=Math.sin(a),out=[];
+ for(const s of rolledModel(p,k).solids)for(const [x,y,z] of s.pts)out.push([x*cs-y*sn,K*(x*sn+y*cs)-Z*z]);
+ return out;
+}
+// Box of one heading frame: rasterised pixels round to the nearest integer, so a vertex at sx can light the pixel [round(sx), round(sx)+1).
+function pointsBox(pts){
+ let l=Infinity,t=Infinity,r=-Infinity,b=-Infinity;
+ for(const [x,y] of pts){l=Math.min(l,x);r=Math.max(r,x);t=Math.min(t,y);b=Math.max(b,y);}
+ return {l:Math.floor(l-.5),t:Math.floor(t-.5),r:Math.ceil(r+1.5),b:Math.ceil(b+1.5)};
+}
+// The Drone's box covers every tilt frame that can be drawn at this heading (sprite and shadow), so tilting never changes it.
+const tiltBoundsCache=new WeakMap();
+function frameBounds(p,i){
+ const a=i*TAU/FRAMES;if(!p.flying)return pointsBox([...carSpritePoints(p,a),...carShadowPolys(p,a).flat()]);
+ let c=tiltBoundsCache.get(p);if(!c)tiltBoundsCache.set(p,c=[]);
+ if(!c[i]){
+  const cs=Math.cos(a),sn=Math.sin(a),cl=droneTiltCloud(p);let l=Infinity,t=Infinity,r=-Infinity,b=-Infinity;
+  // Sprite points sit Z·z above the ground (k = -Z), shadow points LIGHT·h beside it.
+  for(const [arr,hx,hy] of [[cl.sprite,0,-Z],[cl.shadow,LIGHT.x,LIGHT.y]])for(let n=0;n<arr.length;n+=3){
+   const x=arr[n],y=arr[n+1],z=arr[n+2],sx=x*cs-y*sn+hx*z,sy=K*(x*sn+y*cs)+hy*z;
+   if(sx<l)l=sx;if(sx>r)r=sx;if(sy<t)t=sy;if(sy>b)b=sy;}
+  c[i]=pointsBox([[l,t],[r,b]]);
+ }
+ return {...c[i]};
+}
+// Task 11: box of heading frame i in roll frame k (sprite and roll shadow).
+const rollFrameCache=new WeakMap();
+function rollFrameBounds(p,i,k){
+ let c=rollFrameCache.get(p);if(!c)rollFrameCache.set(p,c=[]);const j=k*FRAMES+i;
+ if(!c[j]){const a=i*TAU/FRAMES;c[j]=pointsBox([...rollSpritePoints(p,a,k),...rollShadowPolys(p,a,k).flat()]);}
+ return c[j];
+}
+const unionBox=(A,B)=>A?{l:Math.min(A.l,B.l),t:Math.min(A.t,B.t),r:Math.max(A.r,B.r),b:Math.max(A.b,B.b)}:{...B};
+// Conservative screen-space box around the rendered car AND its shadow, relative to the car's screen anchor (x, y*K).
+// Edge transfer uses this to decide "fully offscreen"; car sprites must never draw outside it. It covers the two heading
+// frames either side of `a`, so the frame drawn at an interpolated heading (|a - pa| < half a frame per step) is inside too.
+// Task 11: for any roll ≠ 0 it is the union over EVERY roll frame at those headings, so the box does not change while the
+// car tumbles (no transfer flip-flop from a box that shrinks mid-roll); it changes only when a roll starts or ends.
+const boundsCache=new WeakMap(),rollBoundsCache=new WeakMap();
+function carScreenBounds(p,a,roll=0){
+ const k=Math.floor(wrap(a,TAU)/TAU*FRAMES)%FRAMES,store=roll?rollBoundsCache:boundsCache;
+ let cache=store.get(p);if(!cache)store.set(p,cache=[]);
+ if(!cache[k]){
+  if(!roll)cache[k]=unionBox(frameBounds(p,k),frameBounds(p,(k+1)%FRAMES));
+  else{let box=null;for(let r=0;r<ROLL_STEPS;r++)for(const i of [k,(k+1)%FRAMES])box=unionBox(box,rollFrameBounds(p,i,r));cache[k]=box;}
+ }
+ return {...cache[k]};
+}
+// Square raster size and anchor that fit every frame of a car (contract §2: PRESETS[id].sprite).
+const squareBox=({l,t,r,b})=>({size:Math.max(r-l,b-t),ax:-l,ay:-t});
+function spriteBox(p){let box={l:0,t:0,r:0,b:0};for(let i=0;i<FRAMES;i++)box=unionBox(box,frameBounds(p,i));return squareBox(box);}
+for(const p of Object.values(PRESETS))p.sprite=spriteBox(p);
+// Task 11: one raster size for every roll frame of a car, computed on first use (roll frames are rendered lazily).
+const rollBoxes=new WeakMap();
+function rollSpriteBox(p){let s=rollBoxes.get(p);if(!s){let box={l:0,t:0,r:0,b:0};for(let i=0;i<FRAMES;i++)box=unionBox(box,carScreenBounds(p,i*TAU/FRAMES+1e-9,1));rollBoxes.set(p,s=squareBox(box));}return s;}
+// ---- Course layout (task 06; round 2 circuit). Pure: arena → circuit centreline, cones, gate and car spawn, in world units.
+// Lane geometry is in world units; the edge strip and control zones are screen rules (contract §5, §7), checked at y*K.
+// Spawn keeps 1.25 × the longest car clear of cones and posts; derived from the presets so car growth (task 08) is covered.
+const SPAWN_CLEAR=Math.ceil(1.25*Math.max(...Object.values(PRESETS).map(p=>p.length)));
+// Edge strip (contract §11), screen px on all four sides: 12% of the short side, kept within 24–40 px.
+const edgeClear=A=>clamp(Math.round(.12*Math.min(A.W,A.H)),24,40);
+const CONE_COUNT=24,CONE_MARGIN=4,GATE_OPEN=56,GATE_HIGH=26,POST_R=4,GATE_LANE=28,SPAWN_MARGIN=14,BAY_W=22,BAY_D=30;
+// Legacy fractions from contract §7, kept only for reference; keepOuts now uses the real controlZones().
+const CONTROL_ZONES=[{id:'wheel',l:0,r:.28,t:.4,b:.95},{id:'pedals',l:.76,r:1,t:.55,b:1},{id:'hud',l:.55,r:1,t:0,b:.12}];
+// keepOuts is the only place the course reads control zones from: the page's real HUD, wheel, pedals and painted
+// instructions (controlZones), including safe-area insets when the page puts them on the arena (A.safe).
+// layoutCourse caches per arena size AND zone set, so zones that also depend on the device scale stay correct.
+function keepOuts(A){
+ return controlZones(A,A.safe).map(z=>({id:z.id,l:z.l,t:z.t,r:z.r,b:z.b}));
+}
+const zonesClear=(zones,l,t,r,b,m=0)=>zones.every(z=>!(r>z.l-m&&l<z.r+m&&b>z.t-m&&t<z.b+m));
+// True when the screen rect lies outside the edge strip (A.E px) and every control zone by at least m px.
+// The placement helpers below take G = {W, H, E}: the arena plus its edge strip, computed once per layout.
+function rectClear(A,zones,l,t,r,b,m=0){
+ if(l<A.E+m||t<A.E+m||r>A.W-A.E-m||b>A.H-A.E-m)return false;
+ return zonesClear(zones,l,t,r,b,m);
+}
+const pointClear=(A,zones,x,y,m=0)=>rectClear(A,zones,x,y,x,y,m);
+// Legacy (figure-eight crossing corridor): kept for the shared export line; the circuit has no crossing.
+const CROSS_GAP=Math.max(...Object.values(PRESETS).map(p=>p.width))+8;
+// Box (screen px, relative to the anchor) that holds every car at every heading: spawn and recovery use it (contract §11).
+let anyCarBox=null;
+function carBoxAll(){
+ if(!anyCarBox){anyCarBox={l:0,t:0,r:0,b:0};for(const p of Object.values(PRESETS))for(let i=0;i<FRAMES;i++){const q=carScreenBounds(p,(i+.5)*TAU/FRAMES);anyCarBox.l=Math.min(anyCarBox.l,q.l);anyCarBox.t=Math.min(anyCarBox.t,q.t);anyCarBox.r=Math.max(anyCarBox.r,q.r);anyCarBox.b=Math.max(anyCarBox.b,q.b);}}
+ return {...anyCarBox};
+}
+const SPAWN_INSIDE=4;
+// ---- Round 2 (r2-sim): the circuit (tasks/ROUND2.md §3). The centreline is a rounded polygon in world units (straights
+// joined by circular arcs), so it never crosses itself. In driving order: the main straight (gate across it, spawn just
+// before the gate), a fast two-part sweeper, a turn down into a hairpin notch and back up, a corner, an S-bend chicane and
+// the last corner onto the straight. fitTrack tries 8 orientations and several proportions and keeps the best fit whose
+// whole lane (centreline ± laneHalf, world units) clears the edge strip and every keepOuts zone. Small or awkward arenas get
+// a plain oval with the same straight, gate and spawn rules; an arena with no room at all gets a centred oval regardless.
+const LANE_MIN=13,laneHalf=A=>clamp(Math.round(.05*Math.min(A.W,A.H)),16,22);
+// LANE_PAD: extra lane clearance used while fitting. LANE_GAP: minimum gap between two different parts of the lane.
+// GATE_LEAD: spawn-to-gate distance along the straight (spawn stays SPAWN_CLEAR from both posts).
+const LANE_PAD=3,LANE_GAP=12,TRACK_STEP=4,CONE_OFF=5,GATE_LEAD=46,CONE_GAP=2*CONE_R+3,FIT_MAX=1600,LAP_WEIGHT=.25;
+// Template vertices [u, v, corner radius] in a Bw × Bh box: u along the main straight (corner 0 → corner 1), v across, y down.
+function circuitVerts(Bw,Bh,hw,oval){
+ const m=Math.min(Bw,Bh),rC=clamp(.14*m,hw+16,70),rS=clamp(.2*m,hw+36,150);
+ if(oval)return [[0,Bh,rS],[Bw,Bh,rS],[Bw,0,rS],[0,0,rS]];
+ const rH=clamp(.11*m,hw+16,50),c=clamp(.09*Bw,hw+12,48),n=.52*Bw,d=.56*Bh,rK=hw+10;
+ return [[c,Bh,rC],[Bw,Bh,rS],[Bw,0,rS],[n+rH,0,rC],[n+rH,d,rH],[n-rH,d,rH],[n-rH,0,rC],[0,0,rC],[0,.43*Bh,rK],[c,.57*Bh,rK]];
+}
+// Samples a closed rounded polygon every ~step world units. Each corner's fillet shrinks when an edge cannot hold both of its
+// fillets. Returns {pts, corners (centre c, radius r, turn, arc mid point, inward unit), straight (line out of corner 0), length}.
+function roundedPath(verts,step){
+ const n=verts.length,P=verts.map(v=>[v[0],v[1]]),unit=(a,b)=>{const dx=b[0]-a[0],dy=b[1]-a[1],l=Math.hypot(dx,dy)||1;return [dx/l,dy/l,l];};
+ const cs=P.map((v,i)=>{const d1=unit(P[(i+n-1)%n],v),d2=unit(v,P[(i+1)%n]),turn=Math.atan2(d1[0]*d2[1]-d1[1]*d2[0],d1[0]*d2[0]+d1[1]*d2[1]);return {v,d1,d2,turn,t:verts[i][2]*Math.tan(Math.abs(turn)/2)};});
+ for(let i=0;i<n;i++){const a=cs[i],b=cs[(i+1)%n],L=a.d2[2];if(a.t+b.t>L){const k=L/(a.t+b.t);a.t*=k;b.t*=k;}}
+ const pieces=[];
+ for(const c of cs){const s=Math.sign(c.turn)||1,h=Math.tan(Math.abs(c.turn)/2);c.r=h>1e-9?c.t/h:0;
+  c.a=[c.v[0]-c.d1[0]*c.t,c.v[1]-c.d1[1]*c.t];c.b=[c.v[0]+c.d2[0]*c.t,c.v[1]+c.d2[1]*c.t];
+  c.c=[c.a[0]-c.d1[1]*c.r*s,c.a[1]+c.d1[0]*c.r*s];c.a0=Math.atan2(c.a[1]-c.c[1],c.a[0]-c.c[0]);
+  const mid=c.a0+c.turn/2;c.mid=[c.c[0]+c.r*Math.cos(mid),c.c[1]+c.r*Math.sin(mid)];c.inward=[-Math.cos(mid),-Math.sin(mid)];}
+ cs.forEach((c,i)=>{const nx=cs[(i+1)%n];pieces.push({arc:c,len:c.r*Math.abs(c.turn)},{from:c.b,to:nx.a,len:Math.hypot(nx.a[0]-c.b[0],nx.a[1]-c.b[1])});});
+ const total=pieces.reduce((t,q)=>t+q.len,0),count=Math.max(8,Math.round(total/step)),ds=total/count,pts=[];
+ for(let i=0,k=0,s0=0;i<count;i++){const s=i*ds;while(k<pieces.length-1&&s>s0+pieces[k].len){s0+=pieces[k].len;k++;}
+  const q=pieces[k],f=q.len>0?clamp((s-s0)/q.len,0,1):0;
+  if(q.arc){const c=q.arc,ang=c.a0+c.turn*f;pts.push([c.c[0]+c.r*Math.cos(ang),c.c[1]+c.r*Math.sin(ang)]);}
+  else pts.push([q.from[0]+(q.to[0]-q.from[0])*f,q.from[1]+(q.to[1]-q.from[1])*f]);}
+ return {pts,corners:cs,straight:{from:pieces[1].from,to:pieces[1].to,len:pieces[1].len},length:total};
+}
+// True when no two parts of the lane that are far apart along the path come closer than a lane width + LANE_GAP.
+function laneSelfClear(pts,length,hw){
+ const n=pts.length,ds=length/n,D=2*hw+LANE_GAP,skip=Math.ceil(2*D/ds),st=Math.max(1,Math.round(8/ds));
+ for(let i=0;i<n;i+=st)for(let j=i+skip;j<n;j+=st){if(n-(j-i)<skip)break;const dx=pts[i][0]-pts[j][0],dy=pts[i][1]-pts[j][1];if(dx*dx+dy*dy<D*D)return false;}
+ return true;
+}
+// Gate and spawn along the main straight (distance from its start): the gate GATE_LEAD past the spawn, at least 30% along.
+function gateSpot(len){const gate=Math.max(GATE_LEAD+10,.3*len);return gate+24>len?null:{gate,spawn:gate-GATE_LEAD};}
+// The orientation o (0-7) maps template (u, v) in a Bw × Bh box to world offsets: bit 0 flips v, bit 1 flips u, bit 2 swaps axes.
+const orientPt=(o,Bw,Bh,[u,v])=>{if(o&2)u=Bw-u;if(o&1)v=Bh-v;return o&4?[v,u]:[u,v];};
+// Course pieces at world position (x0, y0) in orientation o: posts, spawn, straight direction, and the whole-car spawn box.
+function placeOn(path,o,Bw,Bh,x0,y0,spot){
+ const T=p=>{const q=orientPt(o,Bw,Bh,p);return [x0+q[0],y0+q[1]];},s=path.straight,f=T(s.from),t=T(s.to),L=s.len,d=[(t[0]-f[0])/L,(t[1]-f[1])/L];
+ const at=k=>[f[0]+d[0]*k,f[1]+d[1]*k],g=at(spot.gate),sp=at(spot.spawn),a=wrap(Math.atan2(d[1],d[0])+Math.PI,TAU)-Math.PI,off=GATE_OPEN/2+POST_R;
+ return {T,d,a,gate:g,spawn:sp,posts:[-1,1].map(k=>[g[0]-k*d[1]*off,g[1]+k*d[0]*off])};
+}
+function placeOk(A,zones,pl,pts,hw){
+ if(pl.posts.some(([x,y])=>!pointClear(A,zones,x,y*K,POST_R+1)||pts.some(p=>Math.hypot(p[0]-x,p[1]-y)<hw+POST_R+2)))return false;
+ const cb=carBoxAll(),x=pl.spawn[0],y=pl.spawn[1]*K;
+ return pointClear(A,zones,x,y)&&x+cb.l>=SPAWN_INSIDE&&y+cb.t>=SPAWN_INSIDE&&x+cb.r<=A.W-SPAWN_INSIDE&&y+cb.b<=A.H-SPAWN_INSIDE&&zonesClear(zones,x+cb.l,y+cb.t,x+cb.r,y+cb.b);
+}
+// Largest fit of the circuit (or the oval) to the free space. Free space is a 4-unit grid of lane-centre positions whose disc
+// of radius hw + LANE_PAD (+ grid slack) clears the edge strip (A.E screen px) and every zone. Score = main straight + LAP_WEIGHT × lap length.
+function fitTrack(A,zones,hw,oval){
+ // Arenas far larger than any screen (test worlds) only use a centred FIT_MAX window, which keeps the cost bounded.
+ const g=4,WH=A.H/K,ox=Math.max(0,(A.W-FIT_MAX)/2),oy=Math.max(0,(WH-FIT_MAX)/2),nx=Math.floor(Math.min(A.W,FIT_MAX)/g)+1,ny=Math.floor(Math.min(WH,FIT_MAX)/g)+1;
+ const rho=hw+LANE_PAD+g*.75,ok=new Uint8Array(nx*ny),wz=zones.map(z=>[z.l,z.t/K,z.r,z.b/K]);
+ let fx0=Infinity,fy0=Infinity,fx1=-Infinity,fy1=-Infinity;
+ for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){const x=ox+i*g,y=oy+j*g;
+  if(x<A.E+rho||x>A.W-A.E-rho||y<A.E/K+rho||y>(A.H-A.E)/K-rho)continue;
+  if(wz.some(([l,t,r,b])=>{const dx=Math.max(l-x,0,x-r),dy=Math.max(t-y,0,y-b);return dx*dx+dy*dy<rho*rho;}))continue;
+  ok[j*nx+i]=1;fx0=Math.min(fx0,x);fx1=Math.max(fx1,x);fy0=Math.min(fy0,y);fy1=Math.max(fy1,y);}
+ if(!(fx1>fx0&&fy1>fy0))return null;
+ const free=(x,y)=>{const i=Math.round((x-ox)/g),j=Math.round((y-oy)/g);return i>=0&&j>=0&&i<nx&&j<ny&&ok[j*nx+i]===1;};
+ const cx=(fx0+fx1)/2,cy=(fy0+fy1)/2,minStraight=oval?GATE_LEAD+60:180,selfOk=new Map(),fw=fx1-fx0,fh=fy1-fy0;
+ // One size: the free position nearest the free area's centre (8-unit grid) where the lane, the posts and the spawn fit.
+ function tryFit(o,asp,Lc){
+  const Bw=Lc*asp,Bh=Lc,ex=o&4?Bh:Bw,ey=o&4?Bw:Bh;if(ex>fw+1e-9||ey>fh+1e-9)return null;
+  const path=roundedPath(circuitVerts(Bw,Bh,hw,oval),TRACK_STEP),spot=gateSpot(path.straight.len);
+  if(!spot||path.straight.len<minStraight)return null;
+  // Spread-out samples first, so most rejected positions fail within a few lookups.
+  const rel=path.pts.map(p=>orientPt(o,Bw,Bh,p)),order=[],seen=new Uint8Array(rel.length),spots=[];
+  for(const stride of [32,8,2])for(let i=0;i<rel.length;i+=stride)if(!seen[i]){seen[i]=1;order.push(i);}
+  for(let y0=fy0;y0+ey<=fy1+1e-9;y0+=8)for(let x0=fx0;x0+ex<=fx1+1e-9;x0+=8)spots.push([Math.hypot(x0+ex/2-cx,(y0+ey/2-cy)*K),x0,y0]);
+  spots.sort((p,q)=>p[0]-q[0]||p[2]-q[2]||p[1]-q[1]);
+  for(const [,x0,y0] of spots){let good=true;for(const i of order)if(!free(x0+rel[i][0],y0+rel[i][1])){good=false;break;}if(!good)continue;
+   const key=Bw.toFixed(3)+'x'+Bh.toFixed(3);if(!selfOk.has(key))selfOk.set(key,laneSelfClear(path.pts,path.length,hw));if(!selfOk.get(key))return null;
+   const pl=placeOn(path,o,Bw,Bh,x0,y0,spot);if(placeOk(A,zones,pl,rel.map(p=>[x0+p[0],y0+p[1]]),hw))return {score:path.straight.len+LAP_WEIGHT*path.length,path,o,Bw,Bh,spot,oval,pl,x0,y0,hw};}
+  return null;
+ }
+ // Per orientation and proportion, the largest size that fits: coarse steps down from the largest box to the first size
+ // that fits, then a few bisection steps back up toward the last miss. A size whose best possible score (its shape's score,
+ // wherever it sits) cannot beat the best fit so far ends the search for that orientation early.
+ let best=null;
+ const bound=(o,asp,Lc)=>{const p=roundedPath(circuitVerts(Lc*asp,Lc,hw,oval),16);return {short:p.straight.len<minStraight,score:p.straight.len+LAP_WEIGHT*p.length};};
+ // Most promising combinations first (largest score of the full-size box), so the pruning bites early.
+ const combos=[];for(const asp of oval?[1,1.4,1.9,2.6]:[.9,1.15,1.45,1.9,2.6])for(let o=0;o<8;o++){const Lc=Math.min(o&4?fw:fh,(o&4?fh:fw)/asp);combos.push([bound(o,asp,Lc).score,o,asp,Lc]);}
+ combos.sort((p,q)=>q[0]-p[0]||p[1]-q[1]||p[2]-q[2]);
+ for(const [,o,asp,Lc] of combos){
+  let hi=Lc,lo=hi,fit=null,pruned=false;
+  for(;lo>8;hi=lo,lo*=.85){const b=bound(o,asp,lo);
+   // Too short now: the coarse step may have jumped over the only sizes that fit between the controls, so also try the
+   // smallest size whose straight is still long enough (bisected between this size and the last miss).
+   if(b.short){if(hi>lo){let a=lo,c=hi;for(let k=0;k<8;k++){const m=(a+c)/2;if(bound(o,asp,m).short)a=m;else c=m;}
+    if(c<hi&&!(best&&bound(o,asp,c).score<=best.score)&&(fit=tryFit(o,asp,c)))lo=c;}break;}
+   if(best&&b.score<=best.score){pruned=true;break;}if((fit=tryFit(o,asp,lo)))break;}
+  if(!fit&&!pruned)continue;
+  // Between lo (fits, or too small to win) and hi (does not fit): a winning size is larger, a miss means smaller.
+  for(let k=0;k<5&&hi>lo;k++){const mid=(lo+hi)/2;if(best&&bound(o,asp,mid).score<=best.score){lo=mid;continue;}const f=tryFit(o,asp,mid);if(f){fit=f;lo=mid;}else hi=mid;}
+  if(fit&&(!best||fit.score>best.score+1e-9))best=fit;
+ }
+ return best;
+}
+// Last resort (no room left between the controls): a centred oval, ignoring the zones but inside the arena.
+function fallbackTrack(A,hw){
+ const Bw=Math.max(4*hw,Math.min(A.W,FIT_MAX)-2*A.E-2*hw),Bh=Math.max(4*hw,Math.min(A.H/K,FIT_MAX)-2*A.E/K-2*hw),path=roundedPath(circuitVerts(Bw,Bh,hw,true),TRACK_STEP);
+ const spot=gateSpot(path.straight.len)||{gate:path.straight.len/2,spawn:Math.max(0,path.straight.len/2-GATE_LEAD)},x0=(A.W-Bw)/2,y0=(A.H/K-Bh)/2;
+ return {path,o:0,Bw,Bh,spot,oval:true,fallback:true,x0,y0,hw,pl:placeOn(path,0,Bw,Bh,x0,y0,spot)};
+}
+// layoutCourse costs tens of ms, so results are cached per arena size and zone set (contract §11). Each call returns a fresh copy.
+// Round 3: the selectable tracks (Settings shows a thumbnail button per entry, in this order). The course owner changes shapes;
+// the UI reads ids and names from here only.
+const TRACKS=[{id:'signature',name:'Signature circuit'},{id:'oval',name:'Easy oval'},{id:'eight',name:'Figure eight'}];
+let SELECTED_TRACK='signature';
+function setTrack(id){if(!TRACKS.some(t=>t.id===id))return false;SELECTED_TRACK=id;layoutCache.clear();return true;}
+const layoutCache=new Map();
+function layoutCourse(A=DEFAULT_ARENA){
+ const zones=keepOuts(A),key=SELECTED_TRACK+'|'+JSON.stringify([A.mobile,A.uiU,A.uiW,A.uiH])+'|'+A.W+'x'+A.H+'|'+JSON.stringify(zones);
+ let json=layoutCache.get(key);
+ if(json===undefined){json=JSON.stringify(buildCourse({...A,E:edgeClear(A)},zones));if(layoutCache.size>=16)layoutCache.delete(layoutCache.keys().next().value);layoutCache.set(key,json);}
+ return JSON.parse(json);
+}
+// A = {W, H, E} (E = edge strip, screen px); zones = screen rects. Pure and deterministic, so tests can pass any zone set.
+function legacyBuildCourse(A,zones){
+ if(!Number.isFinite(A.E))A={...A,E:edgeClear(A)};
+ const hw0=laneHalf(A),open=zones.filter(z=>z.id!=='instructions');
+ let fit=fitTrack(A,zones,hw0,false)||fitTrack(A,zones,hw0,true)||fitTrack(A,zones,LANE_MIN,true);
+ // Round 2 integration: an arena too small for the round 2 controls (square or tiny, e.g. 320×320) lets the oval run over the
+ // painted instructions (ground paint, not a control) before the last resort ignores every control.
+ if(!fit&&open.length<zones.length&&(fit=fitTrack(A,open,LANE_MIN,true))){zones=open;fit.overPaint=true;}
+ fit=fit||fallbackTrack(A,LANE_MIN);const hw=fit.hw;
+ const {path,o,Bw,Bh,x0,y0,pl}=fit,r2=v=>Math.round(v*100)/100,pts=path.pts.map(p=>{const q=pl.T(p);return [r2(q[0]),r2(q[1])];});
+ const off=GATE_OPEN/2+POST_R,rotation=wrap(pl.a,Math.PI)-Math.PI/2,[gx,gy]=pl.gate,spawn={x:pl.spawn[0],y:pl.spawn[1],a:pl.a};
+ // Posts in gate order: posts[0] at -u of the arch (the art splits its legs the same way).
+ const posts=[-1,1].map(k=>({x:gx+k*off*Math.cos(rotation),y:gy+k*off*Math.sin(rotation),r:POST_R}));
+ // Cones: one just inside each corner's apex and one on its outside, two more round the outside of long fast arcs; never on
+ // the lane, the gate approach, the spawn, the edge strip or a control zone, and never touching each other.
+ const cand=[];
+ for(const c of path.corners){if(Math.abs(c.turn)<.2||c.r<1)continue;
+  const mid=pl.T(c.mid),inn=pl.T([c.mid[0]+c.inward[0],c.mid[1]+c.inward[1]]),iv=[inn[0]-mid[0],inn[1]-mid[1]],k=hw+CONE_OFF;
+  cand.push([mid[0]+iv[0]*k,mid[1]+iv[1]*k],[mid[0]-iv[0]*k,mid[1]-iv[1]*k]);
+  if(Math.abs(c.turn)>1.2&&c.r>=hw+30)for(const f of [.2,.8]){const ang=c.a0+c.turn*f,R=c.r+k,p=pl.T([c.c[0]+R*Math.cos(ang),c.c[1]+R*Math.sin(ang)]);cand.push(p);}}
+ const cones=[],gl=GATE_LANE/K,ga=[Math.cos(pl.a),Math.sin(pl.a)];
+ for(const [x,y] of cand){if(cones.length>=CONE_COUNT)break;
+  if(!pointClear(A,zones,x,y*K,CONE_MARGIN))continue;
+  if(pts.some(p=>Math.hypot(p[0]-x,p[1]-y)<hw+CONE_R+1.5))continue;
+  if(posts.some(q=>Math.hypot(q.x-x,q.y-y)<q.r+CONE_R+3))continue;
+  const along=(x-gx)*ga[0]+(y-gy)*ga[1],across=-(x-gx)*ga[1]+(y-gy)*ga[0];if(Math.abs(along)<gl&&Math.abs(across)<off+POST_R+CONE_MARGIN)continue;
+  if(Math.hypot(x-spawn.x,y-spawn.y)<SPAWN_CLEAR)continue;
+  if(cones.some(q=>Math.hypot(q.x-x,q.y-y)<CONE_GAP))continue;
+  cones.push({x,y});}
+ const S=path.straight,f=pl.T(S.from),t=pl.T(S.to);
+ return {
+  cones,parking:[],
+  gate:{x:gx,y:gy,width:GATE_OPEN,height:GATE_HIGH,a:pl.a,rotation,lane:gl,posts},
+  spawn,
+  track:{kind:fit.fallback?'fallback':fit.oval?'oval':'circuit',overPaint:!!fit.overPaint,half:hw,pts,length:path.length,straight:{x0:f[0],y0:f[1],x1:t[0],y1:t[1],len:S.len},box:{x:x0,y:y0,w:o&4?Bh:Bw,h:o&4?Bw:Bh,o}}
+ };
+}
+
+let unusedTrackDeclaration;
+function buildCourse(A,zones,id=SELECTED_TRACK){
+ const hw=34,um=A.uiU||1,m=hw+18,bottom=A.mobile?260/um:100/um;
+ const left=m,right=Math.max(left+120,A.W-m),top=A.mobile?Math.max(m,90/um):m,bot=Math.max(top+160,A.H-bottom-m);
+ const w=right-left,h=(bot-top)/K,vertical=h>w*1.25;
+ const shape=id==='oval'?[[.12,.83],[.03,.5],[.12,.17],[.5,.08],[.88,.17],[.97,.5],[.88,.83],[.5,.92]]:id==='eight'?[[.08,.85],[.06,.2],[.35,.1],[.43,.45],[.7,.42],[.8,.1],[.95,.25],[.93,.85]]:[[.94,.88],[.1,.88],[.03,.67],[.06,.43],[.27,.14],[.39,.06],[.53,.1],[.53,.23],[.32,.28],[.27,.48],[.16,.54],[.13,.68],[.23,.77],[.43,.49],[.64,.15],[.81,.12],[.94,.26],[.97,.65]];
+ const P=shape.map(([x,y])=>vertical?[left+y*w,top/K+x*h]:[left+x*w,top/K+y*h]),pts=[];
+ for(let i=0;i<P.length;i++)for(let j=0;j<32;j++){const t=j/32,a=P[(i+P.length-1)%P.length],b=P[i],c=P[(i+1)%P.length],d=P[(i+2)%P.length];pts.push([0,1].map(k=>.5*((2*b[k])+(-a[k]+c[k])*t+(2*a[k]-5*b[k]+4*c[k]-d[k])*t*t+(-a[k]+3*b[k]-3*c[k]+d[k])*t*t*t)));}
+ // Longest low-curvature segment gives the start gate an unobstructed approach.
+ let best=0,score=-1;for(let i=0;i<pts.length;i++){const a=pts[i],b=pts[(i+8)%pts.length],c=pts[(i+16)%pts.length],v=[b[0]-a[0],b[1]-a[1]],q=[c[0]-b[0],c[1]-b[1]],sc=Math.hypot(...v)-10*Math.abs(Math.atan2(v[0]*q[1]-v[1]*q[0],v[0]*q[0]+v[1]*q[1]));if(sc>score){score=sc;best=i;}}
+ if(id==='signature')best=13*32+4;
+ const gp=pts[(best+8)%pts.length],a=pts[best],b=pts[(best+16)%pts.length],ang=Math.atan2(b[1]-a[1],b[0]-a[0]),dx=Math.cos(ang),dy=Math.sin(ang),off=hw+12;
+ const posts=[-1,1].map(k=>({x:gp[0]-dy*off*k,y:gp[1]+dx*off*k,r:POST_R})),cones=[];
+ for(let i=0;i<pts.length;i+=32){const p=pts[i],a=pts[(i+pts.length-1)%pts.length],b=pts[(i+1)%pts.length],l=Math.hypot(b[0]-a[0],b[1]-a[1]);for(const side of [-1,1]){const x=p[0]-side*(hw+6)*(b[1]-a[1])/l,y=p[1]+side*(hw+6)*(b[0]-a[0])/l;if(x>5&&x<A.W-5&&y*K>5&&y*K<A.H-bottom&&posts.every(q=>Math.hypot(q.x-x,q.y-y)>20))cones.push({x,y});}}
+ const length=pts.reduce((n,p,i)=>n+Math.hypot(p[0]-pts[(i+1)%pts.length][0],p[1]-pts[(i+1)%pts.length][1]),0);
+ return {cones,parking:[],spawn:{x:gp[0]-dx*70,y:gp[1]-dy*70,a:ang},gate:{x:gp[0],y:gp[1],width:2*hw+16,height:GATE_HIGH,a:ang,rotation:ang-Math.PI/2,lane:70,posts},track:{kind:id,half:hw,pts,length,straight:{x0:a[0],y0:a[1],x1:b[0],y1:b[1],len:Math.hypot(b[0]-a[0],b[1]-a[1])},box:{x:left,y:top/K,w,h}}};
+}
+// Ground layer: deterministic two-tone texture and the course markings, clipped (never wrapped) to the arena.
+function plotLine(x0,y0,x1,y1,plot,W,H){
+ let x=Math.round(x0),y=Math.round(y0);const ex=Math.round(x1),ey=Math.round(y1),dx=Math.abs(ex-x),sx=x<ex?1:-1,dy=-Math.abs(ey-y),sy=y<ey?1:-1;let e=dx+dy;
+ for(;;){if(x>=0&&y>=0&&x<W&&y<H)plot(x,y);if(x===ex&&y===ey)break;const e2=2*e;if(e2>=dy){e+=dy;x+=sx;}if(e2<=dx){e+=dx;y+=sy;}}
+}
+// Pixels of the course markings in screen px: the two lane edges, the dashed centre guide line (2 px dash every 7 px) and a
+// two-row checker start line under the gate. Exposed for tests; drawGround plots them.
+function trackMarks(layout,plot,W,H){
+ const t=layout&&layout.track;if(!t||!Array.isArray(t.pts)||t.pts.length<3)return;
+ const P=t.pts,n=P.length,hw=t.half;
+ const edge=(i,side)=>{const a=P[(i+n-1)%n],b=P[(i+1)%n],dx=b[0]-a[0],dy=b[1]-a[1],l=Math.hypot(dx,dy)||1,p=P[i];return [p[0]-side*hw*dy/l,(p[1]+side*hw*dx/l)*K];};
+ for(const side of [-1,1]){let prev=edge(0,side);for(let i=1;i<=n;i++){const next=edge(i%n,side);plotLine(prev[0],prev[1],next[0],next[1],(x,y)=>plot(x,y,'edge'),W,H);prev=next;}}
+ let run=0;
+ for(let i=0;i<n;i++){const a=P[i],b=P[(i+1)%n],x0=a[0],y0=a[1]*K,x1=b[0],y1=b[1]*K,m=Math.max(1,Math.round(Math.hypot(x1-x0,y1-y0)));
+  for(let k=0;k<m;k++,run++)if(run%7<2){const x=Math.round(x0+(x1-x0)*k/m),y=Math.round(y0+(y1-y0)*k/m);if(x>=0&&y>=0&&x<W&&y<H)plot(x,y,'guide');}}
+ const g=layout.gate;if(!g)return;const c=Math.cos(g.a),s=Math.sin(g.a);
+ for(let q=-hw;q<hw;q+=.5)for(let al=-2;al<2;al+=.5){if((Math.floor((q+hw)/2)+Math.floor((al+2)/2))%2)continue;
+  const x=Math.round(g.x-s*q+c*al),y=Math.round((g.y+c*q+s*al)*K);if(x>=0&&y>=0&&x<W&&y<H)plot(x,y,'start');}
+}
+function drawGround(gc,A,layout){
+ const W=A.W,H=A.H,dot=(x,y)=>gc.fillRect(x,y,1,1);
+ gc.fillStyle=paper;gc.fillRect(0,0,W,H);gc.fillStyle=ink;
+ for(let y=15;y<H;y+=20)for(let x=15;x<W;x+=20)if(((x*17+y*13)%7)<4)dot(x,y);
+ trackMarks(layout,(x,y)=>gc.fillRect(x,y,2,2),W,H);
+ gc.save();gc.globalAlpha=.45;gc.font="bold "+Math.max(14,Math.min(W,H)*.038)+"px monospace";gc.textAlign="center";gc.fillText("8-Bit Drift",W*.66,H*.42);gc.restore();
+ // The gate itself (arch, legs and its shadow) is drawn per frame from cached sprites (task 07); the ground stays plain under it.
+ for(const [x,y] of [[8,8],[W-9,8],[8,H-9],[W-9,H-9]]){gc.fillRect(x-2,y,5,1);gc.fillRect(x,y-2,1,5);}
+}
+function createWorld(id='compact',arena=DEFAULT_ARENA) {
+ const p=PRESETS[id],layout=layoutCourse(arena),s=layout.spawn;
+ const car={x:s.x,y:s.y,px:s.x,py:s.y,a:s.a,pa:s.a,vx:0,vy:0,omega:0,steer:0,slip:0,braking:false,skidding:false,...uprightState()};
+ // Each cone keeps its home (hx, hy) so resetCones() and a world reset restore the course.
+ const cones=layout.cones.map(({x,y},i)=>({x,y,hx:x,hy:y,px:x,py:y,vx:0,vy:0,a:(i*.7)%TAU,pa:(i*.7)%TAU,omega:0,tipped:false}));
+ // trackBreak: set by the simulation (edge transfer, roll start); the renderer consumes it and starts a new skid segment.
+ return {id,p,arena,layout,car,cones,time:0,wraps:0,hits:0,trackBreak:false,manual:false,gear:1,shiftTime:0};
+}
+function resetCones(w){w.cones.forEach((o,i)=>Object.assign(o,{x:o.hx,y:o.hy,px:o.hx,py:o.hy,vx:0,vy:0,omega:0,a:(i*.7)%TAU,pa:(i*.7)%TAU,tipped:false}));}
+function limitVelocity(o,max){const s=Math.hypot(o.vx,o.vy);if(s>max){o.vx*=max/s;o.vy*=max/s;}}
+// Automatic clutch and safe downshifts keep the five-speed stick approachable.
+const GEARS=[0,.36,.54,.72,.88,1.08],GEAR_TORQUE=[0,1.2,1.1,1,.9,.82],SPEED_TO_KMH=.6;
+function shiftGear(w,next){
+ if(!w.manual||w.id!=='coupe'||!Number.isInteger(next)||next<1||next>5||next===w.gear)return false;
+ if(next<w.gear&&Math.hypot(w.car.vx,w.car.vy)>w.p.max*GEARS[next]*.98)return false;
+ w.gear=next;w.shiftTime=.12;return true;
+}
+function gearTelemetry(w){const speed=Math.hypot(w.car.vx,w.car.vy),g=w.gear||1,load=clamp(speed/(w.p.max*GEARS[g]),0,1);return {speed:Math.round(speed*SPEED_TO_KMH),gear:g,rpm:Math.round(1000+load*7000),load,shiftUp:load>.83&&g<5};}
+function drive(w,input,dt){
+ const c=w.car,p=w.p,cs=Math.cos(c.a),sn=Math.sin(c.a);
+ const manual=w.manual&&w.id==='coupe',gear=w.gear||1,cap=manual?p.max*GEARS[gear]:p.max;w.shiftTime=Math.max(0,(w.shiftTime||0)-dt);
+ let forward=c.vx*cs+c.vy*sn,lateral=-c.vx*sn+c.vy*cs;
+ const {steering,throttle,brake}=normalizeInput(input),gas=throttle>0,back=brake>0;
+ // Brake wins over throttle. Throttle while rolling backwards brakes first; brake while rolling forwards brakes first.
+ c.braking=(gas&&back)||(gas&&forward<-1.2)||(back&&forward>1.2);
+ let accel=0;
+ if(c.braking){accel=-Math.sign(forward)*Math.min(p.brake*(back?brake:throttle),Math.abs(forward)/dt);}
+ else if(gas)accel=p.accel*throttle*(manual?(w.shiftTime>0?0:GEAR_TORQUE[gear]*(.3+.7*clamp(Math.abs(forward)/(p.max*.15),0,1))):1);else if(back)accel=-p.accel*.64*brake;
+ const rolling=3.8+p.drag*Math.abs(forward)+.001*Math.abs(forward)*Math.abs(forward);
+ if(Math.abs(forward)>.01)accel-=Math.sign(forward)*Math.min(rolling,Math.abs(forward)/dt);
+ if(manual&&forward>=cap&&accel>0)accel=0;
+ forward=clamp(forward+accel*dt,-p.reverse,manual?Math.max(cap,forward):p.max);
+ if(!gas&&!back&&Math.abs(forward)<.03)forward=0;
+ // Round 2 handling (Settings > Tuning, read live): steerAngle scales the full-lock front-wheel angle, steerFade is the share
+ // of lock lost at top speed, steerSpeed how fast the front wheels follow the input, turnRate how fast the body's rotation
+ // follows the wheels (sharper turn-in), grip the tyres' lateral limit (higher = less drift).
+ const T=TUNING,steeringLimit=p.steer*T.steerAngle*(1-T.steerFade*Math.min(1,Math.abs(forward)/p.max));
+ c.steer+=(steering*steeringLimit-c.steer)*(1-Math.exp(-T.steerSpeed*dt));
+ const desiredYaw=forward/p.wheelbase*Math.tan(c.steer);
+ c.omega+=clamp((desiredYaw-c.omega)*8.5*T.turnRate,-8*T.turnRate,8*T.turnRate)*dt;
+ c.omega=clamp(c.omega,-OMEGA_MAX,OMEGA_MAX);
+ const grip=p.grip*T.grip*(c.braking?.7:1);
+ // Task 11: the tyres' lateral acceleration (car frame, + = toward the right) is the cornering load that drives roll risk.
+ const tyreY=clamp(-lateral*8,-grip,grip);c.aLat=tyreY;
+ lateral+=tyreY*dt;
+ c.vx=cs*forward-sn*lateral;c.vy=sn*forward+cs*lateral;
+ limitVelocity(c,p.max*SPEED_CAP);
+ c.a=wrap(c.a+c.omega*dt+Math.PI,TAU)-Math.PI;
+ c.x+=c.vx*dt;c.y+=c.vy*dt;
+ c.slip=Math.abs(-Math.sin(c.a)*c.vx+Math.cos(c.a)*c.vy);
+ const speed=Math.hypot(c.vx,c.vy);
+ c.skidding=speed>12&&(c.slip>(c.skidding?3.6:6.5)||(c.braking&&speed>24));
+}
+function carCone(w,o){
+ if(w.p.flying)return 0;
+ const c=w.car,p=w.p,dx=o.x-c.x,dy=o.y-c.y,bound=p.length*.5+p.width*.5+CONE_R;
+ if(Math.abs(dx)>bound||Math.abs(dy)>bound)return;
+ const cs=Math.cos(c.a),sn=Math.sin(c.a),lx=dx*cs+dy*sn,ly=-dx*sn+dy*cs,hl=p.length/2,hw=p.width/2;
+ let qx=clamp(lx,-hl,hl),qy=clamp(ly,-hw,hw),nx=lx-qx,ny=ly-qy,dist=Math.hypot(nx,ny),penetration;
+ if(dist>=CONE_R)return;
+ if(dist<1e-8){const gx=hl-Math.abs(lx),gy=hw-Math.abs(ly);if(gx<gy){nx=lx>=0?1:-1;ny=0;qx=nx*hl;penetration=CONE_R+gx;}else{nx=0;ny=ly>=0?1:-1;qy=ny*hw;penetration=CONE_R+gy;}}
+ else {nx/=dist;ny/=dist;penetration=CONE_R-dist;}
+ const normalX=cs*nx-sn*ny,normalY=sn*nx+cs*ny,rx=cs*qx-sn*qy,ry=sn*qx+cs*qy;
+ const invA=1/p.mass,invB=1/CONE_MASS,inertia=p.mass*(p.length*p.length+p.width*p.width)/12;
+ const contactVX=c.vx-c.omega*ry,contactVY=c.vy+c.omega*rx;
+ const relative=(o.vx-contactVX)*normalX+(o.vy-contactVY)*normalY;
+ if(relative<0){
+  const cross=rx*normalY-ry*normalX,j=-(1.12)*relative/(invA+invB+cross*cross/inertia);
+  c.vx-=j*normalX*invA;c.vy-=j*normalY*invA;c.omega-=cross*j/inertia;
+  o.vx+=j*normalX*invB;o.vy+=j*normalY*invB;
+  if(j*invB>8){if(!o.tipped)w.hits++;o.tipped=true;o.a=Math.atan2(o.vy,o.vx);o.omega=clamp(cross*.08,-3,3);}
+  // Task 10: bounded results at the faster top speeds (a cone can never outrun CONE_MAX; the car's spin stays bounds-safe).
+  limitVelocity(o,CONE_MAX);c.omega=clamp(c.omega,-OMEGA_MAX,OMEGA_MAX);
+ }
+ const correction=Math.max(0,penetration-.015)*.85/(invA+invB);
+ c.x-=normalX*correction*invA;c.y-=normalY*correction*invA;o.x+=normalX*correction*invB;o.y+=normalY*correction*invB;
+}
+// Plain arena coordinates: no seam wrapping (task 05), so nothing collides across an edge. The third argument is unused.
+function coneCone(a,b){
+ let dx=b.x-a.x,dy=b.y-a.y,d2=dx*dx+dy*dy;
+ if(d2>=4*CONE_R*CONE_R)return;
+ let d=Math.sqrt(d2),nx=d>1e-8?dx/d:1,ny=d>1e-8?dy/d:0;
+ const rel=(b.vx-a.vx)*nx+(b.vy-a.vy)*ny;
+ if(rel<0){const j=-rel*.56;a.vx-=nx*j;a.vy-=ny*j;b.vx+=nx*j;b.vy+=ny*j;}
+ const push=Math.max(0,2*CONE_R-d-.01)*.45;a.x-=nx*push;a.y-=ny*push;b.x+=nx*push;b.y+=ny*push;
+}
+// ---- Edge transfer (task 05; contract §5 as amended by §11). The arena is a fixed screen, and nothing is ever drawn twice.
+// A body moves to the opposite side only once its whole sprite + shadow box is TRANSFER_MARGIN px past an edge. It keeps its
+// overshoot: leaving right with (x + l) - W = o, it re-enters with its right box edge at x + r = o (≥ TRANSFER_MARGIN, so a
+// fresh arrival needs 2 × TRANSFER_MARGIN px of travel back before it could flip again). Speed, heading, spin and steering are
+// untouched, and px/py move by the same offset, so interpolation never sweeps across the screen.
+const TRANSFER_MARGIN=2;
+// Every cone pixel (upright, 16 tipped frames and their task 07 shadows) relative to its integer anchor, plus 1 px; checked by a test.
+const CONE_BOX={l:-7,t:-10,r:8,b:5};
+// Moves o across at most one X edge, then one Y edge. Returns the world-unit offset applied ({dx:0, dy:0} when nothing moved).
+function transferBody(o,box,A){
+ const M=TRANSFER_MARGIN,sx=o.x,sy=o.y*K,bw=box.r-box.l,bh=box.b-box.t;let dx=0,dy=0;
+ if(sx+box.l>=A.W+M)dx=-(A.W+bw);else if(sx+box.r<=-M)dx=A.W+bw;
+ if(sy+box.t>=A.H+M)dy=-(A.H+bh)/K;else if(sy+box.b<=-M)dy=(A.H+bh)/K;
+ if(dx||dy){o.x+=dx;o.y+=dy;if(typeof o.px==='number'){o.px+=dx;o.py+=dy;}}
+ return {dx,dy};
+}
+// Called once per physics substep, after collisions. The car uses carScreenBounds at its heading and roll (0 until task 11).
+// One car transfer, even a corner that moves both axes, is one event: wraps + 1 and trackBreak (tracks start a new segment).
+// Cones use the same rule with CONE_BOX; they do not count as wraps and do not break car tracks.
+function transferEdges(w){
+ const c=w.car,A=w.arena,t=transferBody(c,carScreenBounds(w.p,c.a,c.roll||0),A);
+ if(t.dx||t.dy){w.wraps++;w.trackBreak=true;}
+ for(const o of w.cones)transferBody(o,CONE_BOX,A);
+ return t;
+}
+// Proportionally maps every object into a new arena after a viewport resize (contract §1). Tracks are cleared by the caller.
+function resizeWorld(w,arena){
+ const sx=arena.W/w.arena.W,sy=arena.WH/w.arena.WH;
+ // Cones still standing untouched at their home are course scenery: they move to the new layout's home, so the figure-eight
+ // stays a figure-eight after a rotation. The car and every disturbed cone are scaled proportionally (contract §1).
+ const home=w.cones.map(o=>o.x===o.hx&&o.y===o.hy&&!o.tipped&&!o.vx&&!o.vy);
+ for(const o of [w.car,...w.cones]){o.x*=sx;o.y*=sy;o.px=o.x;o.py=o.y;o.pa=o.a;}
+ // The fitted course can change its cone count on resize. Remap homes, discard only extra
+ // untouched scenery, and add newly needed cones; displaced cones remain in the world.
+ w.layout=layoutCourse(arena);
+ w.cones=w.cones.filter((o,i)=>i<w.layout.cones.length||!home[i]);
+ w.cones.forEach((o,i)=>{const h=w.layout.cones[i];if(h){o.hx=h.x;o.hy=h.y;if(home[i]){o.x=o.px=h.x;o.y=o.py=h.y;}}else{o.hx*=sx;o.hy*=sy;}});
+ for(let i=w.cones.length;i<w.layout.cones.length;i++){const {x,y}=w.layout.cones[i],a=(i*.7)%TAU;w.cones.push({x,y,hx:x,hy:y,px:x,py:y,vx:0,vy:0,a,pa:a,omega:0,tipped:false});}
+ w.arena=arena;w.trackBreak=true;
+}
+// ---- Task 10: gate posts are immovable circles {x, y, r} in world units (contract §11: layout.gate.posts). Plain arena
+// coordinates, no seam maths (contract §5). Only the posts collide; the opening between them is empty.
+function gatePosts(w){
+ const g=w&&w.layout&&w.layout.gate,posts=g&&Array.isArray(g.posts)?g.posts:null;
+ return posts?posts.filter(q=>q&&Number.isFinite(q.x)&&Number.isFinite(q.y)&&q.r>0):[];
+}
+// Car (oriented box) vs post. Restitution POST_E along the normal plus Coulomb friction (POST_MU), so grazing hits scrub speed
+// and off-centre hits spin the car. Neither impulse can add energy. The car is pushed fully out: the post never moves.
+// Returns the normal impulse (0 when not touching or already separating).
+function carPost(w,q){
+ const c=w.car,p=w.p,R=q.r,dx=q.x-c.x,dy=q.y-c.y,bound=p.length*.5+p.width*.5+R;
+ if(!(Math.abs(dx)<bound&&Math.abs(dy)<bound))return 0;
+ const cs=Math.cos(c.a),sn=Math.sin(c.a),lx=dx*cs+dy*sn,ly=-dx*sn+dy*cs,hl=p.length/2,hw=p.width/2;
+ let qx=clamp(lx,-hl,hl),qy=clamp(ly,-hw,hw),nx=lx-qx,ny=ly-qy,dist=Math.hypot(nx,ny),pen;
+ if(dist>=R)return 0;
+ // Post centre inside the body (only reachable by teleporting, e.g. a resize): leave through the nearest face.
+ if(dist<1e-8){const gx=hl-Math.abs(lx),gy=hw-Math.abs(ly);if(gx<gy){nx=lx>=0?1:-1;ny=0;qx=nx*hl;pen=R+gx;}else{nx=0;ny=ly>=0?1:-1;qy=ny*hw;pen=R+gy;}}
+ else{nx/=dist;ny/=dist;pen=R-dist;}
+ // World normal from the car toward the post, and the contact point relative to the car's centre.
+ const normalX=cs*nx-sn*ny,normalY=sn*nx+cs*ny,rx=cs*qx-sn*qy,ry=sn*qx+cs*qy;
+ const invA=1/p.mass,inertia=p.mass*(p.length*p.length+p.width*p.width)/12;
+ const vn=(c.vx-c.omega*ry)*normalX+(c.vy+c.omega*rx)*normalY;
+ let j=0;
+ if(vn>0){
+  const cn=rx*normalY-ry*normalX;j=(1+POST_E)*vn/(invA+cn*cn/inertia);
+  c.vx-=j*normalX*invA;c.vy-=j*normalY*invA;c.omega-=cn*j/inertia;
+  const tx=-normalY,ty=normalX,ct=rx*ty-ry*tx,vt=(c.vx-c.omega*ry)*tx+(c.vy+c.omega*rx)*ty;
+  const jt=clamp(vt/(invA+ct*ct/inertia),-POST_MU*j,POST_MU*j);
+  c.vx-=jt*tx*invA;c.vy-=jt*ty*invA;c.omega-=ct*jt/inertia;
+  c.omega=clamp(c.omega,-OMEGA_MAX,OMEGA_MAX);
+ }
+ const push=Math.max(0,pen-.005);c.x-=normalX*push;c.y-=normalY*push;
+ return j;
+}
+// Cone vs post: the cone bounces off (restitution CONE_POST_E) and is placed back on the post's surface.
+function conePost(o,q){
+ const R=q.r+CONE_R,dx=o.x-q.x,dy=o.y-q.y,d2=dx*dx+dy*dy;
+ if(!(d2<R*R))return 0;
+ const d=Math.sqrt(d2),s=Math.hypot(o.vx,o.vy),nx=d>1e-8?dx/d:s>1e-8?-o.vx/s:1,ny=d>1e-8?dy/d:s>1e-8?-o.vy/s:0;
+ const vn=o.vx*nx+o.vy*ny;
+ if(vn<0){o.vx-=(1+CONE_POST_E)*vn*nx;o.vy-=(1+CONE_POST_E)*vn*ny;}
+ o.x=q.x+nx*R;o.y=q.y+ny*R;
+ return Math.max(0,-vn);
+}
+// Substeps for one physics step: the car's speed and its corners' spin, plus the fastest cone or, when a cone is within reach,
+// the speed the car can give it, so nothing moves more than SUB_MOVE relative to anything else per substep. The cap is the
+// same sum at the fastest car's speed limit, CONE_MAX and OMEGA_MAX: 4 at the 120 Hz step, so cost stays bounded.
+function substeps(w,dt=STEP){
+ const c=w.car,half=Math.hypot(w.p.length,w.p.width)/2,speed=Math.hypot(c.vx,c.vy),spin=Math.abs(c.omega)*half;
+ const reach=half+CONE_R+(speed+spin)*dt+SUB_MOVE;let cone=0,near=false;
+ for(const o of w.cones){cone=Math.max(cone,Math.hypot(o.vx,o.vy));if(Math.abs(o.x-c.x)<reach&&Math.abs(o.y-c.y)<reach)near=true;}
+ cone=Math.min(CONE_MAX,near?Math.max(cone,1.2*(speed+spin)):cone);
+ const worst=(FASTEST*SPEED_CAP+CONE_MAX+OMEGA_MAX*CAR_REACH)*dt;
+ return clamp(Math.ceil((speed+spin+cone+w.p.accel*dt)*dt/SUB_MOVE),1,Math.max(1,Math.ceil(worst/SUB_MOVE)));
+}
+// ---- Task 11: rollover state machine (contract §4): 'driving' → 'tipping' → 'rolling' → 'resting' → 'recovering' → 'driving'.
+// Load model. car.load is the dynamic lateral load-transfer ratio (dimensionless, + = weight on the car's right-hand wheels,
+// i.e. the body leans / would roll toward its right). Its static target is u = -aLat·comHeight / (ROLL_G·trackWidth/2): the
+// classic rollover ratio, built from the tyres' real lateral acceleration aLat (≤ grip, so mass never enters it). A damped
+// spring (LOAD_W, LOAD_ZETA) makes load follow u with weight-transfer dynamics: a steady turn settles at u, but a hard
+// reversal of a loaded turn (a flick) overshoots. Collision impulses kick its rate by the car's lateral Δv. When |load|
+// exceeds the preset's rollThreshold the inner wheels lift ('tipping', inputs ignored). Load falling back below
+// TIP_DROP × threshold lands the car again (hysteresis); reaching TIP_COMMIT × threshold commits to a roll.
+// car.roll is the visual roll angle in radians about the car's long axis: 0 upright, + = toward the car's right side,
+// ±π/2 on a side, ±π on the roof. It is exactly 0 while 'driving' or 'recovering'; carScreenBounds and drawing use it.
+const ROLL_G=226,LOAD_W=5,LOAD_ZETA=.2,IMPACT_GAIN=.8,TIP_COMMIT=1.15,TIP_DROP=.85,TIP_MIN=.3,TIP_SOFT=.6;
+// Rolling: spin starts at ROLL_SPIN (+ more with speed), decays at ROLL_DECEL; below ROLL_SETTLE the body settles onto the
+// nearest stable face (wheels, a side or the roof) at SETTLE_RATE. The body slides with ground friction ROLL_FRICTION.
+const ROLL_SPIN=5,ROLL_SPIN_V=4,ROLL_DECEL=5,ROLL_SETTLE=2.2,SETTLE_RATE=4,ROLL_FRICTION=180,REST_SPEED=1,RECOVER_TIME=.3;
+const NO_INPUT={steering:0,throttle:0,brake:0};
+const CAR_STATES=['driving','tipping','rolling','resting','recovering'];
+// The fields a freshly upright car carries (createWorld, recover).
+function uprightState(){return {state:'driving',roll:0,load:0,loadRate:0,rollRate:0,side:0,timer:0,aLat:0,tiltR:0,tiltP:0};}
+const rollKappa=p=>p.comHeight/(ROLL_G*p.trackWidth/2);
+// Angle at which the centre of mass passes over the outer wheels: tipping shows the car between TIP_MIN and this.
+const tipAngle=p=>Math.atan2(p.trackWidth/2,p.comHeight);
+// Inputs have no effect unless driving: the body slides with ground friction and its spin dies away.
+function tumble(w,dt){
+ const c=w.car,s=Math.hypot(c.vx,c.vy),k=s>0?Math.max(0,s-ROLL_FRICTION*dt)/s:0;
+ c.vx*=k;c.vy*=k;c.omega*=Math.exp(-2.5*dt);if(Math.abs(c.omega)<1e-3)c.omega=0;c.steer*=Math.exp(-10*dt);
+ c.a=wrap(c.a+c.omega*dt+Math.PI,TAU)-Math.PI;c.x+=c.vx*dt;c.y+=c.vy*dt;
+ c.slip=Math.abs(-Math.sin(c.a)*c.vx+Math.cos(c.a)*c.vy);c.braking=false;c.skidding=false;c.aLat=0;
+}
+// One substep of the state machine. (dvx, dvy) is the car's velocity change from this substep's collisions (cones + posts).
+function rollover(w,dt,dvx,dvy){
+ if(w.p.flying)return;
+ const c=w.car,p=w.p,st=c.state||'driving';
+ if(st==='driving'||st==='tipping'){
+  const kap=rollKappa(p),dvl=-dvx*Math.sin(c.a)+dvy*Math.cos(c.a),u=-(c.aLat||0)*kap;
+  let x=c.load||0,v=c.loadRate||0;
+  v-=dvl*kap*LOAD_W*LOAD_W*IMPACT_GAIN; // an impulse pushing the car's base left rolls it right (it is tripped)
+  // On two wheels the lifted side's suspension no longer pushes back, so the restoring spring is softer (TIP_SOFT).
+  const W=st==='tipping'?LOAD_W*TIP_SOFT:LOAD_W;
+  v+=(W*W*(u-x)-2*LOAD_ZETA*W*v)*dt;x+=v*dt;c.load=x;c.loadRate=v;
+  const thr=p.rollThreshold;
+  if(st==='driving'){if(Math.abs(x)>thr){c.state='tipping';c.side=x>0?1:-1;w.trackBreak=true;}else return;}
+  const sx=c.side*x;
+  if(sx>=thr*TIP_COMMIT){
+   c.state='rolling';c.roll=c.side*tipAngle(p);c.rollRate=c.side*(ROLL_SPIN+ROLL_SPIN_V*Math.min(1,Math.hypot(c.vx,c.vy)/p.max));
+   c.load=c.loadRate=0;w.trackBreak=true;
+  }else if(sx<thr*TIP_DROP){c.state='driving';c.roll=0;c.side=0;c.loadRate*=.5;}
+  else c.roll=c.side*(TIP_MIN+(tipAngle(p)-TIP_MIN)*clamp((sx-thr*TIP_DROP)/(thr*(TIP_COMMIT-TIP_DROP)),0,1));
+  return;
+ }
+ if(st==='rolling'){
+  const r=Math.abs(c.rollRate)-ROLL_DECEL*dt;
+  if(r>ROLL_SETTLE){c.rollRate=Math.sign(c.rollRate)*r;c.roll+=c.rollRate*dt;return;}
+  // Settle onto the nearest stable face, then wait for the slide to stop.
+  c.rollRate=0;const q=Math.PI/2,target=Math.round(c.roll/q)*q;
+  c.roll=Math.abs(target-c.roll)<=SETTLE_RATE*dt?target:c.roll+Math.sign(target-c.roll)*SETTLE_RATE*dt;
+  if(c.roll===target&&Math.hypot(c.vx,c.vy)<REST_SPEED){
+   const n=wrap(Math.round(target/q),4); // 0 wheels, 1 right side, 2 roof, 3 left side
+   if(n===0){Object.assign(c,uprightState());}else{c.state='resting';c.roll=[0,q,Math.PI,-q][n];c.vx=c.vy=c.omega=0;}
+  }
+  return;
+ }
+ if(st==='recovering'){c.timer-=dt;if(c.timer<=0){c.state='driving';c.timer=0;}}
+}
+function step(w,input,dt=STEP){
+ const c=w.car,A=w.arena,svx=c.vx,svy=c.vy;c.px=c.x;c.py=c.y;c.pa=c.a;
+ for(const o of w.cones){o.px=o.x;o.py=o.y;o.pa=o.a;}
+ const n=substeps(w,dt),h=dt/n,posts=gatePosts(w);
+ for(let sub=0;sub<n;sub++){
+  // Task 11: only a driving car obeys the input. Tipping keeps its tyres (with no input); the rest slide and tumble.
+  const st=c.state||'driving';
+  if(st==='driving')drive(w,input,h);else if(st==='tipping')drive(w,NO_INPUT,h);else tumble(w,h);
+  for(const o of w.cones){o.x+=o.vx*h;o.y+=o.vy*h;o.a+=o.omega*h;const drag=Math.exp(-4.1*h);o.vx*=drag;o.vy*=drag;o.omega*=drag;if(Math.hypot(o.vx,o.vy)<.1){o.vx=0;o.vy=0;o.omega=0;}}
+  const vx0=c.vx,vy0=c.vy;
+  for(let iteration=0;iteration<2;iteration++){
+   for(const o of w.cones)carCone(w,o);
+   for(let a=0;a<w.cones.length;a++)for(let b=a+1;b<w.cones.length;b++)coneCone(w.cones[a],w.cones[b],A);
+   // Posts go last, so they win: nothing ends a substep inside a post.
+   for(const q of posts){carPost(w,q);for(const o of w.cones)conePost(o,q);}
+  }
+  rollover(w,h,c.vx-vx0,c.vy-vy0);
+  transferEdges(w);
+ }
+ if(w.p.flying)droneTilt(w,c.vx-svx,c.vy-svy,dt);
+ w.time+=dt;
+}
+// ---- Task 11: recovery (contract §4, §12). Pure: Agent 1's button / R key calls these; the page releases inputs.
+// True when the car box lies wholly outside the arena (it is invisible) but has not transferred yet (inside the 2 px margin).
+function carHidden(w){const c=w.car,A=w.arena,b=carScreenBounds(w.p,c.a,c.roll||0),x=c.x,y=c.y*K;return x+b.l>=A.W||x+b.r<=0||y+b.t>=A.H||y+b.b<=0;}
+// Recovery is offered once the car has settled overturned, or whenever the car is invisible in the transfer margin.
+function canRecover(w){const c=w&&w.car;if(!c||!w.arena)return false;const st=c.state||'driving';return st==='resting'||(st!=='recovering'&&carHidden(w));}
+const RECOVER_GAP=2;
+// Distance (world units) from point (x, y) to an upright car box of preset p centred at (cx, cy) with heading a.
+function boxDistance(p,cx,cy,a,x,y){const dx=x-cx,dy=y-cy,cs=Math.cos(a),sn=Math.sin(a),lx=Math.abs(dx*cs+dy*sn)-p.length/2,ly=Math.abs(-dx*sn+dy*cs)-p.width/2;
+ return lx>0||ly>0?Math.hypot(Math.max(lx,0),Math.max(ly,0)):Math.max(lx,ly);}
+// Nearest anchor (screen distance from (sx, sy), on a 2 px grid; coarser only for arenas far larger than a screen) where the
+// upright car at heading a fits: anchor outside the edge strip, the whole carScreenBounds box ≥ SPAWN_INSIDE px inside the
+// arena and off every keepOuts zone, and the body RECOVER_GAP clear of every cone and gate post. {x, y} world units, or null.
+function recoverSpot(w,a,sx,sy){
+ const A=w.arena,p=w.p,b=carScreenBounds(p,a,0),E=edgeClear(A),M=SPAWN_INSIDE,zones=keepOuts(A),g=Math.max(2,2*Math.ceil(Math.sqrt(A.W*A.H/40000)/2));
+ const obstacles=[...w.cones.map(o=>({x:o.x,y:o.y,r:CONE_R})),...gatePosts(w)],reach=Math.hypot(p.length,p.width)/2+RECOVER_GAP;
+ const bands=[];let best=null,bd=Infinity;
+ for(let y=Math.ceil(Math.max(E,M-b.t)/g)*g;y<=Math.min(A.H-E,A.H-M-b.b);y+=g)for(let x=Math.ceil(Math.max(E,M-b.l)/g)*g;x<=Math.min(A.W-E,A.W-M-b.r);x+=g){
+  // Every check uses the screen y the car will really have (world y = y/K, so (y/K)*K can differ from y by 1e-14).
+  const ys=y/K*K;if(ys<E||ys>A.H-E||ys+b.t<M||ys+b.b>A.H-M)continue;
+  const d=Math.sqrt((x-sx)*(x-sx)+(ys-sy)*(ys-sy)),band=Math.floor(d/8);(bands[band]||(bands[band]=[])).push(d,x,ys);
+ }
+ // Candidates are checked in 8 px distance bands, nearest band first; the closest valid one in the first band that has any wins.
+ for(const list of bands){if(!list)continue;
+  for(let i=0;i<list.length;i+=3){const d=list[i],x=list[i+1],y=list[i+2];if(d>=bd)continue;
+   if(!zonesClear(zones,x+b.l,y+b.t,x+b.r,y+b.b))continue;
+   const yw=y/K;if(obstacles.some(o=>Math.abs(o.x-x)<reach+o.r&&Math.abs(o.y-yw)<reach+o.r&&boxDistance(p,x,yw,a,o.x,o.y)<o.r+RECOVER_GAP))continue;
+   best={x,y:y/K};bd=d;}
+  if(best)break;}
+ return best;
+}
+// Rights the car: upright, still, at the nearest clear spot (keeping its heading if it fits, else the spawn heading; the
+// layout spawn is the last fallback), with interpolation reset and trackBreak set. 'recovering' lasts RECOVER_TIME, then
+// 'driving'. Returns false (and changes nothing) when canRecover(w) is false.
+function recover(w){
+ if(!canRecover(w))return false;
+ const c=w.car,s=w.layout&&w.layout.spawn,heads=[c.a];if(s&&Number.isFinite(s.a))heads.push(s.a);
+ let spot=null,a=c.a;
+ for(const h of heads){spot=recoverSpot(w,h,c.x,c.y*K);if(spot){a=h;break;}}
+ if(!spot){spot=s?{x:s.x,y:s.y}:{x:w.arena.W/2,y:w.arena.WH/2};a=s?s.a:0;}
+ Object.assign(c,{x:spot.x,y:spot.y,px:spot.x,py:spot.y,a,pa:a,vx:0,vy:0,omega:0,steer:0,slip:0,braking:false,skidding:false},uprightState(),{state:'recovering',timer:RECOVER_TIME});
+ w.trackBreak=true;
+ return true;
+}
+// Render interpolation: plain lerp for position (transfers shift px/py too), short path for the heading.
+function position(o,alpha){return {x:o.px+(o.x-o.px)*alpha,y:o.py+(o.y-o.py)*alpha,a:o.pa+angleDelta(o.pa,o.a)*alpha};}
+// The car's drawable, the one place that decides how the car is drawn (Agent 3 extends it for roll frames: add fields here and
+// read them in the page's drawCarItem). Integer anchor at the interpolated position; box = carScreenBounds at heading and roll.
+function carDrawable(w,alpha=1){
+ const c=w.car,p=position(c,alpha),x=Math.round(p.x),y=Math.round(p.y*K),roll=c.roll||0;
+ return {type:'car',x,y,a:p.a,roll,tilt:tiltIndex(c),frame:frameIndex(p.a,FRAMES),box:carScreenBounds(w.p,p.a,roll),key:y};
+}
+// The gate (task 07) as three drawables: one per leg ('leg0', 'leg1': arch pixels below GATE_SPLIT), each sorting at its own
+// post's ground line (round 2: with one shared key a car beside a turned gate's front or back leg was drawn on the wrong side
+// of it and looked sunk into it); 'arch' (the beam and shoulders, above every car) always draws in front, so cars visibly pass
+// under it in both directions. x, y = the shared sprite anchor (gate centre).
+function gateDrawables(w){
+ const g=w.layout&&w.layout.gate;if(!g||!Array.isArray(g.posts)||g.posts.length<2)return [];
+ const [p0,p1]=g.posts,x=Math.round((p0.x+p1.x)/2),y=Math.round((p0.y+p1.y)/2*K);
+ return [{type:'gate',part:'leg0',x,y,key:Math.round(p0.y*K)},{type:'gate',part:'leg1',x,y,key:Math.round(p1.y*K)},{type:'gate',part:'arch',x,y,key:GATE_FRONT}];
+}
+// What draw() renders: each car and cone once, at its real interpolated position, culled when its box is off the arena, plus
+// the gate. Integer screen anchors; key = screen y of the ground anchor (contract §6), the car last on ties.
+function sceneItems(w,alpha=1){
+ const A=w.arena,out=[],seen=(x,y,b)=>!(x+b.r<=0||x+b.l>=A.W||y+b.b<=0||y+b.t>=A.H);
+ const car=carDrawable(w,alpha);if(seen(car.x,car.y,car.box))out.push(car);
+ for(const o of w.cones){const p=position(o,alpha),x=Math.round(p.x),y=Math.round(p.y*K);if(seen(x,y,CONE_BOX))out.push({type:'cone',x,y,a:p.a,tipped:!!o.tipped,key:y});}
+ out.push(...gateDrawables(w));
+ return out;
+}
+const drawOrder=(a,b)=>a.key-b.key||(a.type==='car')-(b.type==='car');
+// ---- Task 09: skid marks (contract §8). Pure, so Node tests drive it exactly as the page does: one call per physics step.
+// The rear tyres mark only while the car slides (lateral slip speed AND slip angle over a threshold, with hysteresis) or brakes
+// hard (forward deceleration above brakeFrac × the car's brake). Marks are broken: one pixel every `dot` px of tyre travel,
+// with a gap every `gap` dots and a tread pixel beside every third dot. Each pixel is clipped to the arena; a tyre that is
+// offscreen draws nothing and resumes when it re-enters. A segment is never drawn across a break: trackBreak (transfer,
+// pause/menu, resize, car change, reset, recovery, roll start), recording switched off, a non-'driving' car state, or a tyre
+// jump longer than maxSeg (a safety net) all start a new mark.
+const SKID={minSpeed:12,slipOn:9,slipHold:6,angleOn:.12,angleHold:.08,brakeFrac:.7,delay:.25,dot:2,gap:9,maxSeg:12};
+function createTrackRecorder(){return {prev:null,fwd:null,on:false,heat:0,dist:[0,0]};}
+function breakTracks(rec){rec.prev=null;rec.fwd=null;rec.on=false;rec.heat=0;}
+// One physics step of recording. plot(x, y, tyre) receives integer in-arena pixels. Consumes w.trackBreak. Returns pixels plotted.
+function recordTracks(w,rec,plot,enabled=true,dt=STEP){
+ if(w.p.flying){breakTracks(rec);w.trackBreak=false;return 0;}
+ if(w.trackBreak){breakTracks(rec);w.trackBreak=false;}
+ const c=w.car;
+ if(!enabled||(c.state!==undefined&&c.state!=='driving')){breakTracks(rec);return 0;}
+ const cs=Math.cos(c.a),sn=Math.sin(c.a),fwd=c.vx*cs+c.vy*sn,slip=Math.abs(-sn*c.vx+cs*c.vy),angle=Math.atan2(slip,Math.abs(fwd));
+ const decel=rec.fwd===null?0:(Math.abs(rec.fwd)-Math.abs(fwd))/dt,hold=rec.on;
+ // Require sustained slip or hard braking before leaving rubber. Brief spikes cool twice as fast as they build.
+ const stressed=Math.hypot(c.vx,c.vy)>SKID.minSpeed&&((slip>(hold?SKID.slipHold:SKID.slipOn)&&angle>(hold?SKID.angleHold:SKID.angleOn))||(c.braking&&decel>SKID.brakeFrac*w.p.brake));
+ rec.heat=clamp(rec.heat+(stressed?dt:-2*dt),0,SKID.delay);
+ const on=stressed&&(hold||rec.heat>=SKID.delay-1e-9);
+ rec.fwd=fwd;rec.on=on;
+ if(!on){rec.prev=null;return 0;}
+ const cur=wheelPoints(w),A=w.arena;let n=0;
+ const put=(x,y,i)=>{x=Math.floor(x);y=Math.floor(y);if(x>=0&&y>=0&&x<A.W&&y<A.H){plot(x,y,i);n++;}};
+ if(rec.prev)for(let i=0;i<2;i++){
+  const a=rec.prev[i],b=cur[i],dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy),s=rec.dist[i];
+  if(len>SKID.maxSeg||len<1e-9)continue;
+  for(let k=Math.floor(s/SKID.dot)+1;k*SKID.dot<=s+len;k++){
+   if(k%SKID.gap===0)continue;
+   const t=(k*SKID.dot-s)/len,x=a.x+dx*t,y=a.y+dy*t;put(x,y,i);
+   // Tread: every third dot gets a neighbour across the path, so the mark reads as a broken two-pixel band.
+   if(k%3===0){const side=i?1:-1;put(x-dy/len*side,y+dx/len*side,i);}
+  }
+  rec.dist[i]=(s+len)%(SKID.dot*SKID.gap*3);
+ }
+ rec.prev=cur;return n;
+}
+// Rear tyre contact points in screen px: under the rear axle, at the centre of each tyre's tread.
+// Not wrapped (task 05): while the car is partly offscreen these lie outside the arena, and track drawing clips them.
+function wheelPoints(w){const c=w.car,p=w.p,cs=Math.cos(c.a),sn=Math.sin(c.a),x=-p.wheelbase/2,y=p.trackWidth/2;return [-1,1].map(side=>({x:c.x+cs*x-sn*(y*side),y:(c.y+sn*x+cs*(y*side))*K}));}
+// Task 01 / contract §1: pick an integer device-pixel scale so the short side shows about `short` logical px.
+// Round 2: zoomed out (default 400, was 300) and tunable (Settings > Tuning > Zoom out = TUNING.viewShort).
+const VIEW_SHORT=TUNING_DEFAULTS.viewShort;
+function computeView(cssW,cssH,dpr,short=TUNING.viewShort){
+ dpr=dpr>0&&Number.isFinite(dpr)?dpr:1;short=+short>0&&Number.isFinite(+short)?+short:VIEW_SHORT;
+ const devW=Math.max(0,+cssW||0)*dpr,devH=Math.max(0,+cssH||0)*dpr;
+ const scale=Math.max(.05,Math.min(devW,devH)/short);
+ // max(1,…) only guards degenerate 0-size viewports (hidden frames); real screens follow the contract formula exactly.
+ return {scale,W:Math.max(1,Math.ceil(devW/scale)),H:Math.max(1,Math.ceil(devH/scale))};
+}
+// Task 03 / contract §3: keyboard + pointer state merged into the physics input. Pure: no DOM, testable in Node.
+// Keys are named w/s/a/d. Touch controls are 'wheel', 'gas' and 'brake'; each is owned by at most one pointer id,
+// and holds a value only while owned. A pointer owns at most one control (binding it elsewhere frees the old one).
+// Stage 3: the keyboard fallbacks on the focused wheel (arrows) and pedals (Space/Enter) have their own key slots, so
+// releasing an arrow never releases a physically held A or D (and Space on the gas pedal never releases W).
+const CONTROL_NAMES=['wheel','gas','brake'];
+function createControls(options={}){
+ const onEngage=typeof options.onEngage==='function'?options.onEngage:null;
+ const keys={w:false,s:false,a:false,d:false,arrowLeft:false,arrowRight:false,pedalGas:false,pedalBrake:false};
+ const pads={wheel:{owner:null,value:0},gas:{owner:null,value:0},brake:{owner:null,value:0}};
+ const engage=source=>{if(onEngage)onEngage(source);};
+ const free=name=>{pads[name].owner=null;pads[name].value=0;};
+ // A repeat never presses a key: after releaseAll (blur, pause, menu) a held key counts only once pressed again.
+ function keyDown(key,repeat=false){if(!Object.hasOwn(keys,key))return false;if(!repeat&&!keys[key]){keys[key]=true;engage('key');}return true;}
+ function keyUp(key){if(!Object.hasOwn(keys,key))return false;keys[key]=false;return true;}
+ function releaseKeys(){for(const k of Object.keys(keys))keys[k]=false;}
+ function bindPointer(control,pointerId,value){
+  const pad=pads[control];if(!pad||pointerId===undefined||pointerId===null)return false;
+  if(pad.owner!==null&&pad.owner!==pointerId)return false;
+  for(const name of CONTROL_NAMES)if(name!==control&&pads[name].owner===pointerId)free(name);
+  pad.owner=pointerId;if(value!==undefined)set(control,value,pointerId);engage(control);return true;
+ }
+ function set(name,value,pointerId){
+  const pad=pads[name];if(pad.owner===null||(pointerId!==undefined&&pointerId!==pad.owner))return false;
+  pad.value=clamp(+value||0,name==='wheel'?-1:0,1);return true;
+ }
+ const setWheel=(value,pointerId)=>set('wheel',value,pointerId);
+ const setPedal=(name,value,pointerId)=>(name==='gas'||name==='brake')?set(name,value,pointerId):false;
+ function releasePointer(pointerId){let freed=false;for(const name of CONTROL_NAMES)if(pads[name].owner!==null&&pads[name].owner===pointerId){free(name);freed=true;}return freed;}
+ function releaseAll(){releaseKeys();for(const name of CONTROL_NAMES)free(name);}
+ const owner=control=>pads[control]?pads[control].owner:null;
+ // Merge (contract §3): throttle/brake = max(key, touch); steering = wheel while a pointer owns it, else keys (A+D = 0).
+ function sample(){
+  const wheel=pads.wheel.owner!==null;
+  const right=keys.d||keys.arrowRight?1:0,left=keys.a||keys.arrowLeft?1:0;
+  return normalizeInput({steering:wheel?pads.wheel.value:right-left,throttle:Math.max(keys.w||keys.pedalGas?1:0,pads.gas.value),brake:Math.max(keys.s||keys.pedalBrake?1:0,pads.brake.value)});
+ }
+ // What the wheel and pedals display: the same merged values the physics reads, plus who is driving each control.
+ function visual(){const v=sample();v.owned={wheel:pads.wheel.owner!==null,gas:pads.gas.owner!==null,brake:pads.brake.owner!==null};v.keys={...keys};return v;}
+ return {sample,visual,releaseAll,releaseKeys,keyDown,keyUp,bindPointer,setWheel,setPedal,releasePointer,owner};
+}
+// ---- Tasks 02 + 04 (Agent 1): control layout, painted instructions, wheel maths and mode flow. Pure: testable in Node. ----
+// Every on-screen control is sized in logical px from the arena's short side, so it keeps the same share of the screen
+// as the cars do. The page positions the DOM from controlZones() itself, so the zones and the real layout cannot drift.
+const UI_MARGIN=4,UI_GAP=3;
+// Stage 3: HUD buttons are 12.5% of the short side, up to 34 px (was 11%, up to 32), so phones at scale/dpr >= 4/3
+// (360-dp Android at dpr 3, iPhones at dpr 2 or 3) get >= 44 CSS px targets.
+// Round 2 (user: "the wheel is very small" on an iPhone 13; pedals "a little bigger, a little to the left"): the wheel is
+// ~58% of the short side (was 36%, max 112), the pedals 15% wide (was 14%, max 42) and inset pedalIn from the right edge.
+// New: spW = speed readout width (one HUD row tall), iw × ih = painted instructions, gw × gh = the Supercar's gear stick.
+// Round 3 (r3-ui): spW 4.2 HUD buttons (was 3.4) so "188 KM/H 5 GEAR" is big; it stays inside the instructions column below.
+function uiMetrics(S){
+ const b=clamp(Math.round(S*.14),24,44),cw=Math.round(b*1.25);
+ const D=clamp(Math.round(S*.58),64,240),pw=clamp(Math.round(S*.15),28,60),pg=clamp(Math.round(S*.05),8,18);
+ return {b,cw,hudW:3*cw+UI_GAP+b,recW:Math.round(2.6*b),D,pw,pg,ph:Math.round(pw*1.65),pedalsW:2*pw+pg,pedalIn:clamp(Math.round(S*.07),6,32),
+  spW:Math.round(4.2*b),iw:clamp(Math.round(S*.6),120,260),ih:clamp(Math.round(S*.3),50,140),gw:clamp(Math.round(S*.33),72,150),gh:clamp(Math.round(S*.3),66,136)};
+}
+// Round 2 (r2-paint): the instructions are painted on the road like the user's reference shots: heavy, wide, italic capitals
+// made of horizontal stripes (1 px ink, 1 px paper), so they read as half-worn paint under the tracks, shadows and cars. A
+// keyboard gets W A S D (plus Q / E on the Supercar) as 2.5D keycaps laid out like a real keyboard, with short labels; a touch
+// screen gets a short painted line. Text starts as a 1-bit glyph mask: the browser rasterises a real heavy font (canvasTextMask,
+// thresholded, so nothing antialiased reaches the canvas); Node, or a browser without canvas text, uses glyphMask's scaled 3×5
+// font. Everything here is pure and deterministic and yields INK runs [x, y, length] clipped to the zone and the arena.
+const PAINT_SLANT=.5,PAINT_STRIPE=2,PAINT_SOLID_BELOW=9,PAINT_KEY_SOLID_BELOW=15;
+const PAINT_COPY={gas:'GAS',brake:'BRAKE',left:'LEFT',right:'RIGHT',down:'DOWN',up:'UP',touch:['DRAG WHEEL TO STEER','HOLD PEDALS'],touchShift:'MOVE STICK TO SHIFT'};
+const GLYPHS=Object.fromEntries(Object.entries({
+ A:['.#.','#.#','###','#.#','#.#'],B:['##.','#.#','##.','#.#','##.'],C:['.##','#..','#..','#..','.##'],D:['##.','#.#','#.#','#.#','##.'],
+ E:['###','#..','##.','#..','###'],F:['###','#..','##.','#..','#..'],G:['.##','#..','#.#','#.#','.##'],H:['#.#','#.#','###','#.#','#.#'],
+ I:['###','.#.','.#.','.#.','###'],J:['..#','..#','..#','#.#','.#.'],K:['#.#','#.#','##.','#.#','#.#'],L:['#..','#..','#..','#..','###'],
+ M:['#.#','###','###','#.#','#.#'],N:['##.','#.#','#.#','#.#','#.#'],O:['.#.','#.#','#.#','#.#','.#.'],P:['##.','#.#','##.','#..','#..'],
+ Q:['.#.','#.#','#.#','##.','.##'],R:['##.','#.#','##.','#.#','#.#'],S:['.##','#..','.#.','..#','##.'],T:['###','.#.','.#.','.#.','.#.'],
+ U:['#.#','#.#','#.#','#.#','###'],V:['#.#','#.#','#.#','#.#','.#.'],W:['#.#','#.#','#.#','###','#.#'],X:['#.#','#.#','.#.','#.#','#.#'],
+ Y:['#.#','#.#','.#.','.#.','.#.'],Z:['###','..#','.#.','#..','###'],'/':['..#','..#','.#.','#..','#..'],
+ '-':['...','...','###','...','...'],' ':['...','...','...','...','...']}).map(([c,rows])=>[c,rows.join('')]));
+// Fallback mask {w, h, bits}: the 3×5 font scaled to h rows, heavy and wide (one font pixel ≈ h/4 px wide).
+function glyphMask(text,h){
+ h=Math.max(1,Math.round(h));const s=String(text).toUpperCase(),sx=Math.max(1,Math.round(h/4)),gap=Math.max(1,Math.round(sx/2)),cw=3*sx;
+ const w=Math.max(0,s.length*(cw+gap)-gap),bits=new Uint8Array(w*h);
+ for(let i=0;i<s.length;i++){const g=GLYPHS[s[i]];if(!g)continue;
+  for(let y=0;y<h;y++){const row=Math.min(4,Math.floor(y*5/h));for(let x=0;x<cw;x++)if(g[row*3+Math.floor(x/sx)]==='#')bits[y*w+i*(cw+gap)+x]=1;}}
+ return {w,h,bits};
+}
+// Italic: row y moves right by floor((h-1-y)·slant); the bottom row stays put, so with odd h every ink stripe steps 1 px.
+function shearMask(m,slant=PAINT_SLANT){
+ const extra=m.h?Math.floor((m.h-1)*slant):0,w=m.w+extra,bits=new Uint8Array(w*m.h);
+ for(let y=0;y<m.h;y++){const s=Math.floor((m.h-1-y)*slant);for(let x=0;x<m.w;x++)if(m.bits[y*m.w+x])bits[y*w+x+s]=1;}
+ return {w,h:m.h,bits};
+}
+// Ink runs of a mask placed at (ox, oy). Only every `stripe`-th absolute ground row is painted (stripe 1 = solid).
+function maskRuns(m,ox,oy,out=[],stripe=PAINT_STRIPE){
+ for(let y=0;y<m.h;y++){if(wrap(oy+y,stripe))continue;let x=0;
+  while(x<m.w){if(!m.bits[y*m.w+x]){x++;continue;}const s=x;while(x<m.w&&m.bits[y*m.w+x])x++;out.push([ox+s,oy+y,x-s]);}}
+ return out;
+}
+// A 2.5D keycap: a w×h top face (1 px outline, rounded corners) raised by d px toward the shadow side (down-right, contract
+// §6). The extruded side is solid ink, so the key reads as a block standing on the paint. The letter is added by the caller.
+function keycapRuns(x,y,w,h,d,out=[]){
+ for(let r=0;r<h+d;r++){const yy=y+r,lo=Math.max(0,r-h+1),hi=Math.min(d,r);
+  if(r===0)out.push([x+1,yy,w-2]);
+  else if(r<h-1){out.push([x,yy,1]);out.push([x+w-1,yy,1+hi]);}
+  else{const last=r===h+d-1,a=x+lo+(r===h-1||last?1:0),b=x+w-1+hi-(last?1:0);out.push([a,yy,b-a+1]);}}
+ return out;
+}
+// Greedy word wrap: each phrase starts a new line; null if one word alone is wider than maxW.
+function wrapPhrases(phrases,maxW,width){
+ const out=[];
+ for(const phrase of phrases){let line='';
+  for(const word of phrase.split(' ')){const next=line?line+' '+word:word;
+   if(width(next)<=maxW)line=next;else if(line&&width(word)<=maxW){out.push(line);line=word;}else return null;}
+  if(line)out.push(line);}
+ return out;
+}
+// Lays the paint out in a zw×zh box (origin top-left): the biggest arrangement that fits, degrading from labelled keycaps
+// to bare keycaps, smaller each step (touch: the biggest text that wraps into the box). Item y values are even, so every
+// item's top row lands on an ink stripe. o = {touch, shift, mask(text, h)}. Returns {items, w, h, mode}.
+function paintLayout(zw,zh,o={}){
+ const M=o.mask||glyphMask,memo=new Map(),ev=v=>2*Math.round(v/2),odd=v=>2*Math.floor(v/2)+1;
+ const mask=(s,h)=>{const k=s+'|'+h;let m=memo.get(k);if(!m){m=shearMask(M(s,h));memo.set(k,m);}return m;};
+ const text=(s,h,x,y)=>{const m=mask(s,h);return {t:'text',s,x,y,w:m.w,h,d:0,m};};
+ const finish=(items,mode)=>{
+  if(!items.length)return {items,w:0,h:0,mode};
+  const x0=Math.min(...items.map(i=>i.x)),y0=Math.min(...items.map(i=>i.y));
+  const moved=items.map(i=>({...i,x:i.x-x0,y:i.y-y0}));
+  return {items:moved,w:Math.max(...moved.map(i=>i.x+i.w+i.d)),h:Math.max(...moved.map(i=>i.y+i.h+i.d)),mode};
+ };
+ const fits=L=>L.w<=zw&&L.h<=zh;
+ if(o.touch){
+  const phrases=[...PAINT_COPY.touch,...(o.shift?[PAINT_COPY.touchShift]:[])];
+  for(let h=25;h>=5;h-=2){const gap=Math.max(2,ev(h*.4)),lines=wrapPhrases(phrases,zw,s=>mask(s,h).w);if(!lines)continue;
+   const L=finish(lines.map((s,i)=>text(s,h,0,i*(h+1+gap))),'touch');if(fits(L))return L;}
+  return {items:[],w:0,h:0,mode:'none'};
+ }
+ const C=PAINT_COPY,shift=!!o.shift;
+ // Keycaps k px wide. arr 'side': LEFT / RIGHT beside A / D, BRAKE under S; 'under': LEFT BRAKE RIGHT under A S D; 'bare': keys
+ // only. GAS sits right of W, or above it on the Supercar, whose Q / E (real keyboard spots) get DOWN / UP beside or above.
+ const board=(k,arr)=>{
+  const kh=ev(k*.8),d=Math.max(2,Math.round(k/8)),gy=Math.max(2,Math.round(k/10)),p=k+d+gy,off=Math.round(p/4);
+  const lt=odd(kh*.7),lh=odd(Math.min(15,Math.max(7,k*.42))),lg=Math.max(3,Math.round(k/6)),labels=arr!=='bare';
+  const topY=labels&&shift?ev(lh+lg):0,botY=topY+ev(kh+d+gy);
+  const key=(ch,x,y)=>{const m=mask(ch,lt);return {t:'key',ch,x,y,w:k,h:kh,d,m,lt};};
+  const A=key('A',0,botY),S=key('S',p,botY),D=key('D',2*p,botY),W=key('W',p-off,topY),items=[A,S,D,W];
+  const Q=key('Q',-off,topY),E=key('E',2*p-off,topY);if(shift)items.push(Q,E);
+  if(labels){
+   const mid=K=>ev(K.y+(kh-lh)/2),left=(s,K)=>items.push(text(s,lh,K.x-lg-mask(s,lh).w,mid(K))),right=(s,K)=>items.push(text(s,lh,K.x+k+d+lg,mid(K)));
+   const centre=(s,K,y)=>items.push(text(s,lh,K.x+Math.round((k+d-mask(s,lh).w)/2),y)),below=ev(botY+kh+d+lg);
+   if(arr==='side'){left(C.left,A);right(C.right,D);}else{centre(C.left,A,below);centre(C.right,D,below);}
+   centre(C.brake,S,below);
+   if(shift){if(arr==='side'){left(C.down,Q);right(C.up,E);}else{centre(C.down,Q,0);centre(C.up,E,0);}centre(C.gas,W,0);}else right(C.gas,W);
+  }
+  return finish(items,arr);
+ };
+ // Labels must not touch each other or a keycap (1 px of paper between boxes at least).
+ const clear=L=>L.items.every((a,i)=>L.items.every((b,j)=>j<=i||a.x>=b.x+b.w+b.d+2||b.x>=a.x+a.w+a.d+2||a.y>=b.y+b.h+b.d+1||b.y>=a.y+a.h+a.d+1));
+ for(let k=40;k>=14;k-=2)for(const arr of ['side','under']){const L=board(k,arr);if(fits(L)&&clear(L))return L;}
+ for(let k=40;k>=8;k-=2){const L=board(k,'bare');if(fits(L))return L;}
+ return {items:[],w:0,h:0,mode:'none'};
+}
+// Places paintLayout in the middle of the zone (snapped so stripes fall on even ground rows) and returns its INK runs,
+// clipped to the zone and the arena. Small letters (< PAINT_SOLID_BELOW rows; on a keycap
+// < PAINT_KEY_SOLID_BELOW, as one striped glyph reads worse than a word) are painted solid so they stay legible.
+function paintRuns(A,zone,o={}){
+ const l=Math.max(0,Math.ceil(zone.l)),r=Math.min(A.W,Math.floor(zone.r)),b=Math.min(A.H,Math.floor(zone.b));let t=Math.max(0,Math.ceil(zone.t));t+=t&1;
+ if(r-l<4||b-t<4)return [];
+ const L=paintLayout(r-l,b-t,o),ox=l+Math.floor((r-l-L.w)/2),oy=t+2*Math.floor((b-t-L.h)/4),raw=[],stripe=h=>h<PAINT_SOLID_BELOW?1:PAINT_STRIPE;
+ for(const it of L.items){const x=ox+it.x,y=oy+it.y;
+  if(it.t==='key'){keycapRuns(x,y,it.w,it.h,it.d,raw);maskRuns(it.m,x+Math.round((it.w-it.m.w)/2),y+2*Math.round((it.h-it.lt)/4),raw,it.lt<PAINT_KEY_SOLID_BELOW?1:PAINT_STRIPE);}
+  else maskRuns(it.m,x,y,raw,stripe(it.h));}
+ const out=[];
+ for(const [x,y,n] of raw){if(y<t||y>=b)continue;const a=Math.max(l,x),e=Math.min(r,x+n);if(e>a)out.push([a,y,e-a]);}
+ return out;
+}
+// Paints the instructions into the ground layer with INK only; returns the number of runs drawn.
+function drawPaint(gc,A,zone,o={}){
+ const runs=paintRuns(A,zone,o);gc.fillStyle=ink;
+ for(const [x,y,n] of runs)gc.fillRect(x,y,n,1);
+ return runs.length;
+}
+// Exact screen rects (logical px, [l,r)×[t,b)) of the HUD, wheel, pedals and painted instructions for a computeView()
+// result or an arena (only W and H are read). safe = {top,right,bottom,left} safe-area insets in logical px (optional).
+// Left/right insets are symmetrised, so a landscape phone turned 180° (notch side flips) keeps identical zones.
+// The same zones are reserved on touch and mouse devices, so the course layout never depends on the pointer type.
+// Round 2 layout. Top row: speed readout top-left, HUD top-right, the recover slot just left of the HUD (or under it when the
+// row is too narrow). Left, under the speed row: the painted instructions (large; never touching the wheel). Bottom row:
+// wheel bottom-left (only its top 60% visible), pedals bottom-right but inset pedalIn from the edge, and the gear stick just
+// left of the pedals, or stacked above them when that would cost the wheel more than 15% of its size (portrait, 4:3).
+// The gear slot is reserved for every car, so the course does not move when the car changes. Zone order: the first five
+// ids are unchanged (callers that index them are unaffected); 'speed' and 'gear' are appended.
+function baseControlZones(view,safe){
+ safe=safe||{};
+ const W=view.W,H=view.H,k=uiMetrics(Math.min(W,H)),m=UI_MARGIN,g=UI_GAP,inset=v=>Math.max(0,Math.ceil(+v||0));
+ const side=Math.max(inset(safe.left),inset(safe.right));
+ const L=m+side,R=W-m-side,T=m+inset(safe.top),B=H-m-inset(safe.bottom);
+ const hud={id:'hud',l:R-k.hudW,t:T,r:R,b:T+k.b};
+ const speed={id:'speed',l:L,t:T,r:Math.max(L+1,Math.min(L+k.spW,hud.l-g)),b:T+k.b};
+ // Stage 3: the "Right the car" button gets its own slot on the HUD's row, just left of it (one HUD button tall, recW wide).
+ // It is only shown after a rollover, but the slot is always reserved so the course, spawn and recovery spot never sit under it.
+ let recover={id:'recover',l:hud.l-g-k.recW,t:hud.t,r:hud.l-g,b:hud.b};
+ if(recover.l<speed.r+g)recover={id:'recover',l:R-k.recW,t:hud.b+g,r:R,b:hud.b+g+k.b};
+ const pedalR=R-k.pedalIn,pedals={id:'pedals',l:pedalR-k.pedalsW,t:B-k.ph,r:pedalR,b:B};
+ let gear={id:'gear',l:pedals.l-g-k.gw,t:B-k.gh,r:pedals.l-g,b:B},beside=gear.l-g-L>=Math.round(k.D*.85);
+ if(!beside)gear={id:'gear',l:pedals.r-k.gw,t:pedals.t-g-k.gh,r:pedals.r,b:pedals.t-g};
+ // Only the upper 60% of the wheel is visible; the rest of the rim extends below the viewport. The zone is the visible part;
+ // the face keeps its full circular geometry for dragging. Narrow screens shrink the wheel to leave room for the pedals.
+ const D=Math.max(32,Math.min(k.D,(beside?gear.l:Math.min(gear.l,pedals.l))-g-L));
+ const wheel={id:'wheel',l:L,t:Math.round(H-D*.6),r:L+D,b:B};
+ // The instructions take the left side under the speed row, clear of the recover slot and above the wheel.
+ // Round 2 integration: on square-ish screens (aspect below 1.6) the big controls leave the course little room, so the
+ // painted instructions shrink smoothly toward half size (never below the paint's 120 × 50 minimum) by aspect 1.1.
+ const f=.5+.5*clamp((Math.max(W,H)/Math.min(W,H)-1.1)/.5,0,1),iw=Math.max(120,Math.round(k.iw*f)),ih=Math.max(50,Math.round(k.ih*f));
+ const it=speed.b+g,ir=Math.min(L+iw,recover.t>T?recover.l-g:R);
+ const text={id:'instructions',l:L,t:it,r:Math.max(L+1,ir),b:Math.max(it+1,Math.min(it+ih,wheel.t-g))};
+ // A gear stick stacked above the pedals (square screens) can reach the instructions: shorten them, or narrow them.
+ if(text.r>gear.l&&text.b>gear.t){if(gear.t-g-it>=50)text.b=gear.t-g;else text.r=Math.max(L+1,gear.l-g);}
+ return [hud,wheel,pedals,text,recover,speed,gear];
+}
+function controlZones(view,safe){
+ const u=view.u||view.uiU||1,cw=view.cssW||view.uiW||view.W*u,ch=view.cssH||view.uiH||view.H*u;
+ const z=baseControlZones({W:cw/1.4,H:ch/1.4},Object.fromEntries(Object.entries(safe||{}).map(([k,v])=>[k,v*u/1.4])));
+ const mobile=view.mobile||cw<700;
+ if(mobile){const p=z.find(q=>q.id==='pedals'),g=z.find(q=>q.id==='gear'),h=(g.b-g.t)*.7,kw=shiftKeyW(h*1.4),w=(g.r-g.l)*.7+(kw+shiftKeyGap(kw))/1.4;Object.assign(g,{l:p.r-w,r:p.r,t:p.t-h-8,b:p.t-8});const i=z.find(q=>q.id==='instructions');i.r=i.l;i.b=i.t;}
+ return z.map(q=>({...q,l:q.l*1.4/u,r:q.r*1.4/u,t:q.t*1.4/u,b:q.b*1.4/u}));
+}
+// ---- Round 3 (r3-ui): pure helpers for the speed readout, the shift keycaps and the track thumbnails. ----
+// CSS px per decorative unit (--u: stripes, borders, label sizes). It follows the screen, not the zoom (TUNING.viewShort), so
+// zooming out never makes the controls' paint thin and grey.
+const uiPx=(cssW,cssH)=>clamp(Math.min(+cssW||0,+cssH||0)/400,1,2.5);
+// Speed readout font size (CSS px) for its zone (w × h CSS px): "188 KM/H" (plus "5 GEAR" on the Supercar) on one line, about
+// 82% of the row tall, narrower when the text needs it (widths in em of the heavy italic face). When one line would shrink a
+// manual readout below 80% of the row, the gear goes on a second line under the speed (stack) at a larger size instead.
+const SPEED_EM={auto:2.95,manual:5.1};
+function speedFit(w,h,manual){
+ w=Math.max(0,+w||0);h=Math.max(0,+h||0);const row=h*.82;let size=Math.min(row,w/(manual?SPEED_EM.manual:SPEED_EM.auto)),stack=false;
+ if(manual&&size<row*.8){const two=Math.min(row,w/SPEED_EM.auto);if(two>size*1.15){size=two;stack=true;}}
+ return {size:Math.max(10,Math.floor(size)),stack};
+}
+// Shift keycaps beside the gear stick (CSS px). Column width from the zone height; the stick's face keeps the rest.
+const shiftKeyW=h=>Math.round(clamp((+h||0)*.3,14,46)),shiftKeyGap=kw=>Math.max(2,Math.round(kw*.15));
+function shiftKeyLayout(w,h){
+ const kw=shiftKeyW(h),gap=shiftKeyGap(kw),fl=kw+gap,fw=Math.max(1,w-fl),s=Math.min(fw/110,h/100),ph=100*s,pt=(h-ph)/2;
+ const kd=Math.max(2,Math.round(kw*.1)),kh=Math.max(8,Math.min(kw-kd,Math.floor((ph-gap)/2)-kd));
+ return {kw,gap,fl,fw,pt,ph,kd,kh};
+}
+// What the shift keycaps show. up.hot = the game recommends shifting up (gearTelemetry shiftUp); down.hot follows a matching
+// shiftDown flag if the telemetry ever has one. ok = that shift is possible now (same rule as shiftGear: no downshift that
+// would over-rev).
+function gearCues(w){
+ const t=gearTelemetry(w),g=w.gear||1,manual=!!w.manual&&w.id==='coupe',speed=Math.hypot(w.car.vx,w.car.vy);
+ return {up:{hot:manual&&!!t.shiftUp,ok:manual&&g<5},down:{hot:manual&&!!t.shiftDown,ok:manual&&g>1&&speed<=w.p.max*GEARS[g-1]*.98}};
+}
+// Track thumbnail size: the arena's aspect, long side 64 px, short side at least 28 px.
+function trackThumbSize(W,H){const L=64,a=Math.min(W,H)/Math.max(W,H)||1,s=Math.max(28,Math.round(L*a));return W>=H?{w:L,h:s}:{w:s,h:L};}
+// 1-bit thumbnail of a closed lane centre line (pts in screen px), fitted and centred in w × h with pad px clear on every side.
+// A pixel is ink (1) when its centre lies within r px of the line. Pure and deterministic.
+function trackThumb(pts,w,h,o={}){
+ const pad=o.pad===undefined?2:o.pad,r=o.r===undefined?1.1:o.r,bits=new Uint8Array(w*h);
+ if(!pts||pts.length<2)return {w,h,bits};
+ let l=Infinity,t=Infinity,rr=-Infinity,b=-Infinity;for(const [x,y] of pts){l=Math.min(l,x);t=Math.min(t,y);rr=Math.max(rr,x);b=Math.max(b,y);}
+ const room=2*(pad+r),s=Math.min((w-room)/Math.max(1e-6,rr-l),(h-room)/Math.max(1e-6,b-t)),ox=(w-(rr-l)*s)/2-l*s,oy=(h-(b-t)*s)/2-t*s;
+ const q=pts.map(([x,y])=>[x*s+ox,y*s+oy]),n=q.length;
+ for(let i=0;i<n;i++){const [ax,ay]=q[i],[bx,by]=q[(i+1)%n],dx=bx-ax,dy=by-ay,dd=dx*dx+dy*dy;
+  for(let y=Math.max(0,Math.floor(Math.min(ay,by)-r));y<=Math.min(h-1,Math.ceil(Math.max(ay,by)+r));y++)
+   for(let x=Math.max(0,Math.floor(Math.min(ax,bx)-r));x<=Math.min(w-1,Math.ceil(Math.max(ax,bx)+r));x++){
+    const px=x+.5,py=y+.5,k=dd?clamp(((px-ax)*dx+(py-ay)*dy)/dd,0,1):0;if(Math.hypot(px-ax-k*dx,py-ay-k*dy)<=r)bits[y*w+x]=1;}}
+ return {w,h,bits};
+}
+// Steering wheel maths. Angles are radians, 0 = 12 o'clock, clockwise (screen right) positive.
+// Round 2: the lock is TUNING.wheelRange degrees each way (default 270, like a real car; was a fixed 120), read on every use.
+const WHEEL_DEAD=.2,wheelLimit=()=>TUNING.wheelRange*Math.PI/180;
+// Wheel angle → steering input in [-1, 1]: linear over ±wheelLimit(), then shaped by TUNING.wheelCurve (>= 1 = softer centre).
+// wheelAngle is its inverse, used to show keyboard steering (A / D = ±1 = full lock) and to start a drag from it.
+function wheelInput(angle){const x=clamp((+angle||0)/wheelLimit(),-1,1);return Math.sign(x)*Math.abs(x)**TUNING.wheelCurve;}
+function wheelAngle(steering){const s=clamp(+steering||0,-1,1);return Math.sign(s)*Math.abs(s)**(1/TUNING.wheelCurve)*wheelLimit();}
+// Signed shortest turn from angle `from` to angle `to`, in (-π, π]: crossing the ±180° seam is a small step, not a 360° jump.
+function turnDelta(from,to){let d=(to-from)%TAU;if(d>Math.PI)d-=TAU;else if(d<=-Math.PI)d+=TAU;return d;}
+const pointerAngle=(cx,cy,x,y)=>Math.atan2(x-cx,cy-y);
+// One pointer move on the wheel: {cx,cy,r,ref,angle} → new state. The wheel turns by the pointer's angular change, clamped to
+// ±wheelLimit() like a steering lock (reversing moves it straight back). The angle accumulates, so with a lock beyond 180° the
+// finger can wind the wheel round past the seam. Near the hub the pointer angle is unstable, so it is ignored.
+function wheelDrag(s,x,y){
+ if(Math.hypot(x-s.cx,y-s.cy)<s.r*WHEEL_DEAD)return {...s,ref:null};
+ const a=pointerAngle(s.cx,s.cy,x,y),lim=wheelLimit();
+ if(s.ref===null||s.ref===undefined)return {...s,ref:a,angle:clamp(s.angle,-lim,lim)};
+ return {...s,ref:a,angle:clamp(s.angle+turnDelta(s.ref,a),-lim,lim)};
+}
+const wheelValue=s=>wheelInput(s.angle);
+// ---- Round 2: the Supercar's gear stick, an H-pattern gate. Pure: positions are in the stick's SVG units (viewBox 110 × 100).
+// Columns 1/2, 3/4 and 5 (top = odd gears) meet the neutral channel at y = mid. The knob moves sideways only along the
+// neutral channel and up/down only inside a column; a slot engages when the knob is within ENGAGE of its end.
+const GEAR_GATE={cols:[22,55,88],top:26,mid:50,bot:74,catch:9,engage:6};
+const gearSlot=g=>({x:GEAR_GATE.cols[Math.floor((g-1)/2)],y:g%2?GEAR_GATE.top:GEAR_GATE.bot});
+const gateCol=x=>GEAR_GATE.cols.reduce((a,c)=>Math.abs(c-x)<Math.abs(a-x)?c:a);
+const colEnd=c=>c===GEAR_GATE.cols[2]?GEAR_GATE.mid:GEAR_GATE.bot;
+// Moves the knob from p toward the target t (both {x,y}) without leaving the gate: inside a column it slides only along it
+// (it drops into the neutral channel when the target is sideways and the knob is within `catch` of it); on the neutral
+// channel it slides sideways and enters a column once the target pulls up/down and the knob is within `catch` of it.
+function stickMove(p,t){
+ const G=GEAR_GATE;let x=p.x,y=p.y;
+ for(let i=0;i<3;i++){
+  if(Math.abs(y-G.mid)<1e-6){
+   x=clamp(t.x,G.cols[0],G.cols[2]);y=G.mid;const c=gateCol(x);
+   if(Math.abs(t.y-G.mid)>(Math.abs(x-c)<1e-6?1.5:G.catch*.5)&&Math.abs(x-c)<=G.catch){x=c;y=clamp(t.y,G.top,colEnd(c));}
+   break;
+  }
+  x=gateCol(x);y=clamp(t.y,G.top,colEnd(x));
+  if(Math.abs(t.x-x)>G.catch&&Math.abs(y-G.mid)<=G.catch){y=G.mid;continue;}
+  break;
+ }
+ return {x,y};
+}
+// The gear whose slot the knob sits in (within ENGAGE of the slot end), or 0 in the gate between slots.
+function stickSlot(p){for(let g=1;g<=5;g++){const s=gearSlot(g);if(Math.abs(p.x-s.x)<1e-6&&Math.abs(p.y-s.y)<=GEAR_GATE.engage)return g;}return 0;}
+// The knob's path through the gate from p to gear g's slot (for Q / E, the arrow keys and the spring-back), as waypoints.
+function stickPath(p,g){
+ const s=gearSlot(g),G=GEAR_GATE,pts=[{x:p.x,y:p.y}];
+ if(Math.abs(p.x-s.x)<1e-6){pts.push(s);return pts;}
+ if(Math.abs(p.y-G.mid)>1e-6)pts.push({x:p.x,y:G.mid});
+ pts.push({x:s.x,y:G.mid},s);return pts;
+}
+// The point a fraction f (0–1) of the way along a waypoint path.
+function pathPoint(pts,f){
+ const segs=pts.slice(1).map((q,i)=>Math.hypot(q.x-pts[i].x,q.y-pts[i].y)),total=segs.reduce((a,b)=>a+b,0);
+ let d=clamp(f,0,1)*total;
+ for(let i=0;i<segs.length;i++){if(d<=segs[i]||i===segs.length-1){const k=segs[i]?Math.min(1,d/segs[i]):1,a=pts[i],b=pts[i+1];return {x:a.x+(b.x-a.x)*k,y:a.y+(b.y-a.y)*k};}d-=segs[i];}
+ return {...pts[pts.length-1]};
+}
+// ---- Round 2: Settings > Tuning. The panel is generated from TUNING_SPEC grouped in spec order; values persist in
+// localStorage under TUNING_STORE (only the keys that differ from the defaults, so a later default change still reaches
+// untouched keys). Storage can be missing or throw (private mode, blocked site data): every access is guarded.
+const TUNING_STORE='8bitdrift.tuning.v2',TUNING_GROUPS={car:'Car handling',wheel:'Steering wheel',drone:'Drone',view:'View'};
+function tuningGroups(spec=TUNING_SPEC){
+ const out=[];for(const s of spec){let grp=out.find(x=>x.group===s.group);
+  if(!grp)out.push(grp={group:s.group,label:TUNING_GROUPS[s.group]||String(s.group).replace(/^./,c=>c.toUpperCase()),items:[]});grp.items.push(s);}
+ return out;
+}
+function loadTuning(store){try{const raw=store&&store.getItem(TUNING_STORE),v=raw?JSON.parse(raw):null;if(v&&typeof v==='object')setTuning(v);}catch(_){/* unreadable: keep the current values */}return {...TUNING};}
+function saveTuning(store){
+ const diff=Object.fromEntries(TUNING_SPEC.filter(s=>TUNING[s.key]!==TUNING_DEFAULTS[s.key]).map(s=>[s.key,TUNING[s.key]]));
+ try{if(!store)return false;if(Object.keys(diff).length)store.setItem(TUNING_STORE,JSON.stringify(diff));else store.removeItem(TUNING_STORE);return true;}catch(_){return false;}
+}
+// Game mode (contract §4): 'running' | 'paused' | 'menu'. Leaving 'running' releases every input. Closing the menu never
+// resumes: it returns to 'paused', and only a fresh key press or control grab (engage) starts driving again.
+const MODES=['running','paused','menu'];
+function createModes(controls,onChange){
+ let mode='paused';
+ function set(next){
+  if(!MODES.includes(next)||next===mode)return false;
+  const prev=mode;mode=next;
+  if(next!=='running'&&controls)controls.releaseAll();
+  if(onChange)onChange(next,prev);return true;
+ }
+ return {get mode(){return mode;},set,openMenu:()=>set('menu'),closeMenu:()=>mode==='menu'&&set('paused'),engage:()=>mode==='paused'&&set('running'),acceptsKeys:()=>mode!=='menu'};
+}
+// ---- Stage 3 (Agent 1): "Right the car" control (task 11 UI, contract §4 and §12). Pure: testable in Node with a fake api. ----
+// api = {can(w) → boolean, run(w)}; the page passes recoveryApi, which wraps Agent 3's canRecover(w) / recover(w).
+// The control is offered only while api.can(world) is exactly true and no menu is open (running or paused both work).
+const recoverAvailable=(api,w,mode)=>mode!=='menu'&&!!w&&!!api&&api.can(w)===true;
+// Rights the car if allowed: releases every held key and pointer (before and after, so nothing recover() does can leave a
+// stale accelerator), then resets interpolation and breaks the tracks as §4 requires, whatever recover() already did.
+// The mode is unchanged: recovering while paused stays paused. Returns true when recover ran.
+function tryRecover(api,w,mode,controls){
+ if(!recoverAvailable(api,w,mode))return false;
+ if(controls)controls.releaseAll();
+ api.run(w);
+ if(controls)controls.releaseAll();
+ const c=w.car;if(c){c.px=c.x;c.py=c.y;c.pa=c.a;}
+ w.trackBreak=true;return true;
+}
+// The R key: physical KeyR on any layout (or the character when no code is reported). A first press only: auto-repeat,
+// IME composition and Ctrl/Cmd/Alt chords (browser shortcuts such as reload) are ignored. Shift and Caps Lock still count.
+const isRecoverKey=ev=>!!ev&&(ev.code==='KeyR'||(!ev.code&&typeof ev.key==='string'&&ev.key.toLowerCase()==='r'))&&!ev.repeat&&!ev.isComposing&&!ev.ctrlKey&&!ev.metaKey&&!ev.altKey;
+// Whether a keydown should try to right the car: an R press, no menu open, and focus not on an element that owns keys.
+const recoverFromKey=(ev,mode,focusOwnsKeys)=>isRecoverKey(ev)&&mode!=='menu'&&!focusOwnsKeys;
+// Integer rasterization keeps every visible game pixel one of two opaque colors. Works on a plain byte array, so Node tests can
+// inspect sprites. finish(true) or Node returns {width, height, data}; finish() in the browser returns a canvas.
+const BAYER2=[0,2,3,1],BAYER4=[0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5],SHADOW_INK=.55;
+function raster(size=48,anchorX=24,anchorY=30){
+ const bytes=new Uint8ClampedArray(size*size*4);
+ function put(x,y,color){if(x<0||y<0||x>=size||y>=size)return;const i=(y*size+x)*4;bytes[i]=color[0];bytes[i+1]=color[1];bytes[i+2]=color[2];bytes[i+3]=255;}
+ function pixel(x,y,shade){x=Math.round(x);y=Math.round(y);put(x,y,shade>=1?PAPER:shade<=0?INK:(BAYER2[(x&1)+2*(y&1)]<shade*4?PAPER:INK));}
+ // Dense ordered dither for shadows (contract §6): SHADOW_INK of the pixels are ink (9 of every 16).
+ function shadowPixel(x,y){x=Math.round(x);y=Math.round(y);put(x,y,BAYER4[(x&3)+4*(y&3)]<Math.round(SHADOW_INK*16)?INK:PAPER);}
+ function line(a,b,shade=0){let x=Math.round(a[0]),y=Math.round(a[1]),ex=Math.round(b[0]),ey=Math.round(b[1]),dx=Math.abs(ex-x),sx=x<ex?1:-1,dy=-Math.abs(ey-y),sy=y<ey?1:-1,e=dx+dy;for(;;){pixel(x,y,shade);if(x===ex&&y===ey)break;const e2=e*2;if(e2>=dy){e+=dy;x+=sx;}if(e2<=dx){e+=dx;y+=sy;}}}
+ function poly(points,shade=1,outline=true,plot=pixel){
+  let lo=Infinity,hi=-Infinity;for(const p of points){if(p[1]<lo)lo=p[1];if(p[1]>hi)hi=p[1];}lo=Math.ceil(lo);hi=Math.floor(hi);
+  const xs=[],n=points.length;
+  for(let y=lo;y<=hi;y++){xs.length=0;const sy=y+.5;for(let i=0;i<n;i++){const a=points[i],b=points[(i+1)%n];if((a[1]<=sy&&b[1]>sy)||(b[1]<=sy&&a[1]>sy))xs.push(a[0]+(sy-a[1])/(b[1]-a[1])*(b[0]-a[0]));}if(xs.length>2)xs.sort((a,b)=>a-b);else if(xs.length===2&&xs[0]>xs[1])xs.reverse();
+   for(let i=0;i+1<xs.length;i+=2){const x0=Math.ceil(xs[i]),x1=Math.floor(xs[i+1]);
+    if(plot!==pixel||y<0||y>=size)for(let x=x0;x<=x1;x++)plot(x,y,shade);
+    // Fast path: write the span straight into the byte array.
+    else for(let x=Math.max(0,x0),e=Math.min(size-1,x1),row=y*size,odd=2*(y&1);x<=e;x++){const c=shade>=1?PAPER:shade<=0?INK:(BAYER2[(x&1)+odd]<shade*4?PAPER:INK),j=(row+x)*4;bytes[j]=c[0];bytes[j+1]=c[1];bytes[j+2]=c[2];bytes[j+3]=255;}}}
+  if(outline)for(let i=0;i<points.length;i++)line(points[i],points[(i+1)%points.length]);
+ }
+ return {pixel,shadowPixel,line,poly,project:([x,y,z])=>[anchorX+x,anchorY+K*y-Z*z],finish(raw=false){
+  if(raw||typeof document==='undefined')return {width:size,height:size,data:bytes};
+  const c=document.createElement('canvas');c.width=c.height=size;c.getContext('2d').putImageData(new ImageData(bytes,size,size),0,0);return c;}};
+}
+const sub=(a,b)=>a.map((v,i)=>v-b[i]),dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],mean=ps=>[0,1,2].map(i=>ps.reduce((s,v)=>s+v[i],0)/ps.length);
+const crossV=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+// One heading frame of a car. Convex parts are drawn back to front (tyres, body, cabin) with back faces culled,
+// then the near tyres are redrawn in their arches and small details are added. box defaults to the car's own raster.
+function droneSprite(p,a,box=p.sprite,tr=0,tp=0){
+ const r=raster(box.size,box.ax,box.ay),cs=Math.cos(a),sn=Math.sin(a),d=droneParts(p);
+ const P=v=>{const [x,y,h]=droneTiltPoint(p,v,tr,tp);return r.project([x*cs-y*sn,x*sn+y*cs,h]);};
+ // Four offset rotors (the lower ones first, so a raised rotor overlaps a dipped one), a dark body and a faceted canopy.
+ const order=d.rotors.map(o=>({o,z:droneTiltPoint(p,o.arm[1],tr,tp)[2]})).sort((u,v)=>u.z-v.z);
+ for(const {o} of order){r.line(P(o.arm[0]),P(o.arm[1]),0);r.poly(o.disc.map(P),.5,true);r.poly(o.hub.map(P),0,true);}
+ r.poly(d.body.map(P),0,true);
+ r.poly(d.canopy.map(P),.75,true);
+ r.poly(d.nose.map(P),1,true);
+ return r.finish(true);
+}
+// The Drone's shadow for one heading and tilt (the untilted frames live in the car's sheet).
+function droneShadow(p,a,tr=0,tp=0,box=p.sprite){const r=raster(box.size,box.ax,box.ay);for(const poly of carShadowPolys(p,a,tr,tp))r.poly(poly.map(([x,y])=>[box.ax+x,box.ay+y]),0,false,r.shadowPixel);return r.finish(true);}
+function carSprite(p,a,box=p.sprite){
+ if(p.flying)return droneSprite(p,a,box);
+ const m=carModel(p),art=m.art,r=raster(box.size,box.ax,box.ay),cs=Math.cos(a),sn=Math.sin(a);
+ const rot=([x,y,z])=>[x*cs-y*sn,x*sn+y*cs,z],P=v=>r.project(rot(v)),VIEW=[0,Z,K];
+ const fall=[LIGHT.x,LIGHT.y/K],fallLen=Math.hypot(...fall);
+ function faces(solid){
+  const pts=solid.pts.map(rot),centre=mean(pts);
+  return solid.faces.map(f=>{const v=f.idx.map(i=>pts[i]);let n=crossV(sub(v[1],v[0]),sub(v[2],v[0]));if(dot(n,sub(mean(v),centre))<0)n=n.map(q=>-q);const len=Math.hypot(...n)||1;n=n.map(q=>q/len);return {...f,v,n,visible:dot(n,VIEW)>1e-6};});
+ }
+ // Side panels facing the light (up-left) are a step lighter; panels facing the shadow a step darker.
+ const sideShade=n=>{const hl=Math.hypot(n[0],n[1])||1,lit=-(n[0]*fall[0]+n[1]*fall[1])/fallLen/hl;return clamp(art.side+(lit>.4?.25:lit<-.4?-.25:0),0,1);};
+ const [fx]=art.cf,[bx]=art.cr;
+ const draw=(f,shade)=>r.poly(f.v.map(r.project),shade,true);
+ // Tyres are solid ink, so each is one filled hull of its projected points, far ones first.
+ m.tyres.map(t=>({t,d:dot(mean(t.pts.map(rot)),VIEW)})).sort((a,b)=>a.d-b.d).forEach(({t})=>r.poly(hull(t.pts.map(P)),0,true));
+ const body=faces(m.body),cabin=faces(m.cabin),flank=edge=>body[edge+1].visible; // body[0] is the deck, body[1+i] the panel on plan edge i
+ for(const f of body)if(f.visible)draw(f,f.kind==='deck'?art.paint:sideShade(f.n));
+ for(const f of cabin)if(f.visible)draw(f,f.kind==='roof'?art.roofShade:f.kind==='rear'?art.rearGlass:f.kind==='screen'?art.glass:art.glass);
+ // A shoulder line along each visible flank keeps dark bodies readable.
+ if(art.trim!==undefined)for(const [edge,s] of [[2,1],[6,-1]])if(flank(edge)){const z=m.h-.9,y=s*(m.B+.01);r.line(P([-m.L+bx+.5,y,z]),P([m.L-fx-.5,y,z]),art.trim);}
+ // Window pillars split the glasshouse into doors.
+ for(const f of cabin)if(f.visible&&f.kind==='window')for(const k of art.pillars){const s=f.side,x0=m.xb+(m.xf-m.xb)*k,x1=m.rbx+(m.rfx-m.rbx)*k;r.line(P([x0,s*m.bw,m.h]),P([x1,s*m.rw,m.R]),art.paint);}
+ // Near tyres sit in their arches, in front of the body side; hub caps are one light pixel.
+ const sideVisible={1:flank(2),[-1]:flank(6)};
+ for(const t of m.tyres)if(sideVisible[t.side]){
+  const y=t.side*(m.B+.01),ring=t.ring.map(([x,z])=>[clamp(x,-m.L+bx,m.L-fx),y,z]);
+  const pr=ring.map(P);r.poly(pr,0,true);
+  // On a dark body, a light arch line separates the tyre from the flank.
+  if(art.arch!==undefined)for(let k=0;k<4;k++)r.line(pr[k],pr[k+1],art.arch);
+  r.pixel(...P([t.axle,y,art.tyre]),1);
+ }
+ // Head and tail lights: a short bar on each corner of the nose / tail.
+ for(const [edge,x,shade] of [[0,m.L,art.light],[4,-m.L,art.tail]])if(flank(edge)){
+  const y0=m.B-art.cf[1]*(edge?0:1)-art.cr[1]*(edge?1:0),z=m.deckZ(x)-1.1;
+  for(const s of [-1,1])r.line(P([x,s*(y0-.5),z]),P([x,s*(y0-1.7),z]),shade);
+ }
+ if(p.artId==='coupe'){r.line(P([m.L-4,-m.B+3,m.h-.4]),P([m.L-1,-m.B+4,m.h-.8]),0);r.line(P([m.L-4,m.B-3,m.h-.4]),P([m.L-1,m.B-4,m.h-.8]),0);}
+ return r.finish(true);
+}
+function carShadow(p,a,box=p.sprite){const r=raster(box.size,box.ax,box.ay);for(const poly of carShadowPolys(p,a))r.poly(poly.map(([x,y])=>[box.ax+x,box.ay+y]),0,false,r.shadowPixel);return r.finish(true);}
+// Task 11: heading frame `a` of roll frame k, in the same two-tone style. Parts (body, cabin, four tyres) are convex, so each
+// draws its front faces; parts are painted far to near, because once the car is rolled the tyres or roof may be nearest.
+// The small upright details (lights, pillars, arch lines) are left out: the car is moving fast and briefly seen like this.
+function carRollSprite(p,a,k,box=rollSpriteBox(p)){
+ const art=carModel(p).art,r=raster(box.size,box.ax,box.ay),cs=Math.cos(a),sn=Math.sin(a),VIEW=[0,Z,K];
+ const rot=([x,y,z])=>[x*cs-y*sn,x*sn+y*cs,z],fall=[LIGHT.x,LIGHT.y/K],fallLen=Math.hypot(...fall);
+ const panel=n=>{if(n[2]>.6)return clamp(art.side+.25,0,1);const hl=Math.hypot(n[0],n[1])||1,lit=-(n[0]*fall[0]+n[1]*fall[1])/fallLen/hl;return clamp(art.side+(lit>.4?.25:lit<-.4?-.25:0),0,1);};
+ const shade=(kind,n)=>kind==='deck'?art.paint:kind==='side'?panel(n):kind==='roof'?art.roofShade:kind==='rear'?art.rearGlass:kind==='floor'?(art.paint>.5?.25:.5):art.glass;
+ const parts=rolledModel(p,k).solids.map(s=>{const pts=s.pts.map(rot);return {s,pts,d:dot(mean(pts),VIEW)};}).sort((u,v)=>u.d-v.d);
+ for(const {s,pts} of parts){
+  if(s.kind==='tyre'){r.poly(hull(pts.map(r.project)),0,true);continue;}
+  const centre=mean(pts);
+  for(const f of s.faces){const v=f.idx.map(i=>pts[i]);let n=crossV(sub(v[1],v[0]),sub(v[2],v[0]));if(dot(n,sub(mean(v),centre))<0)n=n.map(q=>-q);
+   const len=Math.hypot(...n)||1;n=n.map(q=>q/len);if(dot(n,VIEW)>1e-6)r.poly(v.map(r.project),shade(f.kind,n),true);}
+ }
+ return r.finish(true);
+}
+function carRollShadow(p,a,k,box=rollSpriteBox(p)){const r=raster(box.size,box.ax,box.ay);for(const poly of rollShadowPolys(p,a,k))r.poly(poly.map(([x,y])=>[box.ax+x,box.ay+y]),0,false,r.shadowPixel);return r.finish(true);}
+function coneSprite(tipped=false,a=0){
+ const r=raster(20,10,14);
+ if(tipped){const cs=Math.cos(a),sn=Math.sin(a),pt=(x,y,z=0)=>r.project([x*cs-y*sn,x*sn+y*cs,z]);r.poly([pt(-2,-2),pt(2,-2),pt(2,2),pt(-2,2)],.5);r.poly([pt(-1,-2,2),pt(6,0,1),pt(-1,2,2)],.15);r.line(pt(1,-1,2),pt(2,1,2),1);}
+ else{r.poly([[7,14],[10,12],[14,14],[11,16]],.5);r.poly([[7,13],[10,5],[13,13],[10,15]],.25);r.line([8,11],[11,12],1);r.pixel(10,7,1);}
+ return r.finish();
+}
+// Cone shadows (task 07, contract §6): the cone's ground footprint swept to its top shifted by LIGHT × height, filled with the
+// shared shadowPixel / SHADOW_INK dither. Same 20 × 20 raster and anchor (10, 14) as coneSprite; CONE_H is the upright cone's
+// height in world units (its tip is 9 px above the anchor: 9 / Z).
+const CONE_H=12;
+function coneShadowSprite(tipped=false,a=0){
+ const r=raster(20,10,14),fall=([x,y],z)=>[10+x+LIGHT.x*z,14+y+LIGHT.y*z];let pts;
+ if(tipped){
+  // Lying cone: base disc (stands about 4 high) at local x -2, tip at x 6 resting about 1 high.
+  const cs=Math.cos(a),sn=Math.sin(a),g=(x,y)=>[x*cs-y*sn,K*(x*sn+y*cs)];
+  pts=[...[[-2,-2],[-2,2],[2,-2],[2,2],[6,0]].map(([x,y])=>fall(g(x,y),0)),...[[-2,-2],[-2,2]].map(([x,y])=>fall(g(x,y),4)),fall(g(6,0),1)];
+ }else pts=[[-3,0],[0,-2],[4,0],[1,2]].map(v=>fall(v,0)).concat([fall([.5,0],CONE_H)]);
+ r.poly(hull(pts),0,false,r.shadowPixel);return r.finish();
+}
+// ---- Task 07: the drivable half-ring gate. An upright, two-tone arch over layout.gate's posts, in the plane y = gate.y.
+// Legs are the posts (round columns of radius r on the colliders, round 2; see inGate); a rounded beam joins them over the
+// opening (inner clear height gate.height, thickness 2r). The front face is ink (it faces away from the light); the top and
+// the outer shoulders, seen from above, are a lit dither. Only the posts collide (task 10); the art never adds colliders.
+const GATE_TOP_SHADE=.25;
+// Arch pixels higher than GATE_SPLIT world units (above every car roof) can only ever overlap things BEHIND the gate plane:
+// a point at height z_c drawn on the same pixel as arch height z_a lies behind the plane exactly when z_c < z_a. So the arch
+// top always draws in front (key GATE_FRONT); the lower legs sort at the gate's ground line like any other drawable (§6).
+const GATE_SPLIT=Math.max(...Object.values(PRESETS).map(p=>p.roof))+2,GATE_FRONT=1e9;
+// Arch outline in its own plane: x across (0 = gate centre), z up, world units. Derived from the post colliders and the opening.
+function archShape(g){
+ const [p0,p1]=g.posts,S=Math.round(Math.hypot(p1.x-p0.x,p1.y-p0.y)*5e5)/1e6,r=p0.r,wi=S-r,wo=S+r,hi=g.height,T=2*r,ho=hi+T,ro=Math.min(wo,Math.round(wo*.55)),ri=Math.max(1,ro-T);
+ return {S,r,wi,wo,hi,ho,ri,ro,d:r,split:Math.min(GATE_SPLIT,hi),col:Math.min(ho-ro,hi-ri)};
+}
+function inArch(s,x,z){
+ const ax=Math.abs(x);if(z<0||z>s.ho||ax>s.wo)return false;
+ if(z>s.ho-s.ro&&ax>s.wo-s.ro&&Math.hypot(ax-(s.wo-s.ro),z-(s.ho-s.ro))>s.ro)return false; // rounded outer shoulder
+ if(ax<s.wi&&z<s.hi&&!(z>s.hi-s.ri&&ax>s.wi-s.ri&&Math.hypot(ax-(s.wi-s.ri),z-(s.hi-s.ri))>=s.ri))return false; // the opening
+ return true;
+}
+// Round 2: the gate as a solid (u across, v through it, z up; world units). Below s.col (above every car roof except the
+// Drone's) the legs are round columns of radius r on the post colliders, so the drawn leg and the collider are the same
+// circle: a car stops exactly where its pixels meet the leg's. The beam and shoulders above keep their square section.
+function inGate(s,u,v,z){
+ if(Math.abs(v)>s.d||!inArch(s,u,z))return false;
+ return z>=s.col||Math.hypot(Math.abs(u)-s.S,v)<=s.r;
+}
+// Gate sprites, rasterised once per gate geometry (cached; positions come from the layout at draw time, so a resize that moves
+// the gate reuses them). arch = pixels at z >= split, posts = the rest, legs = posts split per leg (legs[0] on posts[0], at
+// u < 0), shadow = the arch swept onto the ground by LIGHT. All are raw two-tone rasters with one anchor = (gate centre x,
+// gate ground line y*K) in integer screen px.
+const gateArtCache=new Map();
+function gateArt(g){
+ const s=archShape(g),theta=g.rotation||0,cs=Math.cos(theta),sn=Math.sin(theta),key=[s.S,s.r,s.hi,theta].join();let art=gateArtCache.get(key);if(art)return art;
+ const extent=s.wo+s.d+LIGHT.x*s.ho+8,size=Math.ceil(2*extent+Z*s.ho),ax=Math.ceil(extent),ay=Math.ceil(extent),arch=raster(size,ax,ay),posts=raster(size,ax,ay),sh=raster(size,ax,ay);
+ const legs=[raster(size,ax,ay),raster(size,ax,ay)],R0=Math.hypot(s.wo,s.d)+1,dg=.2;
+ // Round 2: works at any rotation (a gate across a horizontal straight is seen end-on). Each pixel's view ray (fixed screen x,
+ // ground depth g, height z = (K·g − Y)/Z) is marched from the front; the first solid point is the visible one. It is lit
+ // (top dither) when the ray came in through a top face (the same ground spot one step higher is empty), else ink.
+ for(let Y=-ay;Y<size-ay;Y++)for(let X=-ax;X<size-ax;X++){
+  const x=X+.5,y=Y+.5,reach=R0*R0-x*x;if(reach<=0)continue;
+  const gTop=Math.min(Math.sqrt(reach),(y+Z*s.ho)/K),gEnd=Math.max(-Math.sqrt(reach),y/K);
+  for(let g=gTop-dg/2,prevZ=Infinity;g>=gEnd;g-=dg){const z=(K*g-y)/Z,u=x*cs+g*sn,v=-x*sn+g*cs;
+   if(inGate(s,u,v,z)){(z>=s.split?arch:posts).pixel(X+ax,Y+ay,inGate(s,u,v,prevZ)?0:GATE_TOP_SHADE);if(z<s.split)legs[u<0?0:1].pixel(X+ax,Y+ay,inGate(s,u,v,prevZ)?0:GATE_TOP_SHADE);break;}
+   prevZ=z;}
+  for(let z=0;z<=s.ho;z+=.3){const wx=x-LIGHT.x*z,wy=(y-LIGHT.y*z)/K,u=wx*cs+wy*sn,v=-wx*sn+wy*cs;if(inGate(s,u,v,z)){sh.shadowPixel(X+ax,Y+ay);break;}}
+ }
+ art={shape:s,arch:arch.finish(true),posts:posts.finish(true),legs:legs.map(r=>r.finish(true)),shadow:sh.finish(true),box:{size,ax,ay},shadowBox:{size,ax,ay}};
+ gateArtCache.set(key,art);return art;
+}
+// All car frames (3 cars × 64 headings × sprite + shadow) as raw rasters; returns build time in ms.
+function buildCarAtlases(){
+ const t0=typeof performance!=='undefined'?performance.now():Date.now(),atlases={},shadows={};
+ for(const [id,p] of Object.entries(PRESETS)){atlases[id]=[];shadows[id]=[];for(let i=0;i<FRAMES;i++){atlases[id].push(carSprite(p,i*TAU/FRAMES));shadows[id].push(carShadow(p,i*TAU/FRAMES));}}
+ return {atlases,shadows,ms:(typeof performance!=='undefined'?performance.now():Date.now())-t0};
+}
+// The same pure functions can be tested in Node without altering the delivered page.
+// Small visual steering feedback from lateral tyre slip, in radians of wheel rotation, scaled by TUNING.kickback (round 2:
+// default 0.5, "less movement"; 0 turns it off). It never changes the driver's actual input.
+function wheelKickback(c,time){
+ if(c.state&&c.state!=='driving')return 0;
+ const lateral=-Math.sin(c.a)*c.vx+Math.cos(c.a)*c.vy;
+ const strength=clamp((Math.abs(lateral)-5)/35,0,1)*TUNING.kickback;
+ return strength*(clamp(-lateral/100,-.12,.12)+.045*Math.sin(time*22));
+}
+if(typeof document==='undefined'){if(typeof module!=='undefined'){
+ // Node exports, one line per owner (round 2): edit only your own line(s); add new names on your own line.
+ module.exports={GEARS,shiftGear,gearTelemetry,WIDTH,HEIGHT,K,Z,WORLD_H,STEP,TAU,PRESETS,CAR_ART,FRAMES,SHADOW_INK,LIGHT,DEFAULT_ARENA,edgeClear,CROSS_GAP,carBoxAll,SPAWN_INSIDE,CONE_COUNT,CONE_R,CONTROL_ZONES,keepOuts,layoutCourse,drawGround,resetCones,TRANSFER_MARGIN,CONE_BOX,transferBody,transferEdges,sceneItems,carDrawable,gateDrawables,drawOrder,SKID,createTrackRecorder,breakTracks,recordTracks,coneSprite,coneShadowSprite,CONE_H,archShape,inArch,gateArt,GATE_SPLIT,GATE_FRONT,plotLine,frameIndex,carModel,carShadowPolys,frameBounds,spriteBox,raster,carSprite,carShadow,buildCarAtlases,makeArena,normalizeInput,keysToInput,carScreenBounds,resizeWorld,wrap,delta,angleDelta,createWorld,drive,step,carCone,coneCone,position,wheelPoints,SPEED_CAP,OMEGA_MAX,CONE_MAX,FASTEST,SUB_MOVE,gatePosts,carPost,conePost,substeps,limitVelocity,ROLL_STEPS,ROLL_G,LOAD_W,LOAD_ZETA,IMPACT_GAIN,TIP_COMMIT,TIP_DROP,TIP_MIN,TIP_SOFT,ROLL_SPIN,ROLL_DECEL,ROLL_SETTLE,ROLL_FRICTION,REST_SPEED,RECOVER_TIME,RECOVER_GAP,CAR_STATES,uprightState,rollKappa,tipAngle,tumble,rollover,rollFrame,rolledModel,rollShadowPolys,rollSpritePoints,rollFrameBounds,rollSpriteBox,carRollSprite,carRollShadow,carHidden,canRecover,recover,recoverSpot,boxDistance};
+ Object.assign(module.exports,{setTrack,TUNING,TUNING_SPEC,TUNING_DEFAULTS,setTuning,resetTuning}); // shared tuning interface
+ Object.assign(module.exports,{VIEW_SHORT,computeView,createControls,UI_MARGIN,UI_GAP,uiMetrics,controlZones,WHEEL_DEAD,turnDelta,pointerAngle,wheelDrag,wheelValue,wheelKickback,createModes,recoverAvailable,tryRecover,isRecoverKey,recoverFromKey}); // ui (r2-ui)
+ Object.assign(module.exports,{PAINT_SLANT,PAINT_STRIPE,PAINT_SOLID_BELOW,PAINT_KEY_SOLID_BELOW,PAINT_COPY,GLYPHS,glyphMask,shearMask,maskRuns,keycapRuns,wrapPhrases,paintLayout,paintRuns,drawPaint}); // ground paint (r2-paint)
+ Object.assign(module.exports,{buildCourse,fitTrack,roundedPath,circuitVerts,laneHalf,laneSelfClear,gateSpot,trackMarks,LANE_PAD,LANE_GAP,GATE_LEAD,TRACK_STEP,CONE_OFF,inGate,TRACKS}); // sim + course extra exports (r2-sim)
+ Object.assign(module.exports,{wheelLimit,wheelInput,wheelAngle,GEAR_GATE,gearSlot,stickMove,stickSlot,stickPath,pathPoint,TUNING_STORE,loadTuning,saveTuning,tuningGroups,uiPx,SPEED_EM,speedFit,shiftKeyW,shiftKeyGap,shiftKeyLayout,gearCues,trackThumbSize,trackThumb}); // ui extra exports (r2-ui, r3-ui)
+ Object.assign(module.exports,{}); // ground paint extra exports (r2-paint)
+ Object.assign(module.exports,{TILT_MAX,TILT_PITCH,TILT_STEPS,TILT_STEP,droneTiltPoint,tiltIndex,droneTilt,droneParts,droneSprite,droneShadow}); // drone tilt
+}return;}
+
+// ---- Browser only below. Rendering reads world.arena (W×H); WIDTH/HEIGHT/WORLD_H stay only as the Node test default. ----
+const root=document.getElementById('playground'),canvas=document.getElementById('game'),ctx=canvas.getContext('2d',{alpha:false});
+if(!ctx){document.getElementById('enter').textContent='Canvas 2D is unavailable';return;}
+ctx.imageSmoothingEnabled=false;
+const $=id=>document.getElementById(id);
+const ui={enter:$('enter'),fps:$('fps'),status:$('status'),live:$('live'),skids:$('skids'),announce:$('announcement'),settingsBtn:$('settings-btn'),panel:$('settings'),close:$('settings-close'),
+ wheel:$('wheel'),wheelFace:$('wheel-face'),rim:$('rim'),gas:$('pedal-gas'),brake:$('pedal-brake'),probe:$('safe-probe'),recover:$('recover'),
+ speed:$('speed'),speedValue:$('speed-value'),gearRead:$('gear-read'),gearValue:$('gear-value'),stick:$('gearstick'),stickFace:$('gear-face'),
+ knob:$('gear-knob'),shaft:$('gear-shaft'),knobShadow:$('gear-shadow'),knobNum:$('gear-num'),tuneList:$('tune-list'),tuneReset:$('tune-reset'),
+ shiftUp:$('shift-up'),shiftDown:$('shift-down'),trackRow:$('track-row')};
+// The instructions zone has no DOM element any more: it is painted on the ground (buildGround).
+const zoneEls={hud:$('hud'),wheel:$('wheel'),pedals:$('pedals'),recover:$('recover'),speed:$('speed'),gear:$('gearstick')};
+// Round 2: saved tuning applies before the first layout (viewShort decides the arena size).
+const tuneStore=(()=>{try{return window.localStorage;}catch(_){return null;}})();
+loadTuning(tuneStore);
+// Touch wording for the painted instructions and the entry prompt when any pointer is coarse (phones, tablets, touch laptops).
+const coarseQuery=window.matchMedia?window.matchMedia('(any-pointer: coarse)'):null,isTouch=()=>!!(coarseQuery&&coarseQuery.matches);
+const makeCanvas=(w,h)=>{const c=document.createElement('canvas');c.width=w;c.height=h;return c;};
+// Each car's 64 frames are packed into one sheet canvas (8 × 8 cells of sprite.size px): one upload instead of 128 canvases.
+function packSheet(frames,size){const cols=8,rows=Math.ceil(frames.length/cols),img=new ImageData(cols*size,rows*size);
+ frames.forEach((f,i)=>{const ox=(i%cols)*size,oy=Math.floor(i/cols)*size;for(let y=0;y<size;y++)img.data.set(f.data.subarray(y*size*4,(y+1)*size*4),((oy+y)*cols*size+ox)*4);});
+ const c=makeCanvas(cols*size,rows*size);c.getContext('2d').putImageData(img,0,0);return c;}
+// Sheets are built on first use: the starting car at load, the other two in idle time right after (or instantly if picked first).
+const sheets={},atlasMs={};
+function sheetFor(id){
+ if(!sheets[id]){const t=performance.now(),p=PRESETS[id],car=[],shadow=[];for(let i=0;i<FRAMES;i++){car.push(carSprite(p,i*TAU/FRAMES));shadow.push(carShadow(p,i*TAU/FRAMES));}
+  sheets[id]={car:packSheet(car,p.sprite.size),shadow:packSheet(shadow,p.sprite.size)};atlasMs[id]=+(performance.now()-t).toFixed(1);canvas.dataset.atlasMs=JSON.stringify(atlasMs);}
+ return sheets[id];
+}
+// Draws heading frame i of a car (layer 'car' or 'shadow') with its anchor at (x, y).
+// ---- Task 11 (Agent 3) roll-frame drawing: the ONLY drawing change for rollovers. `roll` defaults to the world car's roll,
+// so draw() can keep calling drawCar(ctx, world.id, layer, frameIndex(o.a, FRAMES), o.x, o.y) unchanged; a renderer that
+// prefers to be explicit passes the car's roll (sceneItems' car box already uses c.roll). Roll frames are rendered on first
+// use and cached (bounded LRU), since a roll visits only a few of the 12 × 64 frames.
+const rollCanvases=new Map(),ROLL_CACHE_MAX=384;
+function rollCanvas(id,layer,k,i){
+ const key=id+'|'+layer+'|'+k+'|'+i;let c=rollCanvases.get(key);
+ if(c){rollCanvases.delete(key);rollCanvases.set(key,c);return c;}
+ const p=PRESETS[id],a=i*TAU/FRAMES;c=toCanvas(layer==='car'?carRollSprite(p,a,k):carRollShadow(p,a,k));
+ rollCanvases.set(key,c);if(rollCanvases.size>ROLL_CACHE_MAX)rollCanvases.delete(rollCanvases.keys().next().value);
+ return c;
+}
+// Drone tilt frames: rendered on first use per (heading, bank step, pitch step) and kept in a bounded LRU, like roll frames.
+const tiltCanvases=new Map(),TILT_CACHE_MAX=512;
+function tiltCanvas(id,layer,i,r,q){
+ const key=id+'|'+layer+'|'+i+'|'+r+'|'+q;let c=tiltCanvases.get(key);
+ if(c){tiltCanvases.delete(key);tiltCanvases.set(key,c);return c;}
+ const p=PRESETS[id],a=i*TAU/FRAMES,tr=r*TILT_STEP,tp=q*TILT_STEP;c=toCanvas(layer==='car'?droneSprite(p,a,p.sprite,tr,tp):droneShadow(p,a,tr,tp));
+ tiltCanvases.set(key,c);if(tiltCanvases.size>TILT_CACHE_MAX)tiltCanvases.delete(tiltCanvases.keys().next().value);
+ return c;
+}
+function drawCar(target,id,layer,i,x,y,roll=world.car.roll||0,tilt=tiltIndex(world.car)){
+ if(roll){const s=rollSpriteBox(PRESETS[id]);target.drawImage(rollCanvas(id,layer,rollFrame(roll),i),x-s.ax,y-s.ay);return;}
+ if(PRESETS[id].flying&&tilt&&(tilt.r||tilt.p)){const s=PRESETS[id].sprite;target.drawImage(tiltCanvas(id,layer,i,tilt.r,tilt.p),x-s.ax,y-s.ay);return;}
+ const s=PRESETS[id].sprite,n=s.size;target.drawImage(sheetFor(id)[layer],(i%8)*n,Math.floor(i/8)*n,n,n,x-s.ax,y-s.ay,n,n);}
+// ---- end of task 11 roll-frame drawing.
+// Selector thumbnails need one frame per car, so they are rendered on their own instead of forcing every sheet.
+function toCanvas(raw){const c=makeCanvas(raw.width,raw.height);c.getContext('2d').putImageData(new ImageData(raw.data,raw.width,raw.height),0,0);return c;}
+const uprightCone=coneSprite(),tippedCones=Array.from({length:16},(_,i)=>coneSprite(true,i*TAU/16));
+const uprightShade=coneShadowSprite(),tippedShades=Array.from({length:16},(_,i)=>coneShadowSprite(true,i*TAU/16));
+// Gate sprites (task 07): rasterised once per gate geometry by gateArt(), converted to canvases once, reused across resizes.
+const gateCanvases=new WeakMap();
+function gateSprites(g){const art=gateArt(g);let c=gateCanvases.get(art);if(!c){c={art,arch:toCanvas(art.arch),leg0:toCanvas(art.legs[0]),leg1:toCanvas(art.legs[1]),shadow:toCanvas(art.shadow)};gateCanvases.set(art,c);}return c;}
+// Ground and track layers are arena-sized and rebuilt whenever the arena's W×H changes (contract §1, §6).
+let ground=null,tracks=null,trackCtx=null;
+let uiZones=null;
+const zoneOf=id=>uiZones&&uiZones.find(z=>z.id===id);
+// Round 2 (r2-paint): browser glyph masks for the ground paint. A heavy sans-serif ("Arial Black" where installed, else bold
+// Arial thickened by a pixel) is drawn once per (text, height) into an offscreen canvas, stretched PAINT_WIDE× wide and
+// thresholded at half alpha into a 1-bit mask exactly h rows tall (the cap height), so no antialiased pixel reaches the
+// ground; paintRuns then shears and stripes it. Any failure falls back to glyphMask.
+const paintMasks=new Map(),PAINT_WIDE=1.2;let paintFace=null;
+function canvasTextMask(text,h){
+ const key=text+'|'+h;let m=paintMasks.get(key);if(m)return m;
+ try{
+  const cx=makeCanvas(4,4).getContext('2d');
+  if(!paintFace){const probe=f=>{cx.font=f;return cx.measureText('WMQ').width;},black=probe('900 40px "Arial Black",monospace')!==probe('900 40px monospace');
+   const family=black?'"Arial Black",Arial,sans-serif':'Arial,"Helvetica Neue",Helvetica,sans-serif';cx.font='900 100px '+family;
+   paintFace={family,cap:(cx.measureText('H').actualBoundingBoxAscent||71.6)/100,bold:black?0:1};}
+  const F=h/paintFace.cap,font='900 '+F.toFixed(2)+'px '+paintFace.family;cx.font=font;
+  const tw=Math.ceil(cx.measureText(text).width*PAINT_WIDE)+4,base=Math.ceil(F*1.1)+2,g=makeCanvas(tw,base+2).getContext('2d',{willReadFrequently:true});
+  g.font=font;g.textBaseline='alphabetic';g.fillStyle='#000';g.setTransform(PAINT_WIDE,0,0,1,2,0);g.fillText(text,0,base);
+  const a=g.getImageData(0,base-h,tw,h).data;let lo=tw,hi=-1;
+  for(let y=0;y<h;y++)for(let x=0;x<tw;x++)if(a[(y*tw+x)*4+3]>=128){if(x<lo)lo=x;if(x>hi)hi=x;}
+  const bold=paintFace.bold,w=hi<lo?0:hi-lo+1+bold,bits=new Uint8Array(w*h);
+  for(let y=0;y<h;y++)for(let x=lo;x<=hi;x++)if(a[(y*tw+x)*4+3]>=128)for(let i=0;i<=bold;i++)bits[y*w+x-lo+i]=1;
+  m={w,h,bits};
+ }catch(err){m=glyphMask(text,h);}
+ paintMasks.set(key,m);return m;
+}
+// The instructions are painted on the ground layer (under tracks, shadows and cars) in the reserved zone: keycaps on a
+// keyboard, a painted line on touch screens, Q / E on the Supercar. Rebuilt when the car or the pointer type changes.
+function buildGround(A){ground=makeCanvas(A.W,A.H);const gc=ground.getContext('2d',{alpha:false});drawGround(gc,A,world.layout);
+ const zone=zoneOf('instructions');if(zone&&!isTouch()&&view&&view.cssW>=700){
+ const u=view.u,sz=44/u,gap=5/u,x=20/u,y=110/u;
+ gc.save();gc.globalAlpha=.48;gc.textAlign='center';
+ for(const [key,label,col,row] of [['W','GAS',1,0],['A','LEFT',0,1],['S','BRAKE',1,1],['D','RIGHT',2,1]]){const xx=x+col*(sz+gap),yy=y+row*(sz+10/u);gc.fillStyle=ink;gc.fillRect(xx+3/u,yy+4/u,sz,sz);gc.fillStyle=paper;gc.fillRect(xx,yy,sz,sz);gc.strokeStyle=ink;gc.lineWidth=1/u;gc.strokeRect(xx,yy,sz,sz);gc.fillStyle=ink;gc.font='bold '+20/u+'px monospace';gc.fillText(key,xx+sz/2,yy+22/u);gc.font='bold '+10/u+'px sans-serif';gc.fillText(label,xx+sz/2,yy+37/u);}
+ gc.restore();}
+}
+function resetTrackLayer(A){tracks=makeCanvas(A.W,A.H);trackCtx=tracks.getContext('2d');trackCtx.fillStyle=ink;breakTracks(trackRec);trackPixels=0;}
+let world=createWorld(),enabled=true,mode='paused',raf=0,lastTime=0,accumulator=0,fpsStart=0,frameCount=0,lastUI=0,trackPixels=0,drawList=[],view=null;
+// Skid-mark recorder (task 09): its own break state; the track canvas is the only retained memory (one arena-sized layer).
+const trackRec=createTrackRecorder();
+// Input (task 03). The first fresh drive key, or a touch control being grabbed (task 04), starts or resumes driving.
+const controls=createControls({onEngage:()=>modes.engage()});
+const modes=createModes(controls,(next,prev)=>onModeChange(next,prev));
+function clearTracks(){smoke.length=0;trackCtx.clearRect(0,0,tracks.width,tracks.height);breakTracks(trackRec);trackPixels=0;}
+// Once per physics step. Marks are clipped to the arena and never wrapped (contract §8); trackBreak splits them.
+const plotTrack=(x,y)=>trackCtx.fillRect(x,y,1,1);
+const smoke=[];
+function addTracks(){const n=recordTracks(world,trackRec,plotTrack,enabled);trackPixels+=n;
+ for(let i=smoke.length-1;i>=0;i--){const p=smoke[i];p.life-=STEP;p.x+=p.vx*STEP;p.y-=5*STEP;if(p.life<=0)smoke.splice(i,1);}
+ if(n>0&&!world.p.flying&&smoke.length<100&&Math.floor(world.time/STEP)%4===0)for(const p of wheelPoints(world))smoke.push({x:p.x,y:p.y,life:.9,vx:Math.sin(world.time*43)*7});
+}
+// The car's two layers ('shadow', 'car') for a carDrawable() item. Agent 3: switch to roll frames here (o.roll, o.frame).
+function drawCarItem(o,layer){drawCar(ctx,world.id,layer,o.frame,o.x,o.y,o.roll||0,o.tilt);}
+function drawShadow(o){
+ if(o.type==='car')drawCarItem(o,'shadow');
+ else if(o.type==='cone')ctx.drawImage(o.tipped?tippedShades[frameIndex(o.a,16)]:uprightShade,o.x-10,o.y-14);
+ else if(o.type==='gate'&&o.part==='leg0'){const g=gateSprites(world.layout.gate),b=g.art.shadowBox;ctx.drawImage(g.shadow,o.x-b.ax,o.y-b.ay);}
+}
+function drawItem(o){
+ if(o.type==='car')drawCarItem(o,'car');
+ else if(o.type==='cone')ctx.drawImage(o.tipped?tippedCones[frameIndex(o.a,16)]:uprightCone,o.x-10,o.y-14);
+ else if(o.type==='gate'){const g=gateSprites(world.layout.gate),b=g.art.box;ctx.drawImage(g[o.part],o.x-b.ax,o.y-b.ay);}
+}
+// Contract §6 order: ground, tracks, every shadow, then the depth-sorted drawables (cones, car, gate legs; the arch top last).
+// Task 05: every object is drawn once, at its real position; no wrapped copies of the car, its shadow or cones.
+function draw(alpha=1){
+ ctx.drawImage(ground,0,0);if(enabled)ctx.drawImage(tracks,0,0);
+ drawList=sceneItems(world,alpha);
+ for(const o of drawList)drawShadow(o);
+ drawList.sort(drawOrder);
+ for(const o of drawList)drawItem(o);
+ ctx.save();for(const p of smoke){ctx.globalAlpha=p.life*.35;ctx.fillStyle=paper;ctx.beginPath();ctx.arc(p.x,p.y,3+(1-p.life)*9,0,TAU);ctx.fill();}ctx.restore();
+}
+function updateUI(){
+ const c=world.car,running=mode==='running';ui.live.dataset.running=String(running);
+ ui.status.textContent=running?(c.skidding?'SIDEWAYS':Math.hypot(c.vx,c.vy)>2?'DRIVING':'IDLE / W TO GO'):mode==='menu'?'MENU':'PAUSED';
+ // Read-only diagnostics for QA; these are not exposed as extra player controls.
+ const input=controls.sample();
+ Object.assign(canvas.dataset,{car:world.id,x:c.x.toFixed(2),y:c.y.toFixed(2),speed:Math.hypot(c.vx,c.vy).toFixed(2),heading:c.a.toFixed(3),state:c.state||'driving',roll:(c.roll||0).toFixed(2),wraps:String(world.wraps),hits:String(world.hits),tracks:String(trackPixels),simTime:world.time.toFixed(3),running:String(running),mode,arena:world.arena.W+'x'+world.arena.H,scale:String(view?view.scale:0),input:input.steering.toFixed(2)+','+input.throttle.toFixed(2)+','+input.brake.toFixed(2),movingCones:String(world.cones.filter(o=>Math.hypot(o.vx,o.vy)>.2).length)});
+}
+function animate(time){
+ raf=0;if(mode!=='running')return;
+ if(!lastTime){lastTime=time;fpsStart=time;}
+ accumulator+=Math.min(.1,(time-lastTime)/1000);lastTime=time;
+ // One controls.sample() per fixed physics step (contract §3).
+ let ticks=0;while(accumulator>=STEP&&ticks<8){step(world,controls.sample());addTracks();accumulator-=STEP;ticks++;}
+ if(ticks===8&&accumulator>=STEP)accumulator%=STEP;
+ draw(accumulator/STEP);renderControls();syncRecover();frameCount++;
+ if(time-fpsStart>=600){ui.fps.textContent=String(Math.round(frameCount*1000/(time-fpsStart)));fpsStart=time;frameCount=0;}
+ if(time-lastUI>250){updateUI();lastUI=time;}
+ raf=requestAnimationFrame(animate);
+}
+// Game state (contract §4): 'running' | 'paused' | 'menu', held by createModes(). Leaving 'running' releases every input
+// (done by createModes) and breaks tracks. The settings panel is open exactly while the mode is 'menu'.
+const entryText=()=>isTouch()?'TAP GAS OR PRESS W TO DRIVE':'PRESS W TO DRIVE';
+// Round 3: the prompt text sits in a span (the striped letters are a background clipped to the text).
+const setEntry=text=>{ui.enter.replaceChildren(Object.assign(document.createElement('span'),{textContent:text}));};
+function onModeChange(next){
+ mode=next;
+ cancelAnimationFrame(raf);raf=0;accumulator=0;lastTime=0;frameCount=0;breakTracks(trackRec);
+ if(next!=='running')endStick(true); // pause, menu, blur: the stick lets go too (contract §3 release-all)
+ const menu=next==='menu';ui.panel.hidden=!menu;ui.settingsBtn.setAttribute('aria-expanded',String(menu));
+ if(next==='running'){for(const o of [world.car,...world.cones]){o.px=o.x;o.py=o.y;o.pa=o.a;}ui.enter.hidden=true;updateUI();renderControls();syncRecover();raf=requestAnimationFrame(animate);return;}
+ world.trackBreak=true;
+ ui.enter.hidden=next!=='paused';setEntry('PAUSED · '+entryText());ui.fps.textContent='—';draw();updateUI();renderControls();syncRecover();
+}
+const setMode=next=>modes.set(next),pause=()=>setMode('paused'),resume=()=>modes.engage();
+function reset(id=world.id){world=createWorld(id,world.arena);world.manual=id==='coupe';world.trackBreak=true;controls.releaseAll();endStick(false);clearTracks();accumulator=0;lastTime=0;
+ // Round 2: the ground paint can differ per car (the Supercar adds Q / E), so it is rebuilt on every car change or reset.
+ buildGround(world.arena);groundKey=groundKeyFor();
+ draw();updateUI();renderControls();syncRecover();ui.announce.textContent=PRESETS[id].name+' ready. Scene reset.';}
+// ---- Stage 3: "Right the car" (task 11 UI). The page reaches Agent 3's pure canRecover(w) / recover(w) only through this
+// adapter, so tests can swap in a fake api.
+const recoveryApi={can:w=>typeof canRecover==='function'?canRecover(w)===true:false,run:w=>{if(typeof recover==='function')recover(w);}};
+// Live-region text; a repeated message gets a trailing no-break space so screen readers announce it again.
+const say=text=>{ui.announce.textContent=ui.announce.textContent===text?text+' ':text;};
+let recoverShown=false,recoverSince=0;
+// Shows the button while a recovery is possible (and no menu is open). Writes the DOM only on change.
+// An overturned car shows it at once; a car hidden just past an edge must stay hidden for RECOVER_SHOW_MS first, so a fast
+// car crossing the 2 px transfer margin does not flash the button for a frame. (R works whenever recover() allows it.)
+const RECOVER_SHOW_MS=250;
+function syncRecover(){
+ const can=recoverAvailable(recoveryApi,world,mode),now=performance.now();
+ if(!can)recoverSince=0;else if(!recoverSince)recoverSince=now;
+ const show=can&&(world.car.state==='resting'||now-recoverSince>=RECOVER_SHOW_MS);
+ if(show===recoverShown)return;recoverShown=show;
+ const hadFocus=document.activeElement===ui.recover;
+ ui.recover.hidden=!show;root.dataset.recover=String(show);
+ // A hidden button cannot keep focus: hand it to the playground so keys keep working.
+ if(hadFocus&&!show)canvas.focus({preventScroll:true});
+ if(show)say('The car is stuck. Press R or use the Right the car button.');
+}
+function doRecover(){
+ if(!tryRecover(recoveryApi,world,mode,controls))return false;
+ drag=null;accumulator=0; // (round 2: dropped an assignment to an undeclared variable that threw in strict mode)
+ draw();updateUI();renderControls();syncRecover();say('Car righted.');
+ return true;
+}
+ui.recover.addEventListener('click',()=>doRecover());
+const THUMB_HEADING=-.55;
+// Thumbnails: the heading frame plus its shadow, centred on their opaque pixels (the van at this heading is 42 × 36 px).
+const thumbs={};
+function thumbFor(id){
+ if(thumbs[id])return thumbs[id];
+ const p=PRESETS[id],a=frameIndex(THUMB_HEADING,FRAMES)*TAU/FRAMES,layers=[carShadow(p,a),carSprite(p,a)],n=p.sprite.size;let l=n,t=n,r=0,b=0,bt=n,bb=0;
+ for(const f of layers)for(let y=0;y<n;y++)for(let x=0;x<n;x++)if(f.data[(y*n+x)*4+3]){l=Math.min(l,x);r=Math.max(r,x+1);t=Math.min(t,y);b=Math.max(b,y+1);if(f===layers[1]){bt=Math.min(bt,y);bb=Math.max(bb,y+1);}}
+ return thumbs[id]={layers:layers.map(toCanvas),l,t,r,b,bt,bb,flying:!!p.flying};
+}
+// Round 2: the Drone's shadow falls far below its body, so centring both put the body near the top of its button. A flying
+// thumbnail is centred on its body instead; the far end of its shadow may be cut by up to THUMB_SHADOW_CUT px.
+const THUMB_SHADOW_CUT=6;
+function thumbY(th,h){
+ const all=Math.round((h-(th.b-th.t))/2)-th.t;if(!th.flying)return all;
+ const body=Math.round((h-(th.bb-th.bt))/2)-th.bt;return clamp(body,-th.t,h-th.b+THUMB_SHADOW_CUT);
+}
+function syncChoices(){document.querySelectorAll('.car-choice[data-car]').forEach(button=>{button.setAttribute('aria-pressed',String(button.dataset.car===world.id));
+ const th=thumbFor(button.dataset.car),c=button.querySelector('canvas'),cx=c.getContext('2d'),x=Math.round((c.width-(th.r-th.l))/2)-th.l,y=thumbY(th,c.height);
+ cx.clearRect(0,0,c.width,c.height);cx.imageSmoothingEnabled=false;for(const layer of th.layers)cx.drawImage(layer,x,y);});}
+// Switching car resets the scene and the tracks (unchanged semantics); the mode is kept.
+document.querySelectorAll('.car-choice[data-car]').forEach(button=>button.addEventListener('click',()=>{reset(button.dataset.car);syncChoices();}));
+// Skid toggle hides the layer and pauses recording; retained tracks are not erased.
+ui.skids.addEventListener('change',()=>{enabled=ui.skids.checked;breakTracks(trackRec);world.trackBreak=true;draw();ui.announce.textContent=enabled?'Skid marks enabled.':'Skid marks hidden and recording paused.';});
+$('clear').addEventListener('click',()=>{clearTracks();draw();updateUI();ui.announce.textContent='Tracks cleared.';});
+// Reset restores the cones (createWorld rebuilds them from their homes) and clears the tracks.
+$('reset').addEventListener('click',()=>reset());
+ui.enter.addEventListener('click',()=>{resume();canvas.focus({preventScroll:true});});
+
+// ---- Settings menu (task 02): opening releases every input; closing returns to 'paused' (never straight to driving). ----
+function openMenu(){if(!modes.openMenu())return;syncTracks();ui.skids.focus({preventScroll:true});ui.announce.textContent='Settings open. Game paused.';}
+function closeMenu(returnFocus){if(!modes.closeMenu())return;if(returnFocus)ui.settingsBtn.focus({preventScroll:true});}
+ui.settingsBtn.addEventListener('click',()=>{if(mode==='menu')closeMenu(true);else openMenu();});
+ui.close.addEventListener('click',()=>closeMenu(true));
+// A press outside the panel dismisses it. That press does not also resume the game from the canvas.
+let dismissEvent=null;
+document.addEventListener('pointerdown',event=>{
+ if(mode!=='menu'||ui.panel.contains(event.target)||ui.settingsBtn.contains(event.target))return;
+ dismissEvent=event;const focusable=event.target.closest&&event.target.closest('button,input,[tabindex]');closeMenu(!focusable);
+},true);
+// Tabbing out of the (non-modal) panel closes it too.
+ui.panel.addEventListener('focusout',event=>{const to=event.relatedTarget;if(mode==='menu'&&to&&!ui.panel.contains(to)&&to!==ui.settingsBtn)closeMenu(false);});
+// ---- Round 2: Settings > Tuning, generated from TUNING_SPEC: one labelled range slider per key with its live value.
+// A change applies at once (setTuning), is saved (saveTuning; storage errors are ignored) and redraws the wheel; Zoom out
+// re-runs the view layout when the slider is released (a relayout rebuilds the course, too heavy for every input event).
+const tuneInputs={};
+const tuneText=(s,v)=>(Number.isInteger(s.step)?String(v):v.toFixed(Math.max(0,-Math.floor(Math.log10(s.step)+1e-9))))+(s.unit||'');
+function syncTuning(){for(const {input,out,spec} of Object.values(tuneInputs)){input.value=String(TUNING[spec.key]);out.textContent=tuneText(spec,TUNING[spec.key]);input.setAttribute('aria-valuetext',out.textContent);}}
+function buildTuning(){
+ const frag=document.createDocumentFragment(),make=(tag,props)=>Object.assign(document.createElement(tag),props);
+ for(const grp of tuningGroups()){
+  const set=make('fieldset',{className:'tune-group'});set.append(make('legend',{textContent:grp.label}));
+  for(const s of grp.items){
+   const id='tune-'+s.key,row=make('div',{className:'tune'}),out=make('output',{id:id+'-value'});out.setAttribute('for',id);
+   const input=make('input',{type:'range',id,min:String(s.min),max:String(s.max),step:String(s.step)});input.dataset.key=s.key;
+   row.append(make('label',{htmlFor:id,textContent:s.label}),out,input);set.append(row);tuneInputs[s.key]={input,out,spec:s};
+  }
+  frag.append(set);
+ }
+ ui.tuneList.replaceChildren(frag);syncTuning();
+}
+function applyTuning(keys,relayout){saveTuning(tuneStore);syncTuning();if(relayout&&keys.includes('viewShort'))scheduleView();shown='';renderControls();}
+ui.tuneList.addEventListener('input',e=>{const key=e.target.dataset&&e.target.dataset.key;if(!key)return;setTuning({[key]:+e.target.value});applyTuning([key],false);});
+ui.tuneList.addEventListener('change',e=>{const key=e.target.dataset&&e.target.dataset.key;if(key)applyTuning([key],true);});
+ui.tuneReset.addEventListener('click',()=>{resetTuning();applyTuning(TUNING_SPEC.map(s=>s.key),true);say('Tuning reset to the defaults.');});
+buildTuning();
+// ---- Round 3 (r3-ui): Settings > Track. One button per TRACKS entry (ids and names only; the shapes come from buildCourse), each
+// with a 1-bit thumbnail of that track for the current arena. Choosing one selects it (setTrack), resets the scene and rebuilds
+// the ground (reset), then redraws the thumbnails (the chosen one inverted, aria-pressed).
+const trackButtons=TRACKS.map(t=>{const b=Object.assign(document.createElement('button'),{type:'button',className:'track-choice',title:t.name});
+ b.dataset.track=t.id;b.setAttribute('aria-pressed','false');const c=document.createElement('canvas');c.setAttribute('aria-hidden','true');
+ b.append(c,Object.assign(document.createElement('span'),{textContent:t.name}));b.addEventListener('click',()=>pickTrack(t.id));return b;});
+ui.trackRow.replaceChildren(...trackButtons);
+let thumbKey='',thumbMasks={};
+function syncTracks(){
+ const A=world.arena,key=A.W+'x'+A.H+'|'+A.mobile+'|'+A.uiU;if(key!==thumbKey){thumbKey=key;thumbMasks={};}
+ for(const b of trackButtons){
+  const id=b.dataset.track,on=id===SELECTED_TRACK,c=b.querySelector('canvas');b.setAttribute('aria-pressed',String(on));
+  if(!(id in thumbMasks)){try{const sz=trackThumbSize(A.W,A.H),L=buildCourse({...A,E:edgeClear(A)},[],id);thumbMasks[id]=trackThumb(L.track.pts.map(p=>[p[0],p[1]*K]),sz.w,sz.h);}catch(_){thumbMasks[id]=null;}}
+  const m=thumbMasks[id];if(!m){c.width=c.height=1;continue;}
+  if(c.width!==m.w||c.height!==m.h){c.width=m.w;c.height=m.h;}
+  const cx=c.getContext('2d');cx.fillStyle=on?ink:paper;cx.fillRect(0,0,m.w,m.h);cx.fillStyle=on?paper:ink;
+  for(let y=0;y<m.h;y++)for(let x=0;x<m.w;x++)if(m.bits[y*m.w+x])cx.fillRect(x,y,1,1);
+ }
+}
+function pickTrack(id){if(!setTrack(id))return;reset();syncTracks();const t=TRACKS.find(q=>q.id===id);say((t?t.name:id)+' selected. Scene reset.');}
+syncTracks();
+// A primary press on the playground resumes; a pointer release never pauses.
+canvas.addEventListener('pointerdown',event=>{if(event===dismissEvent)return;if(event.isPrimary&&event.button===0)resume();});
+
+// ---- Steering wheel and pedals (task 04). Each control is owned by one pointer id with pointer capture; a release,
+// cancel or lost capture of that pointer frees only that control. Visuals always come from controls.visual(). ----
+let drag=null,shown='',speedShown='';
+// Round 2: floating speed text (and the gear on the Supercar); the DOM is written only when the text changes.
+function renderSpeed(){
+ const t=gearTelemetry(world),manual=!!world.manual,cue=gearCues(world),key=t.speed+'|'+manual+'|'+t.gear+'|'+t.shiftUp+'|'+cue.down.ok+'|'+cue.down.hot;
+ if(key===speedShown)return;speedShown=key;
+ ui.speedValue.textContent=String(t.speed);if(ui.gearRead.hidden===manual){ui.gearRead.hidden=!manual;sizeSpeed();}ui.gearValue.textContent=String(t.gear);
+ // Round 3: the shift keycaps (no words): the up key pulses while shifting up is recommended; an impossible shift goes flat.
+ for(const [el,c] of [[ui.shiftUp,cue.up],[ui.shiftDown,cue.down]]){el.classList.toggle('hot',c.hot);el.classList.toggle('off',!c.ok);}
+ ui.speed.dataset.shift=String(manual&&t.shiftUp);
+}
+function renderControls(){
+ renderSpeed();renderStick();
+ const v=controls.visual();
+ if(drag&&controls.owner('wheel')!==drag.id)drag=null; // released elsewhere (blur, menu, rotation, reset)
+ const feedback=mode==='running'?wheelKickback(world.car,world.time):0;
+ // While a finger holds the wheel the rim shows the dragged angle itself; otherwise the angle of the merged input
+ // (keyboard A / D = ±1 = full lock, TUNING.wheelRange degrees).
+ const angle=drag&&v.owned.wheel?drag.angle:wheelAngle(v.steering);
+ const key=angle.toFixed(3)+','+v.throttle.toFixed(2)+','+v.brake.toFixed(2)+','+v.owned.wheel+','+feedback.toFixed(3);
+ if(key===shown)return;shown=key;
+ ui.rim.style.transform='rotate('+((angle+feedback)*180/Math.PI).toFixed(2)+'deg)';
+ ui.wheel.classList.toggle('held',v.owned.wheel);
+ const pct=Math.round(v.steering*100);
+ ui.wheelFace.setAttribute('aria-valuenow',String(pct));ui.wheelFace.setAttribute('aria-valuetext',pct===0?'centred':Math.abs(pct)+'% '+(pct<0?'left':'right'));
+ for(const [el,value] of [[ui.gas,v.throttle],[ui.brake,v.brake]]){el.style.setProperty('--press',value.toFixed(2));el.classList.toggle('on',value>0);}
+ root.dataset.visual=key;
+}
+// ---- Round 2: the gear stick (Supercar only). The knob is dragged through the H gate by one pointer (with capture); it
+// engages a gear when it reaches that slot (shiftGear). A refused shift (too fast to go down) or a release between slots
+// springs the knob back to the engaged gear along the gate. Q / E, the arrow keys and 1-5 on the focused stick animate it.
+let stick=null,knob=gearSlot(1),knobAnim=null,knobShown='';
+function placeKnob(p){
+ knob={x:p.x,y:p.y};const key=p.x.toFixed(2)+','+p.y.toFixed(2)+','+(world.gear||1);if(key===knobShown)return;knobShown=key;
+ ui.knob.setAttribute('transform','translate('+p.x.toFixed(2)+' '+p.y.toFixed(2)+')');
+ ui.shaft.setAttribute('x2',p.x.toFixed(2));ui.shaft.setAttribute('y2',p.y.toFixed(2));
+ ui.knobShadow.setAttribute('cx',(p.x+4).toFixed(2));ui.knobShadow.setAttribute('cy',(p.y+3).toFixed(2));
+ ui.knobNum.textContent=String(world.gear||1);
+}
+function renderStick(){
+ const manual=!!world.manual;if(ui.stick.hidden===manual)ui.stick.hidden=!manual;
+ const g=world.gear||1;ui.stickFace.setAttribute('aria-valuenow',String(g));ui.stickFace.setAttribute('aria-valuetext','gear '+g);
+ ui.stick.classList.toggle('held',!!stick);
+ if(!stick&&!knobAnim)placeKnob(gearSlot(g));
+}
+// Animates the knob along the gate to gear g's slot (about 0.16 s; instant with reduced motion).
+const reducedMotion=window.matchMedia?window.matchMedia('(prefers-reduced-motion: reduce)'):null;
+function animateKnob(g){
+ const pts=stickPath(knob,g),len=pts.slice(1).reduce((s,q,i)=>s+Math.hypot(q.x-pts[i].x,q.y-pts[i].y),0);
+ if(knobAnim)cancelAnimationFrame(knobAnim.raf);knobAnim=null;
+ if(len<.5||(reducedMotion&&reducedMotion.matches)){placeKnob(gearSlot(g));return;}
+ const start=performance.now(),dur=Math.min(260,90+len*1.4);
+ const tick=now=>{const f=Math.min(1,(now-start)/dur);placeKnob(pathPoint(pts,1-(1-f)*(1-f)));
+  if(f<1)knobAnim.raf=requestAnimationFrame(tick);else{knobAnim=null;renderStick();}};
+ knobAnim={raf:requestAnimationFrame(tick)};
+}
+// One shift request from any source; returns true when the gear changed. A refusal is announced.
+function requestGear(g,source){
+ if(mode==='menu'||!world.manual||g<1||g>5||g===world.gear)return false;
+ if(shiftGear(world,g)){resume();if(source!=='drag')animateKnob(g);renderControls();say('Gear '+g+'.');return true;}
+ say('Too fast for gear '+g+'.');return false;
+}
+// SVG viewBox units (110 × 100, centred and scaled to fit the face) from client coordinates.
+function stickPoint(e){const r=ui.stickFace.getBoundingClientRect(),s=Math.min(r.width/110,r.height/100)||1;return {x:(e.clientX-r.left-(r.width-110*s)/2)/s,y:(e.clientY-r.top-(r.height-100*s)/2)/s};}
+function endStick(spring=true){
+ if(!stick)return;const id=stick.id;stick=null;
+ try{if(ui.stickFace.hasPointerCapture&&ui.stickFace.hasPointerCapture(id))ui.stickFace.releasePointerCapture(id);}catch(_){/* already released */}
+ if(spring)animateKnob(world.gear||1);else placeKnob(gearSlot(world.gear||1));renderStick();
+}
+ui.stickFace.addEventListener('pointerdown',e=>{
+ if(!primaryPress(e)||!world.manual)return;e.preventDefault();leaveMenu();
+ if(stick)return; // another finger already holds the stick
+ if(knobAnim){cancelAnimationFrame(knobAnim.raf);knobAnim=null;}
+ // Relative drag: the knob follows the finger's movement from wherever it touched (a finger covers the small knob).
+ stick={id:e.pointerId,from:stickPoint(e),knob:{...knob}};capture(ui.stickFace,e.pointerId);ui.stickFace.focus({preventScroll:true});renderStick();
+});
+ui.stickFace.addEventListener('pointermove',e=>{
+ if(!stick||e.pointerId!==stick.id)return;
+ const p=stickPoint(e),next=stickMove(knob,{x:stick.knob.x+p.x-stick.from.x,y:stick.knob.y+p.y-stick.from.y});placeKnob(next);
+ const g=stickSlot(next);if(g&&g!==world.gear&&!requestGear(g,'drag'))endStick(true); // refused: spring back to the engaged gear
+});
+for(const type of ['pointerup','pointercancel','lostpointercapture'])ui.stickFace.addEventListener(type,e=>{if(stick&&e.pointerId===stick.id)endStick(true);});
+ui.stickFace.addEventListener('contextmenu',e=>e.preventDefault());
+// Keyboard on the focused stick: arrows step one gear, 1-5 pick a gear directly, Home / End go to 1 / 5.
+ui.stickFace.addEventListener('keydown',e=>{
+ if(e.ctrlKey||e.metaKey||e.altKey||e.isComposing)return;const g=world.gear||1;
+ const next={ArrowUp:g+1,ArrowRight:g+1,ArrowDown:g-1,ArrowLeft:g-1,Home:1,End:5}[e.key]||(/^[1-5]$/.test(e.key)?+e.key:0);
+ if(!next)return;e.preventDefault();if(!e.repeat||e.key.startsWith('Arrow'))requestGear(clamp(next,1,5),'key');
+});
+window.addEventListener('keydown',event=>{if(event.repeat||event.ctrlKey||event.metaKey||event.altKey||mode==='menu'||!world.manual)return;const target=event.target;if(target&&target.closest&&target.closest('input,textarea,select'))return;const key=event.key.toLowerCase();if(key==='q'||key==='e'){event.preventDefault();requestGear((world.gear||1)+(key==='e'?1:-1),'key');}});
+const primaryPress=e=>!(e.pointerType==='mouse'&&e.button!==0);
+const capture=(el,id)=>{try{el.setPointerCapture(id);}catch(_){/* synthetic or already-ended pointer */}};
+// Grabbing a control while the menu is open closes it first; the grab itself is the intentional action that resumes.
+const leaveMenu=()=>{if(mode==='menu')closeMenu(false);};
+ui.wheelFace.addEventListener('pointerdown',e=>{
+ if(!primaryPress(e))return;e.preventDefault();leaveMenu();
+ if(controls.owner('wheel')!==null)return; // another finger already steers
+ const rect=ui.wheelFace.getBoundingClientRect(),start=wheelAngle(controls.sample().steering); // continue from the keyboard angle
+ const s=wheelDrag({cx:rect.left+rect.width/2,cy:rect.top+rect.height/2,r:rect.width/2,ref:null,angle:start,id:e.pointerId},e.clientX,e.clientY);
+ if(!controls.bindPointer('wheel',e.pointerId,wheelValue(s)))return;
+ drag=s;capture(ui.wheelFace,e.pointerId);renderControls();
+});
+ui.wheelFace.addEventListener('pointermove',e=>{if(!drag||e.pointerId!==drag.id)return;drag=wheelDrag(drag,e.clientX,e.clientY);controls.setWheel(wheelValue(drag),drag.id);renderControls();});
+const endWheel=e=>{if(controls.owner('wheel')!==e.pointerId)return;controls.releasePointer(e.pointerId);drag=null;renderControls();};
+for(const type of ['pointerup','pointercancel','lostpointercapture'])ui.wheelFace.addEventListener(type,endWheel);
+for(const [el,name] of [[ui.gas,'gas'],[ui.brake,'brake']]){
+ // Momentary: held while the pointer is down. Works with any pointer that can press, even one that cannot drag.
+ el.addEventListener('pointerdown',e=>{if(!primaryPress(e))return;e.preventDefault();leaveMenu();if(controls.bindPointer(name,e.pointerId,1))capture(el,e.pointerId);renderControls();});
+ const end=e=>{if(controls.owner(name)!==e.pointerId)return;controls.releasePointer(e.pointerId);renderControls();};
+ for(const type of ['pointerup','pointercancel','lostpointercapture'])el.addEventListener(type,end);
+}
+for(const el of [ui.wheelFace,ui.gas,ui.brake])el.addEventListener('contextmenu',e=>e.preventDefault());
+// Keyboard on the controls themselves: arrows on the focused wheel steer, Space/Enter on a focused pedal holds it.
+// They merge like A/D and W/S but use their own key slots (stage 3), so releasing one never releases a held A/D/W/S.
+// They release on key-up or when focus leaves.
+function holdKeys(el,map){
+ const held=new Set(),up=k=>{if(held.delete(k))controls.keyUp(map[k]);};
+ el.addEventListener('keydown',e=>{const k=map[e.key];if(!k||e.ctrlKey||e.metaKey||e.altKey||e.isComposing)return;e.preventDefault();
+  if(mode==='menu'||e.repeat)return;held.add(e.key);controls.keyDown(k);renderControls();});
+ el.addEventListener('keyup',e=>{if(map[e.key]){e.preventDefault();up(e.key);renderControls();}});
+ el.addEventListener('blur',()=>{for(const k of [...held])up(k);renderControls();});
+}
+holdKeys(ui.wheelFace,{ArrowLeft:'arrowLeft',ArrowRight:'arrowRight'});holdKeys(ui.gas,{' ':'pedalGas',Enter:'pedalGas'});holdKeys(ui.brake,{' ':'pedalBrake',Enter:'pedalBrake'});
+
+// ---- Keyboard (task 03): listened on window, so focus on HUD buttons does not stop driving. ----
+const KEY_CODES={KeyW:'w',KeyS:'s',KeyA:'a',KeyD:'d'},KEY_CHARS={w:'w',s:'s',a:'a',d:'d'};
+// Physical key positions first (WASD on any layout); fall back to the character when no code is reported.
+const driveKey=event=>KEY_CODES[event.code]||(!event.code&&typeof event.key==='string'?KEY_CHARS[event.key.toLowerCase()]:null)||null;
+// Text fields, selects and menus own their keys; buttons, checkboxes and the canvas do not need W/A/S/D.
+function ownsKeys(el){
+ if(!el||el===document.body||el===document.documentElement)return false;
+ if(el.isContentEditable)return true;
+ const tag=el.tagName;if(tag==='TEXTAREA'||tag==='SELECT')return true;
+ if(tag==='INPUT')return !/^(checkbox|radio|button|submit|reset|range|color|file|image)$/i.test(el.type||'text');
+ return !!(el.closest&&el.closest('[role="menu"],[role="menubar"],[role="listbox"],[role="combobox"],[role="textbox"],[role="dialog"]'));
+}
+window.addEventListener('keydown',event=>{
+ if(event.isComposing)return;
+ // Escape closes the menu (focus back on the settings button); otherwise it pauses.
+ if(event.key==='Escape'||event.key==='Esc'){if(mode==='menu'){event.preventDefault();closeMenu(true);}else if(mode==='running'){event.preventDefault();pause();}return;}
+ // R rights the car (stage 3) when a recovery is possible; never in the menu or while focus owns the keys.
+ if(recoverFromKey(event,mode,ownsKeys(document.activeElement))){if(doRecover())event.preventDefault();return;}
+ const key=driveKey(event);if(!key)return;
+ if(event.ctrlKey||event.metaKey||event.altKey)return; // leave browser and OS shortcuts alone
+ if(!modes.acceptsKeys()||ownsKeys(document.activeElement))return;
+ event.preventDefault();controls.keyDown(key,event.repeat);renderControls();
+});
+// Key-up is always honoured, wherever focus is, so a key can never stay stuck.
+window.addEventListener('keyup',event=>{const key=driveKey(event);if(key)controls.keyUp(key);
+ // macOS drops key-ups for keys released while Cmd was held: forget the keyboard when Cmd goes up.
+ if(event.key==='Meta')controls.releaseKeys();renderControls();});
+// Backgrounding pauses and releases everything (and closes the menu). Canvas blur is not a pause trigger.
+window.addEventListener('blur',pause);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();});
+window.addEventListener('pagehide',pause);
+
+// ---- Viewport (task 01) and control layout (tasks 02, 04). ----
+// Safe-area insets come from env() through a probe element, converted to logical px.
+function readSafe(u){const cs=getComputedStyle(ui.probe),px=side=>Math.ceil((parseFloat(cs['padding'+side])||0)/u-1e-6);return {top:px('Top'),right:px('Right'),bottom:px('Bottom'),left:px('Left')};}
+// Places the HUD, wheel and pedal boxes exactly on their zones (logical px × u = CSS px; canvas origin = playground origin).
+function layoutUI(){
+ const u=view.u,k=uiMetrics(Math.min(view.W,view.H)),px=n=>n*u+'px';
+ root.style.setProperty('--u',uiPx(view.cssW,view.cssH)+'px'); // round 3: decorative unit follows the screen, not the zoomroot.style.setProperty('--b',px(k.b));root.style.setProperty('--pg',px(k.pg));
+ for(const z of uiZones){const el=zoneEls[z.id];if(el)Object.assign(el.style,{left:px(z.l),top:px(z.t),width:px(z.r-z.l),height:px(z.b-z.t)});}
+ // The speed text fills its row: about 70% of the row height, narrower when the zone is short of room ("188 KM/H 5 GEAR").
+ sizeSpeed();
+ // Round 3: the shift keycaps take a column at the left of the gear zone; the stick's face keeps the rest.
+ const gz=zoneOf('gear');if(gz){const s=shiftKeyLayout((gz.r-gz.l)*u,(gz.b-gz.t)*u);for(const n of ['kw','kd','kh','fl','pt','ph'])ui.stick.style.setProperty('--'+n,s[n].toFixed(2)+'px');}
+ // The settings panel drops from the HUD, right-aligned with it, and scrolls if the screen is very short.
+ // Short landscape screens (<= 500 CSS px tall) get the two-column layout, up to 540 CSS px wide (stage 3).
+ const hud=zoneOf('hud'),avail=hud.r-UI_MARGIN-view.safe.left,wide=view.cssW>view.cssH&&view.cssH<=500;
+ ui.panel.classList.toggle('wide',wide);
+ const panelMax=Math.max(80,(view.H-hud.b-UI_GAP-UI_MARGIN-view.safe.bottom)*u);ui.panel.style.setProperty('--panel-max',panelMax+'px');
+ Object.assign(ui.panel.style,{right:Math.max(0,view.cssW-hud.r*u)+'px',top:px(hud.b+UI_GAP),width:'min('+Math.round(avail*u)+'px,'+(wide?'560px':'max(240px,'+Math.round(140*uiPx(view.cssW,view.cssH))+'px),320px')+')',maxHeight:panelMax+'px'});
+ root.dataset.zones=JSON.stringify(uiZones);root.dataset.safe=JSON.stringify(view.safe);
+}
+function sizeSpeed(){
+ const z=zoneOf('speed');if(!z||!view)return;const f=speedFit((z.r-z.l)*view.u,(z.b-z.t)*view.u,!!world.manual);
+ root.style.setProperty('--sp',f.size+'px');ui.speed.classList.toggle('stack',f.stack);
+}
+let groundKey='';
+const groundKeyFor=()=>JSON.stringify(uiZones)+isTouch()+world.id+world.arena.W+'x'+world.arena.H;
+function applyView(){
+ viewPending=0;
+ const rect=root.getBoundingClientRect(),cssW=rect.width||window.innerWidth,cssH=rect.height||window.innerHeight,dpr=window.devicePixelRatio||1;
+ if(!(cssW>0&&cssH>0))return;
+ const next=computeView(cssW,cssH,dpr,TUNING.viewShort),u=next.scale/dpr,safe=readSafe(u),first=!view,arenaChanged=first||next.W!==view.W||next.H!==view.H||!ground;
+ view={...next,dpr,cssW,cssH,u,safe,mobile:isTouch()||cssW<700};uiZones=controlZones(view,safe);
+ const A=makeArena(next.W,next.H);A.safe=safe;A.uiU=u;A.uiW=cssW;A.uiH=cssH;A.mobile=isTouch()||cssW<700; // course keep-outs follow the real controls and notch insets
+ if(arenaChanged){
+  canvas.width=next.W;canvas.height=next.H;ctx.imageSmoothingEnabled=false;
+  if(first){world=createWorld(world.id,A);world.manual=world.id==='coupe';} // first layout: place the course for the real screen
+  else if(world.arena.W!==A.W||world.arena.H!==A.H)resizeWorld(world,A); // keeps speed, heading and state; sets trackBreak
+  resetTrackLayer(world.arena); // arena size changed: tracks are cleared (contract §1)
+ }
+ // The ground (with the painted instructions) is rebuilt when the arena, the zones (safe areas), the pointer type (wording)
+ // or the car (round 2: the Supercar's paint adds Q / E) change.
+ const gk=groundKeyFor();
+ if(arenaChanged||gk!==groundKey){buildGround(world.arena);groundKey=gk;}
+ // Scale-only changes (zoom, moving between screens) keep W×H and therefore keep the tracks.
+ canvas.style.width=(next.W*next.scale/dpr)+'px';canvas.style.height=(next.H*next.scale/dpr)+'px';
+ watchPixelRatio(dpr);layoutUI();if(mode==='menu')syncTracks();
+ draw();updateUI();renderControls();syncRecover();
+}
+let viewPending=0;
+// Coalesced to one layout per frame; the timeout covers pages whose animation frames are paused (background tabs).
+const scheduleView=()=>{if(viewPending)return;viewPending=requestAnimationFrame(applyView);setTimeout(()=>{if(viewPending){cancelAnimationFrame(viewPending);applyView();}},150);};
+// devicePixelRatio changes (browser zoom, dragging to another monitor) do not always fire 'resize'.
+let ratioQuery=null;
+function watchPixelRatio(dpr){
+ if(!window.matchMedia||(ratioQuery&&ratioQuery.dpr===dpr))return;
+ if(ratioQuery){if(ratioQuery.mql.removeEventListener)ratioQuery.mql.removeEventListener('change',scheduleView);else if(ratioQuery.mql.removeListener)ratioQuery.mql.removeListener(scheduleView);}
+ const mql=window.matchMedia('(resolution: '+dpr+'dppx)');
+ if(mql.addEventListener)mql.addEventListener('change',scheduleView);else if(mql.addListener)mql.addListener(scheduleView);
+ ratioQuery={mql,dpr};
+}
+window.addEventListener('resize',scheduleView);
+if(window.ResizeObserver)new ResizeObserver(scheduleView).observe(root); // dynamic toolbars, dvh changes
+// Plugging in or removing a touch screen changes the painted wording and the entry prompt.
+if(coarseQuery){const onPointerType=()=>{if(!ui.enter.hidden)setEntry((mode==='paused'&&world.time>0?'PAUSED · ':'')+entryText());scheduleView();};
+ if(coarseQuery.addEventListener)coarseQuery.addEventListener('change',onPointerType);else if(coarseQuery.addListener)coarseQuery.addListener(onPointerType);}
+// Rotation releases every held control (fingers move); it does not pause or reset the car.
+const onRotate=()=>{controls.releaseAll();endStick(true);world.trackBreak=true;renderControls();scheduleView();};
+window.addEventListener('orientationchange',onRotate);
+if(screen.orientation&&screen.orientation.addEventListener)screen.orientation.addEventListener('change',onRotate);
+// Build the current car's sprite sheet now; the other two in the background (task 08).
+sheetFor(world.id);for(const [k,id] of Object.keys(PRESETS).entries())setTimeout(()=>{sheetFor(id);rollSpriteBox(PRESETS[id]);},200+100*k); // task 11: roll bounds warm up too
+setEntry(entryText());
+applyView();syncChoices();
+if(!ground){buildGround(world.arena);resetTrackLayer(world.arena);draw();}
+})();
+</script>
+</body>
+</html>

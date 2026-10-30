@@ -1,0 +1,52 @@
+diff --git a/verify.cjs b/verify.cjs
+--- a/verify.cjs
++++ b/verify.cjs
+@@ -990,6 +1013,21 @@ const big=()=>e.makeArena(4000,4000);
+ function drive09(id,secs,ctl,arena=big()){const w=skidWorld(id,arena);if(arena.W===4000){w.car.x=2000;w.car.y=2000;w.car.px=2000;w.car.py=2000;}
+  const rec=e.createTrackRecorder(),out=[];for(let i=0;i<Math.round(secs/e.STEP);i++)skidStep(w,rec,ctl(i,w),out);return {w,rec,out};}
+ const cruise09=(steer,frac)=>(i,w)=>({steering:typeof steer==='function'?steer(i):steer,throttle:Math.hypot(w.car.vx,w.car.vy)<frac*w.p.max?1:0,brake:0});
++test('task 09: sustained slip builds before marking and brief slip cools', () => {
++ const w=skidWorld('coupe',e.makeArena(400,240)),rec=e.createTrackRecorder();
++ Object.assign(w.car,{x:200,y:150,a:0,vx:0,vy:60});let pixels=0;
++ const tick=()=>{w.car.y+=.5;pixels+=e.recordTracks(w,rec,()=>{});};
++ for(let i=0;i<24;i++)tick();assert.equal(pixels,0,'brief slip leaves no marks');
++ Object.assign(w.car,{vx:60,vy:0});for(let i=0;i<12;i++)tick();assert(rec.heat<1e-9,'slip buildup cools');
++ Object.assign(w.car,{vx:0,vy:60});for(let i=0;i<50;i++)tick();assert(pixels>0,'sustained slip leaves marks');
++ e.breakTracks(rec);assert.equal(rec.heat,0,'break clears buildup');
++});
++test('wheel kickback is bounded, slip-responsive and absent at rest', () => {
++ const c={state:'driving',a:0,vx:60,vy:0};assert.equal(e.wheelKickback(c,0),0);
++ c.vy=40;const k=e.wheelKickback(c,0);assert.notEqual(k,0);assert(Math.abs(k)<.17);
++ assert.notEqual(e.wheelKickback(c,0),e.wheelKickback(c,.05),'feedback changes over time');
++ c.state='resting';assert.equal(e.wheelKickback(c,0),0);
++});
+ test('task 09: tight turns and hard braking mark the ground; gentle driving leaves no trail', () => {
+  const rep={};
+  for(const id of ids){
+@@ -1010,7 +1048,7 @@ test('task 09: marks are broken dots from the rear tyres only', () => {
+  assert(n>0&&n<travel*.75,`dotted, not solid: ${n} px over ${travel.toFixed(0)} px of tyre travel`);
+  // Not from the front tyres or the body centre: with the car parked sideways-sliding, pixels sit at the rear axle only.
+  const v=skidWorld('van',big()),r2=e.createTrackRecorder(),pts=[];Object.assign(v.car,{x:2000,y:2000,a:0,vx:0,vy:60});
+- for(let i=0;i<30;i++){v.car.y+=.5;e.recordTracks(v,r2,(x,y)=>pts.push([x,y]));}
++ for(let i=0;i<60;i++){v.car.y+=.5;e.recordTracks(v,r2,(x,y)=>pts.push([x,y]));}
+  for(const [x] of pts)assert(Math.abs(x+.5-(2000-v.p.wheelbase/2))<=1.5,'rear axle only');assert(pts.length>0);
+ });
+ test('task 09: all four edges and corners: marks clipped at the edge, no connecting lines, they resume after re-entry', () => {
+@@ -1043,13 +1081,13 @@ test('task 09: trackBreak, recording off, a non-driving car state and a resize a
+  const A=e.makeArena(SKIDW.W,SKIDW.H),w=skidWorld('coupe',A),rec=e.createTrackRecorder();
+  const slide=(n,dx=.6,opt={})=>{let total=0,first=null;for(let i=0;i<n;i++){w.car.x+=dx;Object.assign(w.car,{a:0,vx:0,vy:60});const px=skidStep(w,rec,null,null,opt.enabled!==false);if(i===0)first=px.length;total+=px.length;}return {total,first};};
+  Object.assign(w.car,{x:150,y:150});
+- assert(slide(20).total>0,'sliding marks');
+- w.trackBreak=true;w.car.x+=5;let r=slide(1,0);assert.equal(r.total,0,'trackBreak: no line from the old point');assert.equal(w.trackBreak,false,'consumed');assert(slide(10).total>0,'resumes');
++ assert(slide(60).total>0,'sliding marks');
++ w.trackBreak=true;w.car.x+=5;let r=slide(1,0);assert.equal(r.total,0,'trackBreak: no line from the old point');assert.equal(w.trackBreak,false,'consumed');assert(slide(50).total>0,'resumes');
+  r=slide(5,.6,{enabled:false});assert.equal(r.total,0,'recording off draws nothing');w.trackBreak=true;slide(1,.6,{enabled:false});assert.equal(w.trackBreak,false,'consumed while off');
+- w.car.x+=5;r=slide(10);assert.equal(r.first,0,'toggle back on: no line across the gap');assert(r.total>0);
++ w.car.x+=5;r=slide(50);assert.equal(r.first,0,'toggle back on: no line across the gap');assert(r.total>0);
+  for(const state of ['tipping','rolling','resting','recovering']){w.car.state=state;assert.equal(slide(3).total,0,state+': no marks');w.car.state='driving';w.car.x+=5;assert.equal(slide(2).first,0,state+': no line across');}
+  delete w.car.state;slide(3);
+- e.resizeWorld(w,e.makeArena(480,270));assert(w.trackBreak);r=slide(10);assert.equal(r.first,0,'resize: no line from the old arena');assert(r.total>0);
++ e.resizeWorld(w,e.makeArena(480,270));assert(w.trackBreak);r=slide(50);assert.equal(r.first,0,'resize: no line from the old arena');assert(r.total>0);
+ });
+ test('task 09: the track layer is bounded; clear, reset, toggle and car change keep their semantics', () => {
+  // 3 minutes of hard edge-crossing driving: the recorder holds two points and a few numbers, every pixel is in the arena.

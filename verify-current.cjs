@@ -1,19 +1,86 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const html=fs.readFileSync(__dirname+'/dist/index.html','utf8'),sandbox={module:{exports:{}}};vm.runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)[1],sandbox);const e=sandbox.module.exports;let n=0;function test(name,f){f();n++;console.log('PASS '+name);}
+test('pit stop stays left, angled, and has a spaced open parking bay',()=>{const A=e.makeArena(1350,675),g=e.pitStopGeometry(A),art=e.pitStopPixels(),at=(x,y)=>art.p[y*art.w+x];for(const id of ['signature','oval','eight','parking']){e.setTrack(id);assert.deepEqual(e.pitStopGeometry(A),g);}e.setTrack('signature');assert(g.x+g.w+20<A.W/2);assert(g.angle<0);assert.equal(at(78,73),1);assert.equal(at(83,73),0);assert.equal(at(88,73),1);assert.equal(at(100,90),0);const colors=new Set(),ctx={set fillStyle(v){colors.add(v);},fillRect(x,y,w,h){assert.equal(w,1);assert.equal(h,1);}};e.drawPitStop(ctx,A);assert.equal(colors.size,2);});
 test('continuous zoom responds across the full slider',()=>{let prev=0;for(const z of [300,600,900,1200,1800,2400]){const v=e.computeView(1280,720,1,z);assert(v.H>prev);assert(Math.abs(v.H-z)<=1);prev=v.H;}});
 test('tuning extremes have materially different effects',()=>{function run(v){e.resetTuning();e.setTuning(v);const w=e.createWorld('coupe',e.makeArena(4000,4000));w.layout=null;w.cones=[];w.car.vx=90;w.car.a=w.car.pa=0;for(let i=0;i<120;i++)e.step(w,{steering:1,throttle:1,brake:0});return {a:w.car.a,slip:w.car.slip};}const a=run({steerAngle:.2,grip:4}),b=run({steerAngle:3,grip:.1});assert(Math.abs(a.a-b.a)>.2);assert(Math.abs(a.slip-b.slip)>5);e.resetTuning();});
 test('every tuning control accepts both endpoints without invalid simulation state',()=>{for(const spec of e.TUNING_SPEC)for(const value of [spec.min,spec.max]){e.resetTuning();e.setTuning({[spec.key]:value});assert.equal(e.TUNING[spec.key],value);const w=e.createWorld('compact',e.makeArena(1400,1000));w.layout=null;w.cones=[];for(let i=0;i<240;i++)e.step(w,{throttle:1,brake:0,steering:.8});assert(Number.isFinite(w.car.x+w.car.y+w.car.a));}e.resetTuning();});
 for(const id of ['signature','oval','eight'])test(id+' track has two usable lanes on desktop and phone arenas',()=>{e.setTrack(id);for(const [w,h,d] of [[1600,800,1],[390,844,3]]){const v=e.computeView(w,h,d),A=e.makeArena(v.W,v.H);Object.assign(A,{safe:{},uiU:v.scale/d,uiW:w,uiH:h,mobile:d>1});const L=e.layoutCourse(A);assert.equal(L.track.kind,id);assert(L.track.half>=2*Math.max(...Object.values(e.PRESETS).map(p=>p.width))*.9);assert(L.track.pts.length>100);assert(L.track.length>500);assert(L.gate.width>=L.track.half*2);}});
 for(const id of Object.keys(e.PRESETS))test(id+' long drive remains finite',()=>{const w=e.createWorld(id,e.makeArena(1400,1000));w.manual=id==='coupe';for(let i=0;i<7200;i++){if(w.manual&&i%1200===0)e.shiftGear(w,Math.min(5,1+i/1200));e.step(w,{throttle:1,brake:0,steering:Math.sin(i/230)*.4});assert(Number.isFinite(w.car.x+w.car.y+w.car.vx+w.car.vy));}if(w.p.flying)assert.equal(w.car.state,'driving');});
-function droneRun(inputs,tilt){e.resetTuning();if(tilt!==undefined)e.setTuning({droneTilt:tilt});const w=e.createWorld('van',e.makeArena(4000,4000));w.layout=null;w.cones=[];const log=[];for(const [steps,input] of inputs)for(let i=0;i<steps;i++){e.step(w,input);log.push({r:w.car.tiltR,p:w.car.tiltP,s:Math.hypot(w.car.vx,w.car.vy)});}e.resetTuning();return {w,log};}
-test('drone banks into turns: right side down turning right, left side down turning left',()=>{const right=droneRun([[240,{throttle:1,brake:0,steering:0}],[60,{throttle:1,brake:0,steering:1}]]),left=droneRun([[240,{throttle:1,brake:0,steering:0}],[60,{throttle:1,brake:0,steering:-1}]]);
- assert(right.w.car.tiltR>e.TILT_MAX*.5,'banks right '+right.w.car.tiltR);assert(left.w.car.tiltR<-e.TILT_MAX*.5,'banks left '+left.w.car.tiltR);assert(Math.abs(right.w.car.tiltR+left.w.car.tiltR)<1e-9,'mirror image');
- for(const {r,p} of [...right.log,...left.log])assert(Math.abs(r)<=e.TILT_MAX&&Math.abs(p)<=e.TILT_MAX);});
-test('drone pitches nose down speeding up, nose up braking, and levels out at steady speed',()=>{const {log}=droneRun([[30,{throttle:1,brake:0,steering:0}],[1200,{throttle:1,brake:0,steering:0}],[40,{throttle:0,brake:1,steering:0}]]);
- assert(log[29].p>e.TILT_MAX*.2,'nose down while accelerating '+log[29].p);assert(Math.abs(log[1229].p)<.03&&Math.abs(log[1229].r)<1e-9,'level at top speed');assert(log[1269].p<-e.TILT_MAX*.2,'nose up braking '+log[1269].p);});
-test('drone tilt setting scales it (0 = never tilts); cars never tilt; deterministic',()=>{const off=droneRun([[240,{throttle:1,brake:0,steering:0}],[60,{throttle:1,brake:0,steering:1}]],0);assert(off.log.every(t=>t.r===0&&t.p===0));
- const a=droneRun([[200,{throttle:1,brake:0,steering:.6}]]),b=droneRun([[200,{throttle:1,brake:0,steering:.6}]]);assert.deepEqual(a.log,b.log);
- for(const id of ['compact','coupe']){const w=e.createWorld(id,e.makeArena(4000,4000));w.layout=null;w.cones=[];for(let i=0;i<200;i++)e.step(w,{throttle:1,brake:0,steering:1});assert.equal(w.car.tiltR||0,0);assert.equal(w.car.tiltP||0,0);assert.deepEqual({...e.tiltIndex(w.car)},{r:0,p:0});}});
+const inpOf=c=>{const s=c.sample();return {steering:s.steering,throttle:s.throttle,brake:s.brake};};
+// ==== Drone flight: Mode 2 sticks (left: lift + yaw; right: pitch + roll), angle mode with altitude hold ====
+function droneWorld(tuning){e.resetTuning();if(tuning)e.setTuning(tuning);const w=e.createWorld('van',e.makeArena(4000,4000));w.layout=null;w.cones=[];return w;}
+function flyFor(w,steps,sticks,log){for(let i=0;i<steps;i++){e.step(w,{steering:0,throttle:0,brake:0,sticks});if(log)log.push({x:w.car.x,y:w.car.y,a:w.car.a,z:w.car.z,r:w.car.tiltR,p:w.car.tiltP,s:Math.hypot(w.car.vx,w.car.vy)});}return w;}
+const droneLocal=w=>{const c=w.car,cs=Math.cos(c.a),sn=Math.sin(c.a);return {fwd:c.vx*cs+c.vy*sn,side:-c.vx*sn+c.vy*cs};};
+test('drone: centred sticks hover in place, level, at the start height; pedal input never flies it',()=>{const w=droneWorld(),x=w.car.x,y=w.car.y,a=w.car.a;flyFor(w,600,{});
+ assert.equal(w.car.z,w.p.flightHeight);assert.equal(w.car.x,x);assert.equal(w.car.y,y);assert.equal(w.car.a,a);assert.equal(w.car.tiltR,0);assert.equal(w.car.tiltP,0);
+ for(let i=0;i<240;i++)e.step(w,{throttle:1,brake:0,steering:1});assert.equal(Math.hypot(w.car.vx,w.car.vy),0);assert.equal(w.car.a,a);assert.equal(w.car.state,'driving');});
+test('drone: the right stick tilts it and the tilt flies it (top speed p.max); released, it levels and drifts to a stop',()=>{
+ const w=droneWorld(),log=[];flyFor(w,1,{pitch:1},log);assert(log[0].p>0&&log[0].s<1,'the tilt comes first, the speed after');
+ flyFor(w,1199,{pitch:1},log);const top=log[log.length-1],f=droneLocal(w);
+ assert(Math.abs(top.p-e.TILT_MAX*e.TILT_PITCH)<1e-6,'drawn nose down '+top.p);assert(top.s>w.p.max*.98&&top.s<=w.p.max,'top speed '+top.s);assert(f.fwd>w.p.max*.98&&Math.abs(f.side)<1e-6,'along its heading');
+ flyFor(w,60,{});assert(Math.abs(w.car.tiltP)<.01,'levels within half a second '+w.car.tiltP);const s1=Math.hypot(w.car.vx,w.car.vy);assert(s1>w.p.max*.4,'but keeps drifting '+s1);
+ flyFor(w,540,{});const s2=Math.hypot(w.car.vx,w.car.vy);assert(s2<w.p.max*.02,'drifts to a stop '+s2);
+ const b=flyFor(droneWorld(),600,{pitch:-1});assert(b.car.tiltP<0&&droneLocal(b).fwd<-w.p.max*.9,'pulled back: nose up, flies backwards');});
+test('drone: roll slides it toward its own right or left; yaw only turns it on the spot; forward follows the new heading',()=>{
+ for(const dir of [1,-1]){const w=flyFor(droneWorld(),360,{roll:dir}),f=droneLocal(w);assert(dir*f.side>w.p.max*.9&&Math.abs(f.fwd)<1e-6,'slides '+dir);assert(dir*w.car.tiltR>e.TILT_MAX*.99,'banks that way '+dir);}
+ const w=droneWorld(),a=w.car.a,x=w.car.x,y=w.car.y;flyFor(w,120,{yaw:1});const turned=e.angleDelta(a,w.car.a);
+ assert(turned>e.FLY.yawRate*.8&&turned<e.FLY.yawRate,'turns right at about yawRate '+turned);assert.equal(w.car.x,x);assert.equal(w.car.y,y);
+ flyFor(w,120,{});const held=w.car.a;flyFor(w,120,{});assert(Math.abs(e.angleDelta(held,w.car.a))<1e-4,'holds the heading once centred');
+ flyFor(w,600,{pitch:1});const f=droneLocal(w);assert(f.fwd>w.p.max*.97&&Math.abs(f.side)<1e-6,'flies along the new heading');});
+test('drone: the left stick climbs and descends, stops at the ceiling, and lands on the floor; dead zone and expo',()=>{
+ const w=droneWorld();flyFor(w,60,{lift:1});assert(w.car.z>w.p.flightHeight+5,'climbs');flyFor(w,600,{lift:1});assert.equal(w.car.z,e.FLY.ceiling);
+ flyFor(w,120,{});assert.equal(w.car.z,e.FLY.ceiling,'centred holds the height');
+ flyFor(w,900,{lift:-1});assert.equal(w.car.z,e.FLY.floor);assert(w.car.landed);
+ const x=w.car.x,a=w.car.a;flyFor(w,240,{pitch:1,roll:1,yaw:1});assert.equal(w.car.x,x);assert.equal(w.car.a,a);assert.equal(w.car.tiltP,0,'landed: the other sticks wait for lift-off');
+ flyFor(w,120,{lift:1,pitch:1});assert(w.car.z>e.FLY.floor+5&&droneLocal(w).fwd>0&&!w.car.landed,'takes off and flies');
+ const n=e.normalizeSticks({lift:e.FLY.dead*.9,yaw:1,pitch:-1,roll:'x'});assert.equal(n.lift,0,'inside the dead zone');assert(Math.abs(n.yaw-1)<1e-12&&Math.abs(n.pitch+1)<1e-12,'full deflection stays full');assert.equal(n.roll,0);
+ const half=e.normalizeSticks({yaw:.5}).yaw;assert(half>0&&half<.5,'expo softens the centre '+half);assert.equal(Object.values(e.normalizeSticks()).join(),'0,0,0,0');});
+test('drone: the drawn tilt is cosmetic (droneTilt 0 draws it level, the flight is identical); cars never tilt; deterministic',()=>{
+ const run=g=>{const w=droneWorld({droneTilt:g}),log=[];flyFor(w,200,{pitch:.7,roll:-.5,yaw:.3,lift:.4},log);e.resetTuning();return log;};
+ const on=run(1),off=run(0),big=run(2),path=l=>JSON.stringify(l.map(q=>[q.x,q.y,q.a,q.z,q.s]));
+ assert(off.every(q=>q.r===0&&q.p===0),'level when off');assert(on.some(q=>q.r<0)&&on.some(q=>q.p>0),'banks left, nose down');
+ assert.equal(path(on),path(off),'same flight');assert.equal(path(on),path(big));assert.equal(JSON.stringify(on),JSON.stringify(run(1)),'deterministic');
+ for(const q of big)assert(Math.abs(q.r)<=e.TILT_MAX&&Math.abs(q.p)<=e.TILT_MAX);
+ for(const id of ['compact','coupe']){const w=e.createWorld(id,e.makeArena(4000,4000));w.layout=null;w.cones=[];for(let i=0;i<200;i++)e.step(w,{throttle:1,brake:0,steering:1,sticks:{pitch:1,roll:1}});assert.equal(w.car.tiltR||0,0);assert.equal(w.car.tiltP||0,0);assert.equal(w.car.z,undefined,'cars have no flight height');}});
+test('drone: gate posts stop it low down; above FLY.clear it flies over them',()=>{
+ const make=z=>{e.resetTuning();const w=e.createWorld('van');w.cones=[];const post=w.layout.gate.posts[0];Object.assign(w.car,{x:post.x-w.p.length/2-post.r-6,y:post.y,a:0,pa:0,vx:120,vy:0,omega:0,z,pz:z});flyFor(w,60,{});return {w,post};};
+ const low=make(20),high=make(e.FLY.clear+2);
+ assert(low.w.car.x<low.post.x-low.w.p.length/2-low.post.r+1,'low: stopped by the post '+(low.w.car.x-low.post.x));assert(high.w.car.x>high.post.x,'high: over the post '+(high.w.car.x-high.post.x));});
+test('drone: its height raises the sprite, pushes the shadow and grows the box to cover both',()=>{
+ const w=droneWorld();for(const z of [e.FLY.floor,w.p.flightHeight,e.FLY.ceiling]){w.car.z=w.car.pz=z;const d=e.carDrawable(w,1),dz=z-w.p.flightHeight,base=e.carScreenBounds(w.p,w.car.a,0);
+  if(!dz){assert.equal(d.lift,null);assert.equal(JSON.stringify(d.box),JSON.stringify(base));continue;}
+  assert.equal(d.lift.y,-Math.round(e.Z*dz));assert.equal(d.lift.sx,Math.round(e.LIGHT.x*dz));assert.equal(d.lift.sy,Math.round(e.LIGHT.y*dz));
+  const b=d.box;for(const [ox,oy] of [[0,d.lift.y],[d.lift.sx,d.lift.sy]])assert(b.l<=base.l+ox&&b.r>=base.r+ox&&b.t<=base.t+oy&&b.b>=base.b+oy,'covers the moved layer at z '+z);
+  assert.equal(JSON.stringify(e.carBox(w)),JSON.stringify(b),'culling, wrapping and recovery use the same box');}
+ w.car.z=w.car.pz=e.FLY.ceiling;assert(e.carDrawable(w,1).key>e.GATE_FRONT,'high up it draws over the arch');
+ w.car.z=w.car.pz=w.p.flightHeight;assert.equal(e.carDrawable(w,1).key,Math.round(w.car.y*e.K),'at flight height it sorts by its ground line');
+ w.car.pz=20;w.car.z=30;assert.equal(e.liftOf(w,.5),5,'interpolated between steps');for(const id of ['compact','coupe'])assert.equal(e.liftOf(e.createWorld(id),1),0);});
+test('controls: Mode 2 keys and thumb sticks fly the Drone; the arrows still drive the cars',()=>{
+ const c=e.createControls(),st=()=>{const s=c.sticks();return [s.lift,s.yaw,s.pitch,s.roll].join();};
+ assert.equal(st(),'0,0,0,0');c.keyDown('w');c.keyDown('d');c.keyDown('up');c.keyDown('left');assert.equal(st(),'1,1,1,-1','W climbs, D turns right, up flies forward, left slides left');
+ c.keyDown('back');c.keyDown('a');c.keyDown('down');c.keyDown('right');assert.equal(st(),'0,0,0,0','opposite keys cancel');
+ c.releaseAll();c.keyDown('back');assert.equal(st(),'-1,0,0,0','S descends');c.releaseAll();
+ c.keyDown('w');c.keyDown('up');assert(c.bindPointer('stickL',3));assert(c.setStick('stickL',.4,-.6,3));assert.equal(st(),'-0.6,0.4,1,0','a held stick owns both its axes');
+ assert.equal(c.setStick('stickL',1,1,9),false,'another pointer cannot move it');assert.equal(c.setStick('stickR',1,1,3),false,'an unheld stick cannot move');assert.equal(c.setStick('wheel',1,1,3),false);
+ c.setStick('stickL',5,-5,3);assert.equal(st(),'-1,1,1,0','clamped');
+ assert(c.bindPointer('stickR',4));c.setStick('stickR',-.5,.25,4);assert.equal(st(),'-1,1,0.25,-0.5','two thumbs at once');
+ const v=c.visual();assert(v.owned.stickL&&v.owned.stickR);assert.equal([v.sticks.lift,v.sticks.yaw,v.sticks.pitch,v.sticks.roll].join(),st());
+ c.releasePointer(3);assert.equal(st(),'1,0,0.25,-0.5','a released stick springs back to its keys');
+ c.releaseAll();assert.equal(st(),'0,0,0,0');assert.equal(c.owner('stickR'),null);
+ const k=e.createControls();k.keyDown('up');k.keyDown('left');assert.deepEqual(inpOf(k),{steering:-1,throttle:1,brake:0},'up and left drive like W and A');
+ k.releaseAll();k.keyDown('down');assert.equal(k.sample().brake,1,'down brakes like S');const r=e.createControls({reverse:()=>true});r.keyDown('down');assert.deepEqual(inpOf(r),{steering:0,throttle:1,brake:0},'down reverses in R like S');});
+test('drone: the painted guide shows W S CLIMB, A D TURN and ARROWS FLY (no gas, shift or brake)',()=>{
+ for(const [zw,zh] of [[270,220],[240,120],[350,300]]){const L=e.paintLayout(zw,zh,{shift:true,fly:true}),keys=L.items.filter(i=>i.t==='key').map(i=>i.ch).join(' '),text=L.items.filter(i=>i.t==='text').map(i=>i.s).join('|');
+  assert.equal(keys,'R W S A D ARROWS',zw+'x'+zh);assert(L.w<=zw&&L.h<=zh);if(L.mode==='side')assert.equal(text,'NEW RACE|CLIMB|TURN|FLY');
+  const X=L.items.find(i=>i.ch==='ARROWS');assert(X.m.w<=X.w,'ARROWS fits its key');}
+ const car=e.paintLayout(270,220,{shift:true});assert(car.items.some(i=>i.ch==='BRAKE')&&car.items.some(i=>i.ch==='Q'),'cars keep their guide');});
+test('drone: the thumb sticks are equal squares in the bottom corners, clear of each other and the top controls, thumb-sized',()=>{
+ for(const [W,H,dpr,mobile] of [[1600,800,1,false],[1920,1080,1,false],[1366,768,1,false],[844,390,3,true],[390,844,3,true],[320,568,2,true]]){
+  const v=e.computeView(W,H,dpr),u=v.scale/dpr,zs=e.controlZones({...v,u,cssW:W,cssH:H,mobile}),pads=e.flyPadZones(zs,e.UI_MARGIN*1.4/u),px=q=>({l:q.l*u,t:q.t*u,r:q.r*u,b:q.b*u}),name=W+'x'+H;
+  assert.equal(pads.length,2);const [L,R]=pads.map(px),s=L.r-L.l;
+  assert(Math.abs((L.b-L.t)-s)<1e-6&&Math.abs((R.r-R.l)-s)<1e-6&&Math.abs((R.b-R.t)-s)<1e-6,name+' equal squares');
+  assert(s>=88,name+' thumb-sized '+s);assert(L.l>=0&&L.t>=0&&R.r<=W+1e-6&&L.b<=H+1e-6&&R.b<=H+1e-6,name+' on screen');assert(R.l-L.r>=e.UI_GAP*u-1e-6,name+' apart');assert(Math.abs((W-R.r)-L.l)<1e-6,name+' same margin on both sides '+(W-R.r)+' / '+L.l);
+  for(const id of ['hud','speed','restart','race'])for(const P of [L,R]){const q=px(zs.find(z=>z.id===id));assert(!(P.l<q.r&&q.l<P.r&&P.t<q.b&&q.t<P.b),name+' clear of '+id);}}});
 test('tilted drone frames are two-tone and stay inside carScreenBounds; the level frame is unchanged',()=>{const p=e.PRESETS.van,S=e.TILT_STEPS;
  for(let i=0;i<e.FRAMES;i+=4){const a=i*e.TAU/e.FRAMES,b=e.carScreenBounds(p,a);assert.deepEqual(e.droneSprite(p,a).data,e.carSprite(p,a).data);
   for(const r of [-S,0,S])for(const q of [-S,0,S])for(const img of [e.droneSprite(p,a,p.sprite,r*e.TILT_STEP,q*e.TILT_STEP),e.droneShadow(p,a,r*e.TILT_STEP,q*e.TILT_STEP)]){let lit=0;

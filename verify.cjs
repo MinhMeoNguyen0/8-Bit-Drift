@@ -1,3 +1,4 @@
+require('./verify-race.cjs');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
@@ -164,12 +165,15 @@ test('all presets remain finite and inside the offscreen envelope through five-m
  // roll value (roll 0 and the task 11 placeholder roll 1). Cones use their own box.
  const big={};for(const id of CARS){const p=e.PRESETS[id];let bw=0,bh=0;for(const roll of [0,1])for(let i=0;i<256;i++){const b=e.carScreenBounds(p,i*e.TAU/256,roll);bw=Math.max(bw,b.r-b.l);bh=Math.max(bh,b.b-b.t);}big[id]={bw,bh};}
  const cw=e.CONE_BOX.r-e.CONE_BOX.l,ch=e.CONE_BOX.b-e.CONE_BOX.t;
+ // The scripted drive was laid out for 0.9 steering; pin it so the default (round 6: 1.1) can change without changing the route.
+ e.setTuning({steerAngle:.9});try{
  for(const id of CARS){const w=e.createWorld(id),{bw,bh}=big[id];
   for(let i=0;i<36000;i++){e.step(w,input(true,i%1800>=1600,i%1300<400,i%1300>900));
    const c=w.car;assert(c.x>=-bw&&c.x<=e.WIDTH+bw&&c.y*e.K>=-bh&&c.y*e.K<=e.HEIGHT+bh,id+' car left the envelope at step '+i);
    if(i%120===0)for(const o of [c,...w.cones]){assert(Number.isFinite(o.x)&&Number.isFinite(o.y)&&Number.isFinite(o.vx)&&Number.isFinite(o.vy));
     if(o!==c)assert(o.x>=-cw&&o.x<=e.WIDTH+cw&&o.y*e.K>=-ch&&o.y*e.K<=e.HEIGHT+ch,id+' cone left its envelope');}}
   assert(w.wraps>0,id+' crossed an edge');}
+ }finally{e.resetTuning();}
 });
 test('shared input contract: analog values, clamping and braking precedence', () => {
  assert.deepEqual({...e.normalizeInput({steering:3,throttle:-1,brake:2})},{steering:1,throttle:0,brake:1});
@@ -264,12 +268,64 @@ test('rendering code reads the arena, not the 400x240 globals', () => {
  assert(!/\b(WIDTH|HEIGHT|WORLD_H)\b/.test(browser));
  assert(/100dvh/.test(html)&&/safe-area-inset/.test(html)&&!/requestFullscreen/.test(html));
 });
+test('parking zoom preserves screen-space control positions',()=>{
+ for(const [w,h] of [[1366,768],[844,390],[390,844]]){
+  const zones=zoom=>{const v=e.computeView(w,h,1,zoom),u=v.scale;return e.controlZones({...v,u,cssW:w,cssH:h,mobile:Math.min(w,h)<500}).map(z=>({id:z.id,l:z.l*u,t:z.t*u,r:z.r*u,b:z.b*u}));};
+  const a=zones(300),b=zones(675);for(let i=0;i<a.length;i++){assert.equal(a[i].id,b[i].id);for(const side of ['l','t','r','b'])assert(Math.abs(a[i][side]-b[i][side])<1e-7,`${w}x${h} ${a[i].id} ${side}`);}
+ }
+});
+test('course titles and signatures use display-resolution ground paint at close zoom',()=>{
+ const rect={l:12,t:24,r:212,b:64};for(const scale of [.5,1,2.25,4]){const a=e.titleRasterSpec(rect,scale);assert(a.scale>=scale);assert(a.width>=200*scale);assert(a.height>=40*scale);}
+ const low=e.titleRuns({W:200,H:40},{l:0,t:0,r:200,b:40},{text:'8-BIT PARKING',min:8});
+ const high=e.titleRuns({W:450,H:90},{l:0,t:0,r:450,b:90},{text:'8-BIT PARKING',min:18,max:99});
+ assert(low.length&&high.length>low.length,'higher-resolution title and signature retain more paint detail');
+});
+test('zoomed-in guides retain at least one canvas pixel per CSS pixel',()=>{
+ for(const [w,h] of [[1920,900],[844,390],[390,844]])for(const z of [300,500,675,1000]){
+  const c=e.cameraGeometry(w,h,z,e.VIEW_SHORT,1350,675),r=e.renderMetrics(c.w,c.h,c.scale);
+  assert(r.density>=c.scale,'guide pixels do not collapse at this zoom');
+  assert(r.cssWidth>=w&&r.cssHeight>=h,'canvas covers the viewport');
+  assert(r.cssWidth-w<c.scale/r.density+1e-8&&r.cssHeight-h<c.scale/r.density+1e-8);
+ }
+});
+test('parking zoom uses the same course reference and shows a closer default view',()=>{
+ for(const [w,h] of [[1920,900],[844,390],[390,844]]){
+  const road=e.cameraGeometry(w,h,e.TUNING_DEFAULTS.viewShort,e.VIEW_SHORT,1350,675),lot=e.cameraGeometry(w,h,e.TUNING_DEFAULTS.viewLot,e.VIEW_SHORT,1350,675);
+  assert(Math.abs(lot.scale/road.scale-675/300)<1e-9,'parking is zoomed in at its default');
+  const zoomedOut=e.cameraGeometry(w,h,600,e.VIEW_SHORT,1350,675);assert(zoomedOut.scale<lot.scale,'parking zoom slider can zoom out');
+ }
+});
+test('camera geometry fits the viewport without changing course proportions',()=>{
+ for(const [w,h] of [[1920,900],[390,844],[844,390]]){const c=e.cameraGeometry(w,h,675,675,1350,675);assert(Math.abs((c.r-c.l)*c.scale-w)<1e-8);assert(Math.abs((c.b-c.t)*c.scale-h)<1e-8);assert(Math.abs((c.l+c.r)/2-675)<1e-8);assert(Math.abs((c.t+c.b)/2-337.5)<1e-8);}
+});
+test('cars and cones remain visible outside the original course until they leave the viewport',()=>{
+ const A=e.makeArena(1350,675);Object.assign(A,{viewL:-300,viewT:-200,viewR:1650,viewB:875});const w=e.createWorld('compact',A);
+ for(const [x,y] of [[-120,300],[1470,300],[600,-100],[600,775]]){
+  Object.assign(w.car,{x,y:y/e.K,px:x,py:y/e.K,a:0,pa:0});w.cones=[{x,y:y/e.K,px:x,py:y/e.K,a:0,pa:0}];
+  const items=e.sceneItems(w);assert(items.some(q=>q.type==='car'),`car visible at ${x},${y}`);assert(items.some(q=>q.type==='cone'),`cone visible at ${x},${y}`);assert(!e.carHidden(w));
+ }
+});
+test('recovery searches the visible area rather than the original course',()=>{
+ const A=e.makeArena(1350,675);Object.assign(A,{viewL:-300,viewT:-200,viewR:1650,viewB:875,fixedMobile:true});const w=e.createWorld('compact',A);w.cones=[];
+ const p=e.recoverSpot(w,0,-150,200);assert(p);assert(p.x<0,'recovery remains near the car outside the old course');
+});
+test('ground texture continues beyond the course in every direction',()=>{
+ const points=[],gc={fillRect(x,y){points.push([x,y]);}};e.groundDots(gc,-300,-300,1650,975);
+ assert(points.some(([x])=>x<0));assert(points.some(([x])=>x>=1350));assert(points.some(([,y])=>y<0));assert(points.some(([,y])=>y>=675));
+ const inside=[];e.groundDots({fillRect(x,y){inside.push([x,y]);}},0,0,1350,675);
+ assert.deepEqual(points.filter(([x,y])=>x>=0&&x<1350&&y>=0&&y<675),inside);
+});
+test('edge transfer follows the visible viewport when the course is letterboxed',()=>{
+ const A={W:1350,H:675,viewL:-200,viewT:-100,viewR:1550,viewB:775},box={l:-5,r:5,t:-5,b:5};
+ const o={x:1557,y:300/e.K,px:1557,py:300/e.K};const t=e.transferBody(o,box,A);assert(t.dx<0);assert(Math.abs(o.x-(-203))<1e-9);
+ const p={x:300,y:(782/e.K),px:300,py:782/e.K};assert(e.transferBody(p,box,A).dy<0);assert(Math.abs(p.y*e.K-(-103))<1e-9);
+});
 // ---- Agent 1 stage 2: task 02 (compact HUD, painted instructions) and task 04 (wheel and pedals) ----
 const DEVICES=[['desktop 1920x1080@1',1920,1080,1],['laptop 1366x768@1',1366,768,1],['phone portrait 390x844@3',390,844,3],['phone landscape 844x390@3',844,390,3],['high-DPI 1440x900@2',1440,900,2],['phone 375x812@2',375,812,2],['landscape 844x390@1',844,390,1]];
 const overlaps=(a,b)=>a.l<b.r&&b.l<a.r&&a.t<b.b&&b.t<a.b;
 const byId=zs=>Object.fromEntries(zs.map(z=>[z.id,z]));
 function checkZones(name,v,zs,safe={}){
- assert.deepEqual(Array.from(zs,z=>z.id),['hud','wheel','pedals','instructions','recover','speed','gear'],name);
+ assert.deepEqual(Array.from(zs,z=>z.id),['hud','wheel','pedals','instructions','recover','speed','gear','restart','race'],name);
  const sx=Math.max(safe.left||0,safe.right||0);
  for(const z of zs){for(const k of ['l','t','r','b'])assert(Number.isInteger(z[k]),`${name} ${z.id}.${k} integer`);
   assert(z.l>=4+sx&&z.t>=4+(safe.top||0)&&z.r<=v.W-4-sx&&z.b<=v.H-4-(safe.bottom||0),`${name}: ${z.id} ${JSON.stringify(z)} inside arena and safe area`);
@@ -375,7 +431,7 @@ test('page: accessible HUD, settings dialog, controls and painted-text fallbacks
  // touch-action:none only on the wheel and the pedals.
  // (round 2: the gear stick's face joins them)
  const ta=[...css.matchAll(/([^{}]+)\{[^}]*touch-action:([a-z-]+)/g)].map(m=>[m[1].trim(),m[2]]);
- assert.deepEqual(ta.filter(x=>x[1]==='none'),[['.wheel-face','none'],['.pedal','none'],['.gear-face','none']]);assert(!/touch-action/.test(html.split('</style>')[1].split('<script>')[0]));
+ assert.deepEqual(ta.filter(x=>x[1]==='none'),[['.wheel-face','none'],['.pedal','none'],['.gear-face','none'],['.fly-face','none']]);assert(!/touch-action/.test(html.split('</style>')[1].split('<script>')[0]));
  // Round 2 (r2-paint): canvas text is used only offscreen by the paint rasteriser, thresholded to a 1-bit mask (no antialiasing).
  assert.equal((script.match(/fillText/g)||[]).length,1,'canvas text only in the paint rasteriser');assert(/function canvasTextMask[\s\S]*?fillText[\s\S]*?>=128/.test(script),'paint text thresholded to 1 bit');
  assert(/id="settings-btn"[^>]*aria-expanded="false"[^>]*aria-controls="settings"/.test(html)&&/id="settings"[^>]*role="dialog"[^>]*hidden/.test(html));
@@ -1196,6 +1252,8 @@ test('task 11: drifting stays possible: the coupe slides at full lock and never 
  for(const T of [.4,.7,1.5]){const {w:d,inp}=flick('coupe',T);assert.equal(ride(d,600,inp).seq,'d');}
 });
 test('task 11: sustained aggressive cornering rolls the Van through driving > tipping > rolling > resting', () => {
+ // The flicks and turns were laid out for 0.9 steering; pin it (round 6 default: 1.1).
+ e.setTuning({steerAngle:.9});try{
  const thr=e.PRESETS.van.rollThreshold;
  for(const dir of [1,-1]){const {w,inp}=flick('van',.6,dir);let tipRoll=[],firstRoll=null,restT=null;
   const r=ride(w,1200,inp,(w,i)=>{const c=w.car;
@@ -1211,11 +1269,13 @@ test('task 11: sustained aggressive cornering rolls the Van through driving > ti
   assert(e.canRecover(w)&&restT<1100,'settles within a few seconds');}
  // A sustained slalom at top speed also rolls it; one full-lock turn at top speed (no reversal) does not even lift a wheel.
  for(const per of [1.4,2]){const w=open('van'),n=Math.round(per/e.STEP);Object.assign(w.car,{a:0,vx:w.p.max,vy:0});assert(/r/.test(ride(w,1200,i=>({steering:(i%n)<n/2?-1:1,throttle:1,brake:0})).seq),'slalom '+per);}
- for(const s of [-1,1]){const w=open('van');Object.assign(w.car,{a:0,vx:w.p.max,vy:0});const r=ride(w,600,{steering:s,throttle:1,brake:0});assert.equal(r.seq,'d');assert(r.peak<thr*.95,`single turn peak ${r.peak}`);}
+ // Single hard turns stay below the roll threshold.
+for(const s of [-1,1]){const w=open('van');Object.assign(w.car,{a:0,vx:w.p.max,vy:0});const r=ride(w,600,{steering:s,throttle:1,brake:0});assert.equal(r.seq,'d');assert(r.peak<thr*.95,`single turn peak ${r.peak}`);}
  // Hysteresis: a too-short flick lifts the wheels, then the van lands again without rolling.
  const lands=[.2,.25,.3,.35].map(T=>{const {w,inp}=flick('van',T);return ride(w,600,inp).seq;});assert(lands.includes('dtd'),'a tip that lands: '+lands);
  // The same flick never rolls the compact or the coupe.
  for(const id of ['compact','coupe'])for(const T of [.3,.6,1,1.5])for(const dir of [1,-1]){const {w,inp}=flick(id,T,dir);assert(!/r/.test(ride(w,600,inp).seq),`${id} flick ${T}`);}
+}finally{e.resetTuning();}
 });
 test('task 11: a strong sideways post hit rolls a susceptible car; light or straight hits do not', () => {
  const out={};
@@ -1475,7 +1535,7 @@ test('round 2: gate legs are round, exactly the post colliders, and a car stops 
  }
 });
 test('round 2: handling tuning is wired into drive() and the new defaults steer less, slide less and turn in faster', () => {
- const T=e.TUNING_DEFAULTS;assert(T.steerAngle<1&&T.grip>1&&T.turnRate>1,'defaults: smaller wheel angle, less drift, sharper turn-in');
+ const T=e.TUNING_DEFAULTS;assert(T.steerAngle===1.1&&T.grip>1&&T.turnRate>1,'defaults: 1.1 wheel angle (round 6), less drift, sharper turn-in');
  for(const k of ['steerAngle','steerFade','steerSpeed','turnRate','grip'])assert(e.TUNING_SPEC.some(s=>s.key===k&&s.group==='car'),k+' is a car setting');
  const lock=(id,v,patch,steps=240)=>{e.resetTuning();e.setTuning(patch);const w=bare(id);Object.assign(w.car,{a:0,vx:v,vy:0});let slip=0,t63=null;const out={};
   for(let i=0;i<steps;i++){e.step(w,{steering:1,throttle:forward(w)<v?1:0,brake:0});slip=Math.max(slip,w.car.slip);if(i===0)out.steer1=w.car.steer;}
@@ -1492,9 +1552,9 @@ test('round 2: handling tuning is wired into drive() and the new defaults steer 
   // grip: less slide at the limit.
   assert(lock(id,p.max,{grip:1.6}).slip<lock(id,p.max,{grip:.8}).slip,`${id}: grip reduces the slide`);
  }
- // New defaults vs the round 1 feel (1, .48, 10, 1, 1): smaller wheel angle, less drift at the limit, quicker yaw.
+ // New defaults vs the round 1 feel (1, .48, 10, 1, 1): round 6 wheel angle 1.1 (more lock), still less drift at the limit.
  const old={steerAngle:1,steerFade:.48,steerSpeed:10,turnRate:1,grip:1};
- for(const id of ids){const n=lock(id,e.PRESETS[id].max,{}),o=lock(id,e.PRESETS[id].max,old);assert(n.steer<o.steer&&n.slip<o.slip,`${id}: less lock and less slide (${n.slip.toFixed(0)} vs ${o.slip.toFixed(0)})`);}
+ for(const id of ids){const n=lock(id,e.PRESETS[id].max,{}),o=lock(id,e.PRESETS[id].max,old);assert(n.steer>o.steer&&n.slip<o.slip,`${id}: more lock, less slide (${n.slip.toFixed(0)} vs ${o.slip.toFixed(0)})`);}
  assert.deepEqual({...e.TUNING},{...e.TUNING_DEFAULTS});
 });
 // (end of r2-sim section)
@@ -1921,6 +1981,44 @@ test('round 5: the brake never reverses, and a car pinned nose-first on a post b
   Object.assign(p.car,{x:q.x,y:q.y+p.p.length/2+q.r+1,px:q.x,py:q.y+p.p.length/2+q.r+1,a:-Math.PI/2,pa:-Math.PI/2,vx:0,vy:0,omega:0});
   let far=0;for(let i=0;i<1200;i++){e.step(p,input(true,false,true));far=Math.max(far,Math.hypot(p.car.x-q.x,p.car.y-q.y));}
   assert(far>80,`${id} escaped the post (${far.toFixed(0)})`);}
+});
+
+test('round 6: brake + gas at a stop is a burnout (no movement, marks, spin), and letting go launches harder', () => {
+ const A=e.makeArena(100000,100000),mk=id=>{const w=e.createWorld(id,A);w.cones=[];w.layout=null;w.manual=w.p.trans==='manual';return w;};
+ const fwd=w=>w.car.vx*Math.cos(w.car.a)+w.car.vy*Math.sin(w.car.a),run=(w,sec,inp)=>{for(let i=0;i<Math.round(sec/e.STEP);i++)e.step(w,{steering:0,throttle:0,brake:0,...inp});};
+ try{
+  for(const id of ['compact','coupe']){
+   const b=mk(id),rec=e.createTrackRecorder();let marks=0;
+   for(let i=0;i<Math.round(1/e.STEP);i++){e.step(b,{steering:0,throttle:1,brake:1});marks+=e.recordTracks(b,rec,()=>{});}
+   assert(Math.hypot(b.car.vx,b.car.vy)<.01,id+': a burnout does not move the car');assert(b.car.burnout,id+': burnout flag');
+   assert.equal(b.car.spin,1,id+': full spin after the build-up');assert(marks>20,id+': rubber on the ground ('+marks+' px)');
+   const plain=mk(id);run(b,.6,{throttle:1});run(plain,.6,{throttle:1});
+   assert(fwd(b)>fwd(plain)*1.15,id+': launch '+fwd(b).toFixed(1)+' vs plain start '+fwd(plain).toFixed(1));
+   run(b,e.TUNING.launchTime+.5,{throttle:1});assert.equal(b.car.spin,0,id+': the spin unwinds');assert(!b.car.launching);
+  }
+  // No burnout in N; brake + gas on a moving car still just brakes.
+  const n=mk('compact');n.gear='N';run(n,1,{throttle:1,brake:1});assert(!n.car.burnout&&n.car.spin===0,'no burnout in N');
+  const m=mk('compact');run(m,2,{throttle:1});const v=fwd(m);run(m,.3,{throttle:1,brake:1});assert(fwd(m)<v-20&&!m.car.burnout,'moving: brake + gas brakes');
+  // Tuning: launchBoost 0 is a plain start; a slower build-up spins up later.
+  e.setTuning({launchBoost:0});const z=mk('compact'),q=mk('compact');run(z,1,{throttle:1,brake:1});run(z,.6,{throttle:1});run(q,.6,{throttle:1});
+  assert(Math.abs(fwd(z)-fwd(q))<1e-6,'no boost when launchBoost is 0');
+  e.resetTuning();e.setTuning({burnoutBuild:2});const sl=mk('compact');run(sl,1,{throttle:1,brake:1});assert(Math.abs(sl.car.spin-.5)<.02,'half spin after 1 s of a 2 s build-up');
+  assert(e.tuningGroups().some(g=>g.label==='Burnout & launch'&&g.items.length===4),'the tuning panel has a Burnout & launch group');
+ }finally{e.resetTuning();}
+});
+
+test('round 6: S and the Down arrow brake, but drive backward while Reverse is engaged', () => {
+ let rev=false;const c=e.createControls({reverse:()=>rev});
+ c.keyDown('back');let v=c.sample();assert.equal(v.brake,1,'S / Down brakes outside R');assert.equal(v.throttle,0);
+ rev=true;v=c.sample();assert.equal(v.throttle,1,'S / Down is the gas in R');assert.equal(v.brake,0);
+ c.keyUp('back');c.keyDown('w');assert.equal(c.sample().throttle,1,'W still drives in R');c.keyUp('w');c.keyDown('s');assert.equal(c.sample().brake,1,'Space still brakes in R');
+ assert.equal(e.createControls().keyDown('back'),true,'plain controls accept back too');
+ const script=scripts[0][1];assert(/KeyS:'back'/.test(script)&&/ArrowDown:'back'/.test(script)&&/reverse:\(\)=>world\.gear==='R'/.test(script),'page wiring');
+ // In R with the back key held the car backs up.
+ const w=e.createWorld('compact',e.makeArena(100000,100000));w.cones=[];w.layout=null;w.gear='R';for(let i=0;i<240;i++)e.step(w,c.sample());
+ c.keyUp('s');c.keyDown('back');for(let i=0;i<240;i++)e.step(w,c.sample());assert(w.car.vx*Math.cos(w.car.a)+w.car.vy*Math.sin(w.car.a)<-30,'backs up');
+ assert.equal(e.TUNING_DEFAULTS.burnoutSmoke,.5,'burnout smoke defaults to 0.5');
+ assert(/function burnPuffs\(w\)/.test(script)&&/if\(p\.dark\)[^\n]*\r?\n drawList=sceneItems\(world,alpha\);\s*for\(const o of drawList\)drawShadow\(o\);/.test(script),'burnout smoke is drawn under the shadows and the car');
 });
 
 console.log(`${count} checks passed. The deployable page has no external assets or dependencies.`);
