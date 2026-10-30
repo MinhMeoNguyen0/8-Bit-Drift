@@ -1,0 +1,33 @@
+# Local assistant configuration and hosting metadata (GitHub Pages uses .github/).
+/.claude/
+/.codex/
+/.openai/
+
+# Editor and operating-system files.
+/.idea/
+/.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+
+# Secrets and local environment overrides.
+.env
+.env.*
+!.env.example
+
+# Temporary output, dependencies, and browser test artifacts.
+node_modules/
+coverage/
+playwright-report/
+test-results/
+/.cache/
+/tmp/
+/temp/
+*.log
+*.tmp
+*.bak
+
+# dist/index.html is the source and the website: keep dist tracked.

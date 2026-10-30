@@ -2,7 +2,7 @@
 
 A full-screen, two-tone driving playground with timed single-lap races. The current game is `dist/index.html`: HTML, CSS, JavaScript, and procedural Canvas artwork in one standalone file. No build, runtime libraries, external assets, fonts, backend, or application network requests are required.
 
-This is the latest local implementation as of October 29, 2026. See [Current state](tasks/CURRENT_STATE.md) for implementation details and verification limits. Earlier task plans and agent handoffs are historical references.
+Updated October 30, 2026. The public repository now includes GitHub Pages publishing and GitHub Actions checks. See [Current state](tasks/CURRENT_STATE.md) for game implementation details and [the publishing guide](tasks/GITHUB_PAGES.md) for deployment and verification limits. Earlier task plans and agent handoffs are historical references.
 
 ## Play locally
 
@@ -16,7 +16,16 @@ Then visit [the local preview](http://127.0.0.1:4173/). The preview reads the sa
 
 ## Play online and publish updates
 
-[Play on GitHub Pages](https://minhmeonguyen0.github.io/8-Bit-Drift/). Changes pushed or merged into `main` automatically publish after the standalone deployment checks pass. Pull requests run checks without publishing. The existing broad regression suites run separately and currently have failures; a successful deployment does not mean all game tests pass. See [the CI/CD guide](tasks/GITHUB_PAGES.md) for the flow, known failures, and rollback instructions.
+Website address: [8-Bit Drift on GitHub Pages](https://minhmeonguyen0.github.io/8-Bit-Drift/). The first deployment is pending; this link becomes playable after the publishing workflow succeeds. See progress in [GitHub Actions](https://github.com/MinhMeoNguyen0/8-Bit-Drift/actions).
+
+The publishing flow is:
+
+1. Edit `dist/index.html`, commit, and push your changes. Saving locally alone does not publish.
+2. A pull request into `main` runs checks without updating the website. This is **CI (continuous integration)**.
+3. Pushing or merging into `main` runs the deployment checks again. If they pass, GitHub uploads only `dist` and updates the website. This is **CD (continuous deployment)**.
+4. A failed deployment check stops publication; an already published version remains available. To undo a release, revert its commit on `main` and push.
+
+The deployment gate checks the standalone HTML and inline JavaScript, then simulates every vehicle on every course for invalid state. The separate regression workflow runs the existing broad suites and reports their failures without blocking publication. A green publishing run does **not** mean all game tests pass. See [the CI/CD guide](tasks/GITHUB_PAGES.md) for details. No package install, build step, or personal deployment token is required.
 
 ## Controls and vehicles
 
@@ -73,16 +82,25 @@ Settings includes skid visibility, clear tracks, reset scene, race debug mode, r
 Node is needed only for helper scripts. Edit `dist/index.html` directly. See [AGENTS.md](AGENTS.md) for repository guidance and [the documentation index](tasks/README.md) for current and historical references.
 
 ```sh
+node verify-deploy.cjs
 node verify-race.cjs
 node verify-current.cjs
 node verify.cjs
 ```
 
-`verify-race.cjs` has seven passing test groups. `verify.cjs` invokes them before its older checks. The broader suites remain red: `verify.cjs` stops at `desktop 1920x1080@1 hud.l integer`; `verify-current.cjs` stops at `phone: the widened gear zone stays above the pedals`. These layout failures were reproduced on the pre-race baseline. Later checks after those failures are not covered by those runs.
+Latest local results on October 30, 2026:
+
+| Check | Result |
+| --- | --- |
+| `node verify-deploy.cjs` | Passes both groups, including simulation startup for all four vehicles on all four courses |
+| `node verify.cjs` | Stops in the included race suite at `gear stays above pedals`, after eight race groups pass |
+| `node verify-current.cjs` | Stops at `tuning extremes have materially different effects`, specifically `assert(Math.abs(a.a-b.a)>.2)`, after nine groups pass |
+
+The previously documented `hud.l integer` and phone gear-zone failures remain historical known issues. The latest runs stop earlier, so later checks are unverified. Existing assertions have not been weakened; the regression workflow remains red when they fail.
 
 Browser checks covered 1366×768, 864×930, 390×844, 844×390, and 320×568. Short drives, pause, and on-screen gas were exercised; a landscape instruction/prompt overlap was fixed. A simulated-finish fixture exercised the centered result, mobile restart, and tap-to-free-drive. A full lap through actual browser controls, physical-device multitouch, safe-area hardware, long-session performance, and direct-file browser validation remain outstanding. Do not treat this as a full green QA signoff.
 
-The static deployment contains only `dist/index.html`; `.openai/hosting.json` points hosting at `dist`. Publishing is a separate action.
+The static deployment contains only `dist/index.html`. `.github/workflows/pages.yml` publishes the game; `.github/workflows/regression.yml` reports the broader tests. `.gitignore` excludes local assistant/editor configuration, hosting metadata, environment files, dependencies, and generated output. It deliberately keeps `dist` tracked because that is the source. Documentation, verification scripts, and historical task files stay in the repository but are excluded from the website upload. Ignoring or untracking a file does not erase it from earlier commits.
 
 ## References
 
