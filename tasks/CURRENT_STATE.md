@@ -1,5 +1,7 @@
 # Current game state
 
+Publication update — October 30, 2026: the owner authorized making `MinhMeoNguyen0/8-Bit-Drift` public. GitHub Pages now serves https://minhmeonguyen0.github.io/8-Bit-Drift/ from the `dist` artifact uploaded by `.github/workflows/pages.yml`. Deployment smoke checks gate publication; the existing broad regression suites run separately and remain failing. Current observed stops are the race-suite `gear stays above pedals` and the later-suite steering tuning assertion, earlier than the historical stops below. See [the publishing guide](GITHUB_PAGES.md) for the current status and flow. Local `.openai` hosting metadata remains on disk but is ignored and no longer tracked; GitHub Pages does not use it.
+
 Updated October 29, 2026. This document describes the latest saved local implementation, including the race, interface, instruction-artwork, and validation changes accepted in this chat. It is a snapshot, not a deployment announcement or a claim that all QA has passed.
 
 ## Authority and document map

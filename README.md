@@ -16,7 +16,7 @@ Then visit [the local preview](http://127.0.0.1:4173/). The preview reads the sa
 
 ## Play online and publish updates
 
-Website address: [8-Bit Drift on GitHub Pages](https://minhmeonguyen0.github.io/8-Bit-Drift/). The first deployment is pending; this link becomes playable after the publishing workflow succeeds. See progress in [GitHub Actions](https://github.com/MinhMeoNguyen0/8-Bit-Drift/actions).
+**[Play 8-Bit Drift on GitHub Pages](https://minhmeonguyen0.github.io/8-Bit-Drift/).** Published and checked on October 30, 2026: the page loads, the on-screen gas pedal starts the race, and the timer advances without console errors. See deployments and checks in [GitHub Actions](https://github.com/MinhMeoNguyen0/8-Bit-Drift/actions).
 
 The publishing flow is:
 

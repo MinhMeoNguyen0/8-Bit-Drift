@@ -22,6 +22,8 @@ The connected repository is `MinhMeoNguyen0/8-Bit-Drift`; its default branch is 
 
 Live URL: https://minhmeonguyen0.github.io/8-Bit-Drift/
 
+Initial publication verified October 30, 2026: the publishing job succeeded, the live URL returned HTTP 200, and the hosted page rendered the game. Pressing the on-screen gas pedal started the race and advanced its timer; no browser console errors were captured. This was a startup smoke check, not a completed lap or full device QA.
+
 No existing game assertions have been weakened. Full regression results are reported separately from the deployment gate:
 
 - `node verify.cjs` currently stops inside the race suite at `gear stays above pedals`, after eight race groups pass.
