@@ -1602,10 +1602,12 @@ function position(o,alpha){return {x:o.px+(o.x-o.px)*alpha,y:o.py+(o.y-o.py)*alp
 // read them in the page's drawCarItem). Integer anchor at the interpolated position; box = carScreenBounds at heading and roll.
 // The Drone's height dz moves its sprite up Z·dz and its shadow LIGHT·dz (lift: px offsets per layer; null at the default
 // flight height), and its depth key follows the view ray (K·K/Z per unit up). Above FLY.clear it draws over the gate's arch.
+const mobileCarArtScale=arena=>arena&&arena.mobile?1.8:1;
+function scaleArtBox(b,scale){return {l:b.l*scale,t:b.t*scale,r:b.r*scale,b:b.b*scale};}
 function carDrawable(w,alpha=1){
  const c=w.car,p=position(c,alpha),x=Math.round(p.x),y=Math.round(p.y*K),roll=c.roll||0,dz=liftOf(w,alpha);
  const lift=dz?{y:-Math.round(Z*dz),sx:Math.round(LIGHT.x*dz),sy:Math.round(LIGHT.y*dz)}:null,high=w.p.flying&&dz+w.p.flightHeight>=FLY.clear;
- return {type:'car',x,y,a:p.a,roll,tilt:tiltIndex(c),frame:frameIndex(p.a,FRAMES),box:liftBox(carScreenBounds(w.p,p.a,roll),dz),lift,key:high?GATE_FRONT+1:y+Math.round(dz*K*K/Z)};
+ return {type:'car',x,y,a:p.a,roll,tilt:tiltIndex(c),frame:frameIndex(p.a,FRAMES),box:liftBox(scaleArtBox(carScreenBounds(w.p,p.a,roll),mobileCarArtScale(w.arena)),dz),lift,key:high?GATE_FRONT+1:y+Math.round(dz*K*K/Z)};
 }
 // of it and looked sunk into it); 'arch' (the beam and shoulders, above every car) always draws in front, so cars visibly pass
 // under it in both directions. x, y = the shared sprite anchor (gate centre).
@@ -1687,6 +1689,7 @@ function mobileCameraGeometry(cssW,cssH,short,courseW,courseH,zones,u){
  const x=(left+right)/2,y=(top+bottom)/2,cx=rotated?y:x,cy=rotated?cssW-x:y,w=vw/scale,h=vh/scale,l=courseW/2-cx/scale,t=courseH/2-cy/scale;
  return {scale,l,t,r:l+w,b:t+h,w,h};
 }
+const titleRotation=view=>view&&view.mobile&&view.cssH>view.cssW?-Math.PI/2:0;
 // Keep at least one output pixel per CSS pixel when the world is zoomed in.
 // World caches stay in logical pixels; only the final compositing canvas grows.
 function renderMetrics(visibleW,visibleH,worldScale){
@@ -2590,10 +2593,10 @@ function raceFingerprint(route,id,car,tuning){let h=2166136261;const str=JSON.st
 function raceRecords(store){try{const raw=store&&store.getItem(RACE_STORE),v=raw?JSON.parse(raw):{};if(!v||typeof v!=='object'||Array.isArray(v))return {};return Object.fromEntries(Object.entries(v).filter(([k,r])=>/^[a-z0-9]+$/.test(k)&&r&&Number.isFinite(r.elapsed)&&r.elapsed>=0&&Number.isFinite(r.quality)&&r.quality>=0&&r.quality<=100&&Number.isFinite(r.ranked)&&Math.abs(r.ranked-raceRank(r.elapsed,r.quality).ranked)<1e-6).slice(-RACE_LIMIT));}catch(_){return {};}}
 function raceSave(store,records){try{if(!store)return false;store.setItem(RACE_STORE,JSON.stringify(Object.fromEntries(Object.entries(records).slice(-RACE_LIMIT))));return true;}catch(_){return false;}}
 if(typeof document==='undefined'){if(typeof module!=='undefined'){
- module.exports={BURN_SPEED,GEARS,AUTO_GEARS,MANUAL_GEARS,PADDLE_GEARS,PADDLE_SEQ,isPaddle,REV_SHIFT,SHIFT_AT,isManual,shiftOk,gearStep,gearName,shiftGear,gearTelemetry,WIDTH,HEIGHT,K,Z,WORLD_H,STEP,TAU,PRESETS,CAR_ART,FRAMES,SHADOW_INK,LIGHT,DEFAULT_ARENA,edgeClear,CROSS_GAP,carBoxAll,SPAWN_INSIDE,CONE_COUNT,CONE_R,CONTROL_ZONES,keepOuts,layoutCourse,drawGround,resetCones,TRANSFER_MARGIN,CONE_BOX,transferBody,transferEdges,sceneItems,carDrawable,gateDrawables,drawOrder,SKID,createTrackRecorder,breakTracks,recordTracks,coneSprite,coneShadowSprite,CONE_H,archShape,inArch,gateArt,GATE_SPLIT,GATE_FRONT,plotLine,frameIndex,carModel,carShadowPolys,frameBounds,spriteBox,raster,carSprite,carShadow,buildCarAtlases,makeArena,normalizeInput,keysToInput,carScreenBounds,resizeWorld,wrap,delta,angleDelta,createWorld,drive,step,carCone,coneCone,position,wheelPoints,SPEED_CAP,OMEGA_MAX,CONE_MAX,FASTEST,SUB_MOVE,gatePosts,carPost,conePost,substeps,limitVelocity,ROLL_STEPS,ROLL_G,LOAD_W,LOAD_ZETA,IMPACT_GAIN,TIP_COMMIT,TIP_DROP,TIP_MIN,TIP_SOFT,ROLL_SPIN,ROLL_DECEL,ROLL_SETTLE,ROLL_FRICTION,REST_SPEED,RECOVER_TIME,RECOVER_GAP,CAR_STATES,uprightState,rollKappa,tipAngle,tumble,rollover,rollFrame,rolledModel,rollShadowPolys,rollSpritePoints,rollFrameBounds,rollSpriteBox,carRollSprite,carRollShadow,carHidden,canRecover,recover,recoverSpot,boxDistance};
+ module.exports={BURN_SPEED,GEARS,AUTO_GEARS,MANUAL_GEARS,PADDLE_GEARS,PADDLE_SEQ,isPaddle,REV_SHIFT,SHIFT_AT,isManual,shiftOk,gearStep,gearName,shiftGear,gearTelemetry,WIDTH,HEIGHT,K,Z,WORLD_H,STEP,TAU,PRESETS,CAR_ART,FRAMES,SHADOW_INK,LIGHT,DEFAULT_ARENA,edgeClear,CROSS_GAP,carBoxAll,SPAWN_INSIDE,CONE_COUNT,CONE_R,CONTROL_ZONES,keepOuts,layoutCourse,drawGround,resetCones,TRANSFER_MARGIN,CONE_BOX,transferBody,transferEdges,sceneItems,carDrawable,mobileCarArtScale,scaleArtBox,gateDrawables,drawOrder,SKID,createTrackRecorder,breakTracks,recordTracks,coneSprite,coneShadowSprite,CONE_H,archShape,inArch,gateArt,GATE_SPLIT,GATE_FRONT,plotLine,frameIndex,carModel,carShadowPolys,frameBounds,spriteBox,raster,carSprite,carShadow,buildCarAtlases,makeArena,normalizeInput,keysToInput,carScreenBounds,resizeWorld,wrap,delta,angleDelta,createWorld,drive,step,carCone,coneCone,position,wheelPoints,SPEED_CAP,OMEGA_MAX,CONE_MAX,FASTEST,SUB_MOVE,gatePosts,carPost,conePost,substeps,limitVelocity,ROLL_STEPS,ROLL_G,LOAD_W,LOAD_ZETA,IMPACT_GAIN,TIP_COMMIT,TIP_DROP,TIP_MIN,TIP_SOFT,ROLL_SPIN,ROLL_DECEL,ROLL_SETTLE,ROLL_FRICTION,REST_SPEED,RECOVER_TIME,RECOVER_GAP,CAR_STATES,uprightState,rollKappa,tipAngle,tumble,rollover,rollFrame,rolledModel,rollShadowPolys,rollSpritePoints,rollFrameBounds,rollSpriteBox,carRollSprite,carRollShadow,carHidden,canRecover,recover,recoverSpot,boxDistance};
  Object.assign(module.exports,{raceRoute,raceProject,raceCross,raceNew,raceMove,raceTime,raceRank,raceBetter,raceFingerprint,raceRecords,raceSave,RACE_VERSION});
  Object.assign(module.exports,{setTrack,TUNING,TUNING_SPEC,TUNING_DEFAULTS,setTuning,resetTuning}); // shared tuning interface
- Object.assign(module.exports,{visibleBounds,cameraGeometry,mobileCameraGeometry,renderMetrics,titleRasterSpec,groundDots,pitStopGeometry,pitPoint,gasPumpPoint,pitPosts,pitOverlap,carPit,conePit,drawPitBay,pitArt,pitDrawables,VIEW_SHORT,computeView,createControls,UI_MARGIN,UI_GAP,uiMetrics,controlZones,WHEEL_DEAD,turnDelta,pointerAngle,wheelDrag,wheelValue,wheelKickback,createModes,recoverAvailable,tryRecover,isRecoverKey,recoverFromKey}); // ui (r2-ui)
+ Object.assign(module.exports,{visibleBounds,cameraGeometry,mobileCameraGeometry,titleRotation,renderMetrics,titleRasterSpec,groundDots,pitStopGeometry,pitPoint,gasPumpPoint,pitPosts,pitOverlap,carPit,conePit,drawPitBay,pitArt,pitDrawables,VIEW_SHORT,computeView,createControls,UI_MARGIN,UI_GAP,uiMetrics,controlZones,WHEEL_DEAD,turnDelta,pointerAngle,wheelDrag,wheelValue,wheelKickback,createModes,recoverAvailable,tryRecover,isRecoverKey,recoverFromKey}); // ui (r2-ui)
  Object.assign(module.exports,{PAINT_SLANT,PAINT_STRIPE,PAINT_SOLID_BELOW,PAINT_KEY_SOLID_BELOW,PAINT_COPY,GLYPHS,glyphMask,shearMask,maskRuns,keycapRuns,wrapPhrases,paintLayout,paintRuns,drawPaint}); // ground paint (r2-paint)
  Object.assign(module.exports,{buildCourse,fitTrack,roundedPath,circuitVerts,laneHalf,laneSelfClear,gateSpot,trackMarks,LANE_PAD,LANE_GAP,GATE_LEAD,TRACK_STEP,CONE_OFF,inGate,TRACKS,TRACK_SHAPES,TRACK_HALF,TRACK_FILL,shapeUnit,trackSelfClear,insideLoop,titleSpot,trackRadiusOk,TRACK_MIN_R}); // sim + course extra exports (r2-sim)
  Object.assign(module.exports,{wheelLimit,wheelInput,wheelAngle,GEAR_GATE,STICK_VB,gearSlot,stickMove,mobileStickMove,stickSlot,simpleAutoInput,stickPath,AUTO_GATE,autoSlot,autoMove,autoSlotAt,autoPath,stickGate,pathPoint,shiftBarW,TUNING_STORE,loadTuning,saveTuning,tuningGroups,uiPx,SPEED_EM,speedFit,shiftKeyW,shiftKeyGap,shiftKeyLayout,gearCues,trackThumbSize,trackThumb}); // ui extra exports (r2-ui, r3-ui)
@@ -2786,7 +2789,7 @@ function addTracks(){const n=recordTracks(world,trackRec,plotTrack,enabled);trac
   if(burn)smoke.push(...burnPuffs(world));else for(const p of wheelPoints(world))smoke.push({x:p.x,y:p.y,life:.9,vx:Math.sin(world.time*43)*7});}
 }
 // The car's two layers ('shadow', 'car') for a carDrawable() item. Agent 3: switch to roll frames here (o.roll, o.frame).
-function drawCarItem(o,layer){const L=o.lift,sh=layer==='shadow';drawCar(ctx,world.id,layer,o.frame,o.x+(L&&sh?L.sx:0),o.y+(L?(sh?L.sy:L.y):0),o.roll||0,o.tilt);}
+function drawCarItem(o,layer){const L=o.lift,sh=layer==='shadow',x=o.x+(L&&sh?L.sx:0),y=o.y+(L?(sh?L.sy:L.y):0),s=mobileCarArtScale(world.arena);ctx.save();ctx.translate(x,y);ctx.scale(s,s);drawCar(ctx,world.id,layer,o.frame,0,0,o.roll||0,o.tilt);ctx.restore();}
 function drawShadow(o){
  if(o.type==='car')drawCarItem(o,'shadow');
  else if(o.type==='cone')ctx.drawImage(o.tipped?tippedShades[frameIndex(o.a,16)]:uprightShade,o.x-10,o.y-14);
@@ -2805,7 +2808,7 @@ function drawItem(o){
 }
 // Contract §6 order: ground, tracks, every shadow, then the depth-sorted drawables (cones, car, gate legs; the arch top last).
 function draw(alpha=1){
- const A=world.arena,L=A.viewL||0,T=A.viewT||0;ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,canvas.width,canvas.height);ctx.setTransform(view.renderDensity,0,0,view.renderDensity,0,0);ctx.drawImage(surface,0,0);ctx.save();ctx.translate(-L,-T);ctx.drawImage(ground,0,0);if(titleLayer){const p=titleLayer;ctx.drawImage(p.canvas,p.l,p.t,p.w,p.h);}if(paintLayer){const p=paintLayer,scale=view.worldScale;ctx.drawImage(p.canvas,L+p.left/scale,T+p.top/scale,p.width/scale,p.height/scale);}if(enabled)ctx.drawImage(tracks,L,T);
+ const A=world.arena,L=A.viewL||0,T=A.viewT||0;ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,canvas.width,canvas.height);ctx.setTransform(view.renderDensity,0,0,view.renderDensity,0,0);ctx.drawImage(surface,0,0);ctx.save();ctx.translate(-L,-T);ctx.drawImage(ground,0,0);if(titleLayer){const p=titleLayer;if(titleRotation(view)){ctx.save();ctx.translate(p.l+p.w/2,p.t+p.h/2);ctx.rotate(titleRotation(view));ctx.drawImage(p.canvas,-p.w/2,-p.h/2,p.w,p.h);ctx.restore();}else ctx.drawImage(p.canvas,p.l,p.t,p.w,p.h);}if(paintLayer){const p=paintLayer,scale=view.worldScale;ctx.drawImage(p.canvas,L+p.left/scale,T+p.top/scale,p.width/scale,p.height/scale);}if(enabled)ctx.drawImage(tracks,L,T);
  ctx.save();for(const p of smoke)if(p.dark){ctx.globalAlpha=p.life*.22;ctx.fillStyle=ink;ctx.beginPath();ctx.arc(p.x,p.y,2+(1-p.life)*8,0,TAU);ctx.fill();}ctx.restore();
  drawList=sceneItems(world,alpha);
  for(const o of drawList)drawShadow(o);
