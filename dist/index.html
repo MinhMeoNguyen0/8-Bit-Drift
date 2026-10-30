@@ -131,6 +131,8 @@ kbd{display:inline-block;min-width:13px;padding:0 2px;border:1px solid var(--lin
 .gearstick[hidden]{display:none}
 .playground[data-mobile="true"][data-auto="true"] .gearstick{display:none}
 .gear-keys{position:absolute;left:0;top:var(--pt,0px);width:var(--kw,0px);height:var(--ph,100%)}
+.playground[data-mobile="true"] .gear-keys{left:auto;right:0;z-index:2}
+.playground[data-mobile="true"] .shift-bar{left:auto;right:calc(var(--kw) + var(--gap))}
 .playground[data-auto="true"] .gear-keys,.playground[data-auto="true"] .shift-bar{display:none}
 .shift-key{position:absolute;left:0;width:calc(var(--kw,24px) - var(--kd,3px));height:var(--kh,24px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:max(1px,calc(var(--kh,24px)*.04));border:max(1.5px,calc(var(--kh,24px)*.06)) solid var(--ink);background:var(--paper);color:var(--ink);font:italic 900 calc(var(--kh,24px)*.5)/.8 var(--heavy);box-shadow:calc(var(--kd,3px)*.34) calc(var(--kd,3px)*.34) 0 var(--ink),calc(var(--kd,3px)*.67) calc(var(--kd,3px)*.67) 0 var(--ink),var(--kd,3px) var(--kd,3px) 0 var(--ink)}
 .shift-key.up{top:0}.shift-key.down{bottom:var(--kd,3px)}
@@ -242,7 +244,7 @@ kbd{display:inline-block;min-width:13px;padding:0 2px;border:1px solid var(--lin
 (() => {
 'use strict';
 // Pure simulation. No DOM, media files, or third-party code is needed here.
-const WIDTH=400, HEIGHT=240, K=.66, Z=Math.sqrt(1-K*K), WORLD_H=HEIGHT/K, STEP=1/120, TAU=Math.PI*2;
+const WIDTH=400, HEIGHT=240, K=.66, Z=Math.sqrt(1-K*K), WORLD_H=HEIGHT/K, STEP=1/120, SIM_SPEED=1.5, TAU=Math.PI*2;
 const INK=[48,52,45], PAPER=[191,193,177], ink='#30342d', paper='#bfc1b1';
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const wrap=(v,n)=>((v%n)+n)%n;
@@ -255,7 +257,7 @@ const PRESETS={
  coupe:{name:'Supercar',artId:'coupe',trans:'manual',length:36,width:16.6,height:5.8,roof:9.8,wheelbase:25,trackWidth:14,mass:.95,accel:127,brake:184,max:257,reverse:70,grip:68,steer:.64,drag:.12,comHeight:4.2,rollThreshold:1.2},
  // F1 Car: a sequential 8-speed on paddles (trans 'paddle': no clutch, no H gate), fast and perfectly planted (planted: the
  // tyres never let it slide, so it has no drift or skid marks). Its box matches the Supercar's, so the course does not change.
- f1:{name:'F1 Car',artId:'f1',trans:'paddle',gears:8,planted:true,shiftTime:.04,length:36,width:16.6,height:4.6,roof:8.2,wheelbase:26,trackWidth:13.8,mass:.8,accel:210,brake:300,max:300,reverse:60,grip:300,steer:.5,drag:.1,comHeight:2.2,rollThreshold:9},
+ f1:{name:'F1 Car',artId:'f1',trans:'paddle',gears:8,planted:true,shiftTime:.04,length:36,width:16.6,height:4.6,roof:8.2,wheelbase:26,trackWidth:13.8,mass:.8,accel:210,brake:300,max:300,reverse:60,grip:300,steer:.68,drag:.1,comHeight:2.2,rollThreshold:9},
  van:{name:'Drone',artId:'van',trans:'auto',flying:true,flightHeight:20,length:28,width:18,height:9.4,roof:18,wheelbase:20,trackWidth:15.4,mass:1,accel:125,brake:186,max:236,reverse:71,grip:125,steer:.62,drag:.17,comHeight:2,rollThreshold:10}
 };
 // Art-only shape parameters (not physics). x positions are fractions of half-length, + = front. Shades: 0 ink … 1 paper.
@@ -1681,14 +1683,15 @@ function cameraGeometry(cssW,cssH,short,defaultZoom,courseW,courseH){
  return {scale,l,t,r:l+w,b:t+h,w,h};
 }
 // Fit the course into the open region between mobile controls; the viewport still covers the whole screen.
-function mobileCameraGeometry(cssW,cssH,short,courseW,courseH,zones,u){
+function mobileCameraGeometry(cssW,cssH,short,courseW,courseH,zones,u,lot=null){
  const rotated=cssH>cssW,get=id=>zones.find(z=>z.id===id),wheel=get('wheel'),gear=get('gear'),hud=get('hud');
  const left=rotated?12:wheel.r*u+8,right=rotated?cssW-12:gear.l*u-8;
  const top=hud.b*u+12,bottom=rotated?Math.min(wheel.t,gear.t)*u-12:cssH-12;
  const availableW=Math.max(cssW*.22,right-left),availableH=Math.max(cssH*.22,bottom-top);
  const vw=rotated?cssH:cssW,vh=rotated?cssW:cssH;
- const scale=Math.min(Math.min(vw/courseW,vh/courseH)*VIEW_SHORT/Math.max(short,VIEW_SHORT),rotated?availableH/courseW:availableW/courseW,rotated?availableW/courseH:availableH/courseH)*.94;
- const x=(left+right)/2,y=(top+bottom)/2,cx=rotated?y:x,cy=rotated?cssW-x:y,w=vw/scale,h=vh/scale,l=courseW/2-cx/scale,t=courseH/2-cy/scale;
+ const bounds=lot||{l:0,t:0,r:courseW,b:courseH},bw=bounds.r-bounds.l,bh=bounds.b-bounds.t;
+ const scale=lot?Math.min((rotated?availableH:availableW)/bw,(rotated?availableW:availableH)/bh)*.83*Math.min(1,300/short):Math.min(Math.min(vw/courseW,vh/courseH)*VIEW_SHORT/Math.max(short,VIEW_SHORT),rotated?availableH/courseW:availableW/courseW,rotated?availableW/courseH:availableH/courseH)*.94*1.35;
+ const x=(left+right)/2,y=(top+bottom)/2+(lot&&rotated?25:0),cx=rotated?y:x,cy=rotated?cssW-x:y,w=vw/scale,h=vh/scale,l=(bounds.l+bounds.r)/2-cx/scale,t=(bounds.t+bounds.b)/2-cy/scale;
  return {scale,l,t,r:l+w,b:t+h,w,h};
 }
 const titleRotation=view=>view&&view.mobile&&view.cssH>view.cssW?-Math.PI/2:0;
@@ -2075,8 +2078,8 @@ function speedFit(w,h,manual){
 }
 // Shift keycaps beside the gear stick (CSS px). Column width from the zone height; the stick's face keeps the rest.
 const shiftKeyW=h=>Math.round(clamp((+h||0)*.3,14,46)),shiftKeyGap=kw=>Math.max(2,Math.round(kw*.15)),shiftBarW=kw=>Math.max(6,Math.round(kw*.36));
-function shiftKeyLayout(w,h){
- const kw=shiftKeyW(h),gap=shiftKeyGap(kw),bw=shiftBarW(kw),bl=kw+gap,fl=bl+bw+gap,fw=Math.max(1,w-fl),s=Math.min(fw/STICK_VB.w,h/STICK_VB.h),ph=STICK_VB.h*s,pt=(h-ph)/2;
+function shiftKeyLayout(w,h,mobile=false){
+ const kw=mobile?Math.max(32,shiftKeyW(h)):shiftKeyW(h),gap=shiftKeyGap(kw),bw=shiftBarW(kw),bl=kw+gap,fl=bl+bw+gap,fw=Math.max(1,w-fl),s=Math.min(fw/STICK_VB.w,h/STICK_VB.h),ph=STICK_VB.h*s,pt=(h-ph)/2;
  const kd=Math.max(2,Math.round(kw*.1)),kh=Math.max(8,Math.min(kw-kd,Math.floor((ph-gap)/2)-kd));
  return {kw,gap,bl,bw,fl,fw,pt,ph,kd,kh};
 }
@@ -2591,11 +2594,11 @@ function raceMove(r,a,b,width){
 function raceTime(n){const ticks=Math.floor(Math.max(0,n)*100+1e-7),min=Math.floor(ticks/6000),sec=Math.floor(ticks/100)%60,cs=ticks%100;return String(min).padStart(2,'0')+':'+String(sec).padStart(2,'0')+':'+String(cs).padStart(2,'0');}
 function raceRank(elapsed,quality){const q=clamp(quality,0,100),penalty=RACE_PENALTY*(100-q)**2;return {elapsed,quality:q,penalty,ranked:elapsed+penalty};}
 function raceBetter(a,b){if(!b)return true;const eps=1e-7;if(Math.abs(a.ranked-b.ranked)>eps)return a.ranked<b.ranked;if(Math.abs(a.quality-b.quality)>eps)return a.quality>b.quality;return a.elapsed<b.elapsed-eps;}
-function raceFingerprint(route,id,car,tuning){let h=2166136261;const str=JSON.stringify([RACE_VERSION,id,car,tuning,route.half,route.segments.map(q=>[q.x,q.y,q.dx,q.dy])]);for(let i=0;i<str.length;i++)h=Math.imul(h^str.charCodeAt(i),16777619);return (h>>>0).toString(36);}
+function raceFingerprint(route,id,car,tuning){let h=2166136261;const str=JSON.stringify([RACE_VERSION,SIM_SPEED,PRESETS[car]?.steer,id,car,tuning,route.half,route.segments.map(q=>[q.x,q.y,q.dx,q.dy])]);for(let i=0;i<str.length;i++)h=Math.imul(h^str.charCodeAt(i),16777619);return (h>>>0).toString(36);}
 function raceRecords(store){try{const raw=store&&store.getItem(RACE_STORE),v=raw?JSON.parse(raw):{};if(!v||typeof v!=='object'||Array.isArray(v))return {};return Object.fromEntries(Object.entries(v).filter(([k,r])=>/^[a-z0-9]+$/.test(k)&&r&&Number.isFinite(r.elapsed)&&r.elapsed>=0&&Number.isFinite(r.quality)&&r.quality>=0&&r.quality<=100&&Number.isFinite(r.ranked)&&Math.abs(r.ranked-raceRank(r.elapsed,r.quality).ranked)<1e-6).slice(-RACE_LIMIT));}catch(_){return {};}}
 function raceSave(store,records){try{if(!store)return false;store.setItem(RACE_STORE,JSON.stringify(Object.fromEntries(Object.entries(records).slice(-RACE_LIMIT))));return true;}catch(_){return false;}}
 if(typeof document==='undefined'){if(typeof module!=='undefined'){
- module.exports={BURN_SPEED,GEARS,AUTO_GEARS,MANUAL_GEARS,PADDLE_GEARS,PADDLE_SEQ,isPaddle,REV_SHIFT,SHIFT_AT,isManual,shiftOk,gearStep,gearName,shiftGear,gearTelemetry,WIDTH,HEIGHT,K,Z,WORLD_H,STEP,TAU,PRESETS,CAR_ART,FRAMES,SHADOW_INK,LIGHT,DEFAULT_ARENA,edgeClear,CROSS_GAP,carBoxAll,SPAWN_INSIDE,CONE_COUNT,CONE_R,CONTROL_ZONES,keepOuts,layoutCourse,drawGround,resetCones,TRANSFER_MARGIN,CONE_BOX,transferBody,transferEdges,sceneItems,carDrawable,mobileCarArtScale,scaleArtBox,portraitCarArt,carArtBox,gateDrawables,drawOrder,SKID,createTrackRecorder,breakTracks,recordTracks,coneSprite,coneShadowSprite,CONE_H,archShape,inArch,gateArt,GATE_SPLIT,GATE_FRONT,plotLine,frameIndex,carModel,carShadowPolys,frameBounds,spriteBox,raster,carSprite,carShadow,buildCarAtlases,makeArena,normalizeInput,keysToInput,carScreenBounds,resizeWorld,wrap,delta,angleDelta,createWorld,drive,step,carCone,coneCone,position,wheelPoints,SPEED_CAP,OMEGA_MAX,CONE_MAX,FASTEST,SUB_MOVE,gatePosts,carPost,conePost,substeps,limitVelocity,ROLL_STEPS,ROLL_G,LOAD_W,LOAD_ZETA,IMPACT_GAIN,TIP_COMMIT,TIP_DROP,TIP_MIN,TIP_SOFT,ROLL_SPIN,ROLL_DECEL,ROLL_SETTLE,ROLL_FRICTION,REST_SPEED,RECOVER_TIME,RECOVER_GAP,CAR_STATES,uprightState,rollKappa,tipAngle,tumble,rollover,rollFrame,rolledModel,rollShadowPolys,rollSpritePoints,rollFrameBounds,rollSpriteBox,carRollSprite,carRollShadow,carHidden,canRecover,recover,recoverSpot,boxDistance};
+ module.exports={BURN_SPEED,GEARS,AUTO_GEARS,MANUAL_GEARS,PADDLE_GEARS,PADDLE_SEQ,isPaddle,REV_SHIFT,SHIFT_AT,isManual,shiftOk,gearStep,gearName,shiftGear,gearTelemetry,WIDTH,HEIGHT,K,Z,WORLD_H,STEP,SIM_SPEED,TAU,PRESETS,CAR_ART,FRAMES,SHADOW_INK,LIGHT,DEFAULT_ARENA,edgeClear,CROSS_GAP,carBoxAll,SPAWN_INSIDE,CONE_COUNT,CONE_R,CONTROL_ZONES,keepOuts,layoutCourse,drawGround,resetCones,TRANSFER_MARGIN,CONE_BOX,transferBody,transferEdges,sceneItems,carDrawable,mobileCarArtScale,scaleArtBox,portraitCarArt,carArtBox,gateDrawables,drawOrder,SKID,createTrackRecorder,breakTracks,recordTracks,coneSprite,coneShadowSprite,CONE_H,archShape,inArch,gateArt,GATE_SPLIT,GATE_FRONT,plotLine,frameIndex,carModel,carShadowPolys,frameBounds,spriteBox,raster,carSprite,carShadow,buildCarAtlases,makeArena,normalizeInput,keysToInput,carScreenBounds,resizeWorld,wrap,delta,angleDelta,createWorld,drive,step,carCone,coneCone,position,wheelPoints,SPEED_CAP,OMEGA_MAX,CONE_MAX,FASTEST,SUB_MOVE,gatePosts,carPost,conePost,substeps,limitVelocity,ROLL_STEPS,ROLL_G,LOAD_W,LOAD_ZETA,IMPACT_GAIN,TIP_COMMIT,TIP_DROP,TIP_MIN,TIP_SOFT,ROLL_SPIN,ROLL_DECEL,ROLL_SETTLE,ROLL_FRICTION,REST_SPEED,RECOVER_TIME,RECOVER_GAP,CAR_STATES,uprightState,rollKappa,tipAngle,tumble,rollover,rollFrame,rolledModel,rollShadowPolys,rollSpritePoints,rollFrameBounds,rollSpriteBox,carRollSprite,carRollShadow,carHidden,canRecover,recover,recoverSpot,boxDistance};
  Object.assign(module.exports,{raceRoute,raceProject,raceCross,raceNew,raceMove,raceTime,raceRank,raceBetter,raceFingerprint,raceRecords,raceSave,RACE_VERSION});
  Object.assign(module.exports,{setTrack,TUNING,TUNING_SPEC,TUNING_DEFAULTS,setTuning,resetTuning}); // shared tuning interface
  Object.assign(module.exports,{visibleBounds,cameraGeometry,mobileCameraGeometry,titleRotation,renderMetrics,titleRasterSpec,groundDots,pitStopGeometry,pitPoint,gasPumpPoint,pitPosts,pitOverlap,carPit,conePit,drawPitBay,pitArt,pitDrawables,VIEW_SHORT,computeView,createControls,UI_MARGIN,UI_GAP,uiMetrics,controlZones,WHEEL_DEAD,turnDelta,pointerAngle,wheelDrag,wheelValue,wheelKickback,createModes,recoverAvailable,tryRecover,isRecoverKey,recoverFromKey}); // ui (r2-ui)
@@ -2704,7 +2707,7 @@ function canvasTextMask(text,h){
 // keyboard, a painted line on touch screens, Q / E on the Supercar. Rebuilt when the car or the pointer type changes.
 function buildGround(A){ground=makeCanvas(A.W,A.H);const gc=ground.getContext('2d');drawGround(gc,A,world.layout);
  // (it is empty), so they paint no instructions; the title is painted on every screen where a spot off the lane fits.
- const o=titleOpts(world.layout,{touch:isTouch(),shift:true,mask:canvasTextMask,px:paintPx(view?view.u:1)});
+ const o=titleOpts(world.layout,{touch:isTouch(),shift:true,mask:canvasTextMask,px:paintPx(view?view.u:1)});if(view.mobile&&view.cssH>view.cssW&&world.layout.lot)o.text=TITLE_TEXT;
  buildTitleLayer(A,world.layout,o);
  paintKey='';buildPaint();
 }
@@ -2715,7 +2718,9 @@ function titleRasterSpec(rect,worldScale){
  return {scale,width,height};
 }
 function buildTitleLayer(A,layout,o){
- titleLayer=null;const rect=titleRect(layout,A,o);if(!rect)return;
+ titleLayer=null;let rect=titleRect(layout,A,o);
+ if(layout.lot&&view.mobile&&view.cssH>view.cssW){const b=lotBox(layout.lot),width=Math.min(300,(b.b-b.t)*.85),x=b.l-55,y=(b.t+b.b)/2;rect={l:x-width/2,r:x+width/2,t:y-25,b:y+25};}
+ if(!rect)return;
  const spec=titleRasterSpec(rect,view.worldScale),local={l:0,t:0,r:spec.width,b:spec.height};
  const runs=titleRuns({W:spec.width,H:spec.height},local,{...o,px:1,min:Math.max(1,Math.round((o.min||TITLE_MIN)*spec.scale)),max:Math.ceil(TITLE_MAX*spec.scale)});
  if(!runs.length)return;const c=makeCanvas(spec.width,spec.height),cx=c.getContext('2d');cx.fillStyle=ink;
@@ -2831,12 +2836,12 @@ function frameInput(){let input=controls.sample();if(view.mobile&&world.p.trans=
 function animate(time){
  raf=0;if(mode!=='running')return;
  if(!lastTime)lastTime=time;
- accumulator+=Math.min(.1,(time-lastTime)/1000);lastTime=time;
+ accumulator+=Math.min(.1,(time-lastTime)/1000)*SIM_SPEED;lastTime=time;
  // One controls.sample() per fixed physics step (contract §3).
- let ticks=0;while(accumulator>=STEP&&ticks<8){const before={x:world.car.x,y:world.car.y},wraps=world.wraps;step(world,frameInput());
-  if(race&&race.state==='racing'){if(world.wraps!==wraps)raceInvalidate('Edge wrap ended the timed run.');else if(raceMove(race,before,world.car,world.p.width)){raceFinish(Math.min(time,Math.max(race.anchor||0,time-(accumulator-STEP)*1000)));break;}}
+ let ticks=0;while(accumulator>=STEP&&ticks<12){const before={x:world.car.x,y:world.car.y},wraps=world.wraps;step(world,frameInput());
+  if(race&&race.state==='racing'){if(world.wraps!==wraps)raceInvalidate('Edge wrap ended the timed run.');else if(raceMove(race,before,world.car,world.p.width)){raceFinish(Math.min(time,Math.max(race.anchor||0,time-(accumulator-STEP)*1000/SIM_SPEED)));break;}}
   addTracks();accumulator-=STEP;ticks++;}
- if(ticks===8&&accumulator>=STEP)accumulator%=STEP;
+ if(ticks===12&&accumulator>=STEP)accumulator%=STEP;
  draw(accumulator/STEP);renderControls();syncRecover();if(time-lastRaceUI>=100){raceDisplay();lastRaceUI=time;}
  if(mode!=='running')return;
  if(time-lastUI>250){updateUI();lastUI=time;}
@@ -3220,7 +3225,7 @@ function layoutUI(){
  // The speed text fills its row: about 70% of the row height, narrower when the zone is short of room ("188 KM/H 5 GEAR").
  sizeSpeed();
  const rz=zoneOf('race');if(rz){const width=(rz.r-rz.l)*u;raceHud.style.left=px(rz.l);const size=Math.max(8,Math.min(50,Math.floor(width/10.2),Math.floor((rz.b-rz.t)*u*.78)));raceHud.style.top=((rz.t*u)+Math.max(0,((rz.b-rz.t)*u-size)/2))+'px';raceHud.style.width=width+'px';raceHud.style.setProperty('--sp',size+'px');}
- const gz=zoneOf('gear');if(gz){const s=shiftKeyLayout((gz.r-gz.l)*u,(gz.b-gz.t)*u);for(const n of ['kw','kd','kh','bl','bw','fl','pt','ph'])ui.stick.style.setProperty('--'+n,s[n].toFixed(2)+'px');ui.stickFace.style.left='auto';ui.stickFace.style.width=Math.min((gz.r-gz.l)*u-s.fl,(gz.b-gz.t)*u*110/106)+'px';ui.paddles.style.setProperty('--zh',((gz.b-gz.t)*u).toFixed(1)+'px');}
+ const gz=zoneOf('gear');if(gz){const s=shiftKeyLayout((gz.r-gz.l)*u,(gz.b-gz.t)*u,view.mobile);for(const n of ['kw','kd','kh','bl','bw','fl','pt','ph','gap'])ui.stick.style.setProperty('--'+n,s[n].toFixed(2)+'px');ui.stickFace.style.left=view.mobile?'0px':'auto';ui.stickFace.style.right=view.mobile?'auto':'0px';ui.stickFace.style.width=Math.min((gz.r-gz.l)*u-s.fl,(gz.b-gz.t)*u*110/106)+'px';ui.paddles.style.setProperty('--zh',((gz.b-gz.t)*u).toFixed(1)+'px');}
  const promptY=view.cssH*.42,gearTop=gz.t*u,gearBottom=gz.b*u;
  if(promptY>=gearTop-30&&promptY<=gearBottom+30){const free=Math.max(120,gz.l*u-12);ui.enter.style.left=(free/2)+'px';ui.enter.style.maxWidth=(free-12)+'px';}else{ui.enter.style.left='';ui.enter.style.maxWidth='';}
  // The settings panel drops from the HUD, right-aligned with it, and scrolls if the screen is very short.
@@ -3244,7 +3249,7 @@ function applyView(){
  view={...next,dpr,cssW,cssH,u,safe,mobile};uiZones=controlZones(view,safe);
  const mobileShort=VIEW_SHORT,A=makeArena(mobileShort*2,mobileShort);A.fixedMobile=true;A.safe=safe;A.uiU=u;A.uiW=cssW;A.uiH=cssH;A.mobile=mobile;
  // Both courses use the same world reference; each slider selects its own visible span.
- const rotated=mobile&&cssH>cssW, camera=mobile?mobileCameraGeometry(cssW,cssH,viewFor(),A.W,A.H,uiZones,u):cameraGeometry(cssW,cssH,viewFor(),VIEW_SHORT,A.W,A.H),worldScale=camera.scale,visibleW=camera.w,visibleH=camera.h;view.worldScale=worldScale;
+ const rotated=mobile&&cssH>cssW, camera=mobile?mobileCameraGeometry(cssW,cssH,viewFor(),A.W,A.H,uiZones,u,SELECTED_TRACK==='parking'?lotBox(layoutCourse(A).lot):null):cameraGeometry(cssW,cssH,viewFor(),VIEW_SHORT,A.W,A.H),worldScale=camera.scale,visibleW=camera.w,visibleH=camera.h;view.worldScale=worldScale;
  Object.assign(A,{viewL:camera.l,viewT:camera.t,viewR:camera.r,viewB:camera.b});
  const arenaChanged=first||world.arena.W!==A.W||world.arena.H!==A.H||!world.arena.fixedMobile||!ground;
  const cameraChanged=arenaChanged||Math.abs((world.arena.viewL??0)-A.viewL)>.001||Math.abs((world.arena.viewT??0)-A.viewT)>.001||Math.abs((world.arena.viewR??A.W)-A.viewR)>.001||Math.abs((world.arena.viewB??A.H)-A.viewB)>.001;
