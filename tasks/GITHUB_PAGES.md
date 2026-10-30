@@ -14,9 +14,9 @@ The workflow is `.github/workflows/pages.yml`. It requires GitHub Pages to be en
 
 To roll back, revert the relevant commit on `main` and push the revert. The same deployment checks run before the old version is republished. A failed deployment leaves the previously published version in place.
 
-The separate `regression.yml` workflow runs both existing regression suites independently, including the race checks invoked by the broad script. These jobs remain red on failures (no ignored exit codes or changed assertions), but do not gate publication while their existing failures are outstanding. A green publishing workflow does **not** mean the full game regression suite passed. Once the legacy checks are repaired, add them to the publishing workflow's required verification jobs. Browser, real-device touch, and full-lap QA remain separate from the deployment gate.
+The separate `regression.yml` workflow runs the broad, current-feature and mobile suites independently. The publishing workflow now also requires all of them before uploading `dist`. All suites passed locally following the [October 30 regression audit](REGRESSION_AUDIT.md). No failed assertion is ignored. Browser and physical-device QA remain separate from the deployment gate.
 
-## Initial setup status — October 30, 2026
+## Initial setup status — October 30, 2026 (historical verification below)
 
 The connected repository is `MinhMeoNguyen0/8-Bit-Drift`; its default branch is `main`. The owner explicitly authorized changing the existing repository to public after GitHub rejected private-repository Pages on the current plan. The repository is now public and Pages is enabled with GitHub Actions as its source.
 

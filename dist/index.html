@@ -1642,7 +1642,7 @@ function createTrackRecorder(){return {prev:null,fwd:null,on:false,heat:0,dist:[
 function breakTracks(rec){rec.prev=null;rec.fwd=null;rec.on=false;rec.heat=0;}
 // One physics step of recording. plot(x, y, tyre) receives integer in-arena pixels. Consumes w.trackBreak. Returns pixels plotted.
 function recordTracks(w,rec,plot,enabled=true,dt=STEP){
- if(w.p.flying){breakTracks(rec);w.trackBreak=false;return 0;}
+ if(w.p.flying||w.p.planted){breakTracks(rec);w.trackBreak=false;return 0;}
  if(w.trackBreak){breakTracks(rec);w.trackBreak=false;}
  const c=w.car;
  if(!enabled||(c.state!==undefined&&c.state!=='driving')){breakTracks(rec);return 0;}
@@ -2059,9 +2059,9 @@ function controlZones(view,safe){
 // centre (cx, cy) and the knob's travel (each axis ±travel units, a square gate like a real transmitter's).
 const FLYPAD={vb:100,cx:48,cy:48,travel:30};
 function flyPadZones(zs,m=0){
- const z=id=>zs.find(q=>q.id===id),wh=z('wheel'),pe=z('pedals'),gear=z('gear');if(!wh||!pe||!gear)return [];
+ const z=id=>zs.find(q=>q.id===id),wh=z('wheel'),pe=z('pedals'),gear=z('gear'),hud=z('hud');if(!wh||!pe||!gear)return [];
  const ge=gear.flyOrigin||gear;
- const rr=Math.max(pe.r,ge.r)-Math.max(0,+m||0),rb=Math.max(pe.b,ge.b),rw=rr-Math.min(pe.l,ge.l),rh=rb-Math.min(pe.t,ge.t);
+ const rr=hud?hud.r:Math.max(pe.r,ge.r)-Math.max(0,+m||0),rb=Math.max(pe.b,ge.b),rw=rr-Math.min(pe.l,ge.l),rh=rb-Math.min(pe.t,ge.t);
  const s=Math.max(1,Math.min(wh.r-wh.l,wh.b-wh.t,rw,rh,(rr-wh.l-UI_GAP)/2));
  return [{id:'flyL',l:wh.l,t:wh.b-s,r:wh.l+s,b:wh.b},{id:'flyR',l:rr-s,t:rb-s,r:rr,b:rb}];
 }
@@ -2521,7 +2521,7 @@ function inGate(s,u,v,z){
 // gate ground line y*K) in integer screen px.
 const gateArtCache=new Map();
 function gateArt(g){
- const s=archShape(g),theta=g.rotation||0,cs=Math.cos(theta),sn=Math.sin(theta),key=[s.S,s.r,s.hi,theta].join();let art=gateArtCache.get(key);if(art)return art;
+ const s=archShape(g),theta=g.rotation||0,cs=Math.cos(theta),sn=Math.sin(theta),negativeLeg=(g.posts[0].x-(g.x||0))*cs+(g.posts[0].y-(g.y||0))*sn<0?0:1,key=[s.S,s.r,s.hi,theta,negativeLeg].join();let art=gateArtCache.get(key);if(art)return art;
  const extent=s.wo+s.d+LIGHT.x*s.ho+8,size=Math.ceil(2*extent+Z*s.ho),ax=Math.ceil(extent),ay=Math.ceil(extent),arch=raster(size,ax,ay),posts=raster(size,ax,ay),sh=raster(size,ax,ay);
  const legs=[raster(size,ax,ay),raster(size,ax,ay)],R0=Math.hypot(s.wo,s.d)+1,dg=.2;
  // ground depth g, height z = (K·g − Y)/Z) is marched from the front; the first solid point is the visible one. It is lit
@@ -2530,7 +2530,7 @@ function gateArt(g){
   const x=X+.5,y=Y+.5,reach=R0*R0-x*x;if(reach<=0)continue;
   const gTop=Math.min(Math.sqrt(reach),(y+Z*s.ho)/K),gEnd=Math.max(-Math.sqrt(reach),y/K);
   for(let g=gTop-dg/2,prevZ=Infinity;g>=gEnd;g-=dg){const z=(K*g-y)/Z,u=x*cs+g*sn,v=-x*sn+g*cs;
-   if(inGate(s,u,v,z)){(z>=s.split?arch:posts).pixel(X+ax,Y+ay,inGate(s,u,v,prevZ)?0:GATE_TOP_SHADE);if(z<s.split)legs[u<0?0:1].pixel(X+ax,Y+ay,inGate(s,u,v,prevZ)?0:GATE_TOP_SHADE);break;}
+   if(inGate(s,u,v,z)){(z>=s.split?arch:posts).pixel(X+ax,Y+ay,inGate(s,u,v,prevZ)?0:GATE_TOP_SHADE);if(z<s.split)legs[u<0?negativeLeg:1-negativeLeg].pixel(X+ax,Y+ay,inGate(s,u,v,prevZ)?0:GATE_TOP_SHADE);break;}
    prevZ=z;}
   for(let z=0;z<=s.ho;z+=.3){const wx=x-LIGHT.x*z,wy=(y-LIGHT.y*z)/K,u=wx*cs+wy*sn,v=-wx*sn+wy*cs;if(inGate(s,u,v,z)){sh.shadowPixel(X+ax,Y+ay);break;}}
  }

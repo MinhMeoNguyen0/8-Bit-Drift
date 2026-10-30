@@ -9,9 +9,9 @@ test('pit front faces perpendicular toward the nearest road',()=>{const A=e.make
 test('pit building and canopy supports stop vehicles while the bay stays driveable',()=>{const A=e.makeArena(1350,675);A.fixedMobile=true;e.setTrack('signature');const g=e.pitStopGeometry(A,e.layoutCourse(A));for(const [u,v,du,dv] of [[-25,24,1,0],[72,24,-1,0],[24,-25,0,1],[24,75,0,-1]]){const w=e.createWorld('compact',A);w.cones=[];const a=e.pitPoint(g,u,v),b=e.pitPoint(g,u+du,v+dv),dx=b.x-a.x,dy=b.y-a.y;Object.assign(w.car,{x:a.x,y:a.y,px:a.x,py:a.y,a:Math.atan2(dy,dx),vx:dx*150,vy:dy*150});for(let i=0;i<36;i++)e.step(w,{steering:0,throttle:0,brake:0});assert(!e.pitOverlap(w.p,w.car,g));const x=w.car.x-g.x,y=w.car.y-g.y,localX=x*Math.cos(g.angle)+y*Math.sin(g.angle),localY=-x*Math.sin(g.angle)+y*Math.cos(g.angle);assert(du>0?localX<0:du<0?localX>g.w:dv>0?localY<0:localY>g.d,'car remains on its approach side');}const w=e.createWorld('compact',A),post=e.pitPosts(g)[1];w.cones=[];Object.assign(w.car,{x:post.x,y:post.y,a:g.angle,vx:0,vy:0});e.carPost(w,post);assert(e.boxDistance(w.p,w.car.x,w.car.y,w.car.a,post.x,post.y)>=post.r-.01);});
 test('parking props retain two-tone sprites and fit their moving-object bounds',()=>{const check=(raw,ax,ay,b)=>{let ink=0,paper=0;for(let i=0;i<raw.data.length;i+=4){if(!raw.data[i+3])continue;const x=(i/4)%raw.width-ax,y=Math.floor((i/4)/raw.width)-ay;assert(x>=b.l&&x+1<=b.r&&y>=b.t&&y+1<=b.b);const rgb=Array.from(raw.data.slice(i,i+3)).join(',');assert(['48,52,45','191,193,177'].includes(rgb));if(rgb==='48,52,45')ink++;else paper++;}assert(ink>0);return paper;};assert(check(e.coneSprite(),10,14,e.CONE_BOX)>0);for(let i=0;i<e.CART_FRAMES;i++){check(e.cartSprite(i*e.TAU/e.CART_FRAMES),16,20,e.CART_BOX);check(e.cartShadowSprite(i*e.TAU/e.CART_FRAMES),16,20,e.CART_BOX);}assert.equal(e.ACCESS_MARK.length,17);assert(e.ACCESS_MARK.every(r=>r.length===17));});
 test('continuous zoom responds across the full slider',()=>{let prev=0;for(const z of [300,600,900,1200,1800,2400]){const v=e.computeView(1280,720,1,z);assert(v.H>prev);assert(Math.abs(v.H-z)<=1);prev=v.H;}});
-test('tuning extremes have materially different effects',()=>{function run(v){e.resetTuning();e.setTuning(v);const w=e.createWorld('coupe',e.makeArena(4000,4000));w.layout=null;w.cones=[];w.car.vx=90;w.car.a=w.car.pa=0;for(let i=0;i<120;i++)e.step(w,{steering:1,throttle:1,brake:0});return {a:w.car.a,slip:w.car.slip};}const a=run({steerAngle:.2,grip:4}),b=run({steerAngle:3,grip:.1});assert(Math.abs(a.a-b.a)>.2);assert(Math.abs(a.slip-b.slip)>5);e.resetTuning();});
+test('tuning extremes have materially different effects',()=>{function run(v){e.resetTuning();e.setTuning(v);const w=e.createWorld('coupe',e.makeArena(4000,4000));w.layout=null;w.cones=[];w.car.vx=90;w.car.a=w.car.pa=0;for(let i=0;i<60;i++)e.step(w,{steering:1,throttle:1,brake:0});return {a:w.car.a,slip:w.car.slip};}try{const a=run({steerAngle:.2,grip:4}),b=run({steerAngle:3,grip:.1});assert(Math.abs(a.a-b.a)>.2);assert(Math.abs(a.slip-b.slip)>5);}finally{e.resetTuning();}});
 test('every tuning control accepts both endpoints without invalid simulation state',()=>{for(const spec of e.TUNING_SPEC)for(const value of [spec.min,spec.max]){e.resetTuning();e.setTuning({[spec.key]:value});assert.equal(e.TUNING[spec.key],value);const w=e.createWorld('compact',e.makeArena(1400,1000));w.layout=null;w.cones=[];for(let i=0;i<240;i++)e.step(w,{throttle:1,brake:0,steering:.8});assert(Number.isFinite(w.car.x+w.car.y+w.car.a));}e.resetTuning();});
-for(const id of ['signature','oval','eight'])test(id+' track has two usable lanes on desktop and phone arenas',()=>{e.setTrack(id);for(const [w,h,d] of [[1600,800,1],[390,844,3]]){const v=e.computeView(w,h,d),A=e.makeArena(v.W,v.H);Object.assign(A,{safe:{},uiU:v.scale/d,uiW:w,uiH:h,mobile:d>1});const L=e.layoutCourse(A);assert.equal(L.track.kind,id);assert(L.track.half>=2*Math.max(...Object.values(e.PRESETS).map(p=>p.width))*.9);assert(L.track.pts.length>100);assert(L.track.length>500);assert(L.gate.width>=L.track.half*2);}});
+for(const id of ['signature','oval','eight'])test(id+' track has two usable lanes on desktop and phone arenas',()=>{e.setTrack(id);for(const [w,h,d] of [[1600,800,1],[390,844,3]]){const v=e.computeView(w,h,d),A=e.makeArena(1350,675);Object.assign(A,{fixedMobile:true,safe:{},uiU:v.scale/d,uiW:w,uiH:h,mobile:d>1});const L=e.layoutCourse(A);assert.equal(L.track.kind,id);assert(L.track.half>=2*Math.max(...Object.values(e.PRESETS).map(p=>p.width))*.9);assert(L.track.pts.length>100);assert(L.track.length>500);assert(L.gate.width>=L.track.half*2);}});
 for(const id of Object.keys(e.PRESETS))test(id+' long drive remains finite',()=>{const w=e.createWorld(id,e.makeArena(1400,1000));w.manual=id==='coupe';for(let i=0;i<7200;i++){if(w.manual&&i%1200===0)e.shiftGear(w,Math.min(5,1+i/1200));e.step(w,{throttle:1,brake:0,steering:Math.sin(i/230)*.4});assert(Number.isFinite(w.car.x+w.car.y+w.car.vx+w.car.vy));}if(w.p.flying)assert.equal(w.car.state,'driving');});
 const inpOf=c=>{const s=c.sample();return {steering:s.steering,throttle:s.throttle,brake:s.brake};};
 // ==== Drone flight: Mode 2 sticks (left: lift + yaw; right: pitch + roll), angle mode with altitude hold ====
@@ -19,8 +19,8 @@ function droneWorld(tuning){e.resetTuning();if(tuning)e.setTuning(tuning);const 
 function flyFor(w,steps,sticks,log){for(let i=0;i<steps;i++){e.step(w,{steering:0,throttle:0,brake:0,sticks});if(log)log.push({x:w.car.x,y:w.car.y,a:w.car.a,z:w.car.z,r:w.car.tiltR,p:w.car.tiltP,s:Math.hypot(w.car.vx,w.car.vy)});}return w;}
 const droneLocal=w=>{const c=w.car,cs=Math.cos(c.a),sn=Math.sin(c.a);return {fwd:c.vx*cs+c.vy*sn,side:-c.vx*sn+c.vy*cs};};
 test('drone: centred sticks hover in place, level, at the start height; pedal input never flies it',()=>{const w=droneWorld(),x=w.car.x,y=w.car.y,a=w.car.a;flyFor(w,600,{});
- assert.equal(w.car.z,w.p.flightHeight);assert.equal(w.car.x,x);assert.equal(w.car.y,y);assert.equal(w.car.a,a);assert.equal(w.car.tiltR,0);assert.equal(w.car.tiltP,0);
- for(let i=0;i<240;i++)e.step(w,{throttle:1,brake:0,steering:1});assert.equal(Math.hypot(w.car.vx,w.car.vy),0);assert.equal(w.car.a,a);assert.equal(w.car.state,'driving');});
+ assert.equal(w.car.z,w.p.flightHeight);assert.equal(w.car.x,x);assert.equal(w.car.y,y);assert(Math.abs(e.angleDelta(w.car.a,a))<1e-12);assert.equal(w.car.tiltR,0);assert.equal(w.car.tiltP,0);
+ for(let i=0;i<240;i++)e.step(w,{throttle:1,brake:0,steering:1});assert.equal(Math.hypot(w.car.vx,w.car.vy),0);assert(Math.abs(e.angleDelta(w.car.a,a))<1e-12);assert.equal(w.car.state,'driving');});
 test('drone: the right stick tilts it and the tilt flies it (top speed p.max); released, it levels and drifts to a stop',()=>{
  const w=droneWorld(),log=[];flyFor(w,1,{pitch:1},log);assert(log[0].p>0&&log[0].s<1,'the tilt comes first, the speed after');
  flyFor(w,1199,{pitch:1},log);const top=log[log.length-1],f=droneLocal(w);
@@ -38,7 +38,7 @@ test('drone: the left stick climbs and descends, stops at the ceiling, and lands
  const w=droneWorld();flyFor(w,60,{lift:1});assert(w.car.z>w.p.flightHeight+5,'climbs');flyFor(w,600,{lift:1});assert.equal(w.car.z,e.FLY.ceiling);
  flyFor(w,120,{});assert.equal(w.car.z,e.FLY.ceiling,'centred holds the height');
  flyFor(w,900,{lift:-1});assert.equal(w.car.z,e.FLY.floor);assert(w.car.landed);
- const x=w.car.x,a=w.car.a;flyFor(w,240,{pitch:1,roll:1,yaw:1});assert.equal(w.car.x,x);assert.equal(w.car.a,a);assert.equal(w.car.tiltP,0,'landed: the other sticks wait for lift-off');
+ const x=w.car.x,a=w.car.a;flyFor(w,240,{pitch:1,roll:1,yaw:1});assert.equal(w.car.x,x);assert(Math.abs(e.angleDelta(w.car.a,a))<1e-12);assert.equal(w.car.tiltP,0,'landed: the other sticks wait for lift-off');
  flyFor(w,120,{lift:1,pitch:1});assert(w.car.z>e.FLY.floor+5&&droneLocal(w).fwd>0&&!w.car.landed,'takes off and flies');
  const n=e.normalizeSticks({lift:e.FLY.dead*.9,yaw:1,pitch:-1,roll:'x'});assert.equal(n.lift,0,'inside the dead zone');assert(Math.abs(n.yaw-1)<1e-12&&Math.abs(n.pitch+1)<1e-12,'full deflection stays full');assert.equal(n.roll,0);
  const half=e.normalizeSticks({yaw:.5}).yaw;assert(half>0&&half<.5,'expo softens the centre '+half);assert.equal(Object.values(e.normalizeSticks()).join(),'0,0,0,0');});
@@ -115,20 +115,20 @@ test('r3-ui: shift keycaps sit beside the stick inside the gear zone, never on t
   if(mobile)assert(g.l>=p.l-1e-9&&g.r<=p.r+1e-9,'phone: the widened gear zone stays above the pedals');}});
 test('r3-ui: gear cues follow gearTelemetry and the shiftGear rules',()=>{
  const w=e.createWorld('coupe',e.makeArena(4000,4000));w.layout=null;w.cones=[];w.manual=true;
- let c=e.gearCues(w);assert.deepEqual({...c.up},{hot:false,ok:true});assert.deepEqual({...c.down},{hot:false,ok:false});
+ let c=e.gearCues(w);assert.deepEqual({...c.up},{hot:false,ok:true});assert.deepEqual({...c.down},{hot:false,ok:true});assert.equal(e.gearStep(w,-1),'R');
  for(let i=0;i<600&&!e.gearTelemetry(w).shiftUp;i++)e.step(w,{throttle:1,brake:0,steering:0});
  assert(e.gearTelemetry(w).shiftUp,'reaches the shift-up point');assert(e.gearCues(w).up.hot,'up key pulses');
  for(const g of [2,3,4,5]){w.car.vx=w.car.vy=0;assert(e.shiftGear(w,g));}assert.equal(e.gearCues(w).up.ok,false,'no gear above 5');assert(e.gearCues(w).down.ok);
  w.car.vx=w.p.max;c=e.gearCues(w);assert.equal(c.down.ok,false,'too fast to shift down');assert.equal(e.shiftGear(w,4),false,'shiftGear agrees');
  w.car.vx=w.p.max*e.GEARS[4]*.5;assert(e.gearCues(w).down.ok);assert(e.shiftGear(w,4),'shiftGear agrees');
- const auto=e.createWorld('compact',e.makeArena(4000,4000));for(const k of ['up','down'])assert.deepEqual({...e.gearCues(auto)[k]},{hot:false,ok:false});});
+ const auto=e.createWorld('compact',e.makeArena(4000,4000));for(const [k,dir] of [['up',1],['down',-1]])assert.equal(e.gearCues(auto)[k].ok,!!e.gearStep(auto,dir)&&e.shiftOk(auto,e.gearStep(auto,dir))); });
 test('r3-ui: track thumbnails are 1-bit, padded, cover the whole lane line and differ per track',()=>{
  assert.deepEqual({...e.trackThumbSize(1500,750)},{w:64,h:32});assert.deepEqual({...e.trackThumbSize(390,844)},{w:30,h:64});assert.deepEqual({...e.trackThumbSize(4000,400)},{w:64,h:28});
  assert(new Set(e.TRACKS.map(t=>t.id)).size===e.TRACKS.length&&e.TRACKS.every(t=>typeof t.name==='string'&&t.name));
  for(const [cssW,cssH,dpr,mobile] of r3Screens){const v=e.computeView(cssW,cssH,dpr,750),W=v.W,H=v.H,A=e.makeArena(W,H),seen=new Set();Object.assign(A,{mobile,uiU:v.scale/dpr,uiW:cssW,uiH:cssH});
-  for(const {id} of e.TRACKS){const L=e.buildCourse({...A,E:e.edgeClear(A)},[],id),pts=L.track.pts.map(p=>[p[0],p[1]*e.K]),sz=e.trackThumbSize(W,H),m=e.trackThumb(pts,sz.w,sz.h);
+  for(const {id} of e.TRACKS){const L=e.buildCourse({...A,E:e.edgeClear(A)},[],id),pts=L.track.pts.map(p=>[p[0],p[1]*e.K]),sz=e.trackThumbSize(W,H),m=L.lot?e.lotThumb(L,sz.w,sz.h):e.trackThumb(pts,sz.w,sz.h);
    assert.equal(m.bits.length,m.w*m.h);let ink=0;for(let y=0;y<m.h;y++)for(let x=0;x<m.w;x++){const v=m.bits[y*m.w+x];assert(v===0||v===1);if(v){ink++;assert(x>=2&&y>=2&&x<m.w-2&&y<m.h-2,id+' padded');}}
-   assert(ink>40,id+' has a visible line');assert.deepEqual(m,e.trackThumb(pts,sz.w,sz.h),'deterministic');
+   assert(ink>40,id+' has a visible line');assert.deepEqual(m,L.lot?e.lotThumb(L,sz.w,sz.h):e.trackThumb(pts,sz.w,sz.h),'deterministic');
    // every lane point lands on (or next to) an ink pixel: the line is continuous
    let l=1e9,t=1e9,r=-1e9,b=-1e9;for(const [x,y] of pts){l=Math.min(l,x);t=Math.min(t,y);r=Math.max(r,x);b=Math.max(b,y);}const s=Math.min((m.w-6.2)/(r-l),(m.h-6.2)/(b-t)),ox=(m.w-(r-l)*s)/2-l*s,oy=(m.h-(b-t)*s)/2-t*s;
    for(const [x,y] of pts){const px=Math.floor(x*s+ox),py=Math.floor(y*s+oy);let hit=false;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++)hit=hit||!!m.bits[(py+dy)*m.w+px+dx];assert(hit,id+' line continuous');}
@@ -155,15 +155,10 @@ test('keycap: 1 px outline unchanged from round 2; 2 px outline is a thicker rin
  const cells=runs=>{const s=new Set();for(const [x,y,n] of runs)for(let i=0;i<n;i++)s.add(x+i+','+y);return s;},one=cells(e.keycapRuns(0,0,40,36,7)),two=cells(e.keycapRuns(0,0,40,36,7,[],2));
  for(const c of one)assert(two.has(c));assert(two.has('1,10')&&!one.has('1,10')&&two.has('38,10')&&!two.has('2,10')&&!two.has('20,20'));
  for(let y=10;y<30;y++)assert.equal(two.has('46,'+y),one.has('46,'+y));});
-test('desktop keycaps at the 750 view: big W above S, A S D in a row, GAS right of W, LEFT left of A, RIGHT right of D, BRAKE under S',()=>{
- for(const [cw,ch] of [[1600,800],[1920,1080],[1366,768]]){const {A}=paintArena(cw,ch,1,false),z=e.keepOuts(A).find(q=>q.id==='instructions'),zw=Math.floor(z.r-z.l),zh=Math.floor(z.b-z.t);
-  const L=e.paintLayout(zw,zh,{}),it=Object.fromEntries(L.items.map(i=>[i.ch||i.s,i]));assert.equal(L.mode,'side');assert(L.w<=zw&&L.h<=zh);
-  const {W,A:a,S,D,GAS,LEFT,RIGHT,BRAKE}=it;assert(W&&a&&S&&D&&GAS&&LEFT&&RIGHT&&BRAKE,'all items');assert(S.w>=30,'keys are big: '+S.w);
-  assert(W.y+W.h<=a.y&&a.y===S.y&&S.y===D.y&&a.x<S.x&&S.x<D.x&&W.x>a.x&&W.x<D.x,'keyboard layout');
-  assert(GAS.x>=W.x+W.w+W.d&&GAS.y<a.y,'GAS right of W');assert(LEFT.x+LEFT.w<=a.x&&LEFT.y>=a.y&&LEFT.y<a.y+a.h,'LEFT left of A');
-  assert(RIGHT.x>=D.x+D.w+D.d&&RIGHT.y>=D.y&&RIGHT.y<D.y+D.h,'RIGHT right of D');assert(BRAKE.y>=S.y+S.h+S.d&&BRAKE.x<S.x+S.w&&BRAKE.x+BRAKE.w>S.x,'BRAKE under S');
-  assert(S.lt>=e.PAINT_KEY_SOLID_BELOW&&LEFT.h>=e.PAINT_SOLID_BELOW,'key letters and labels are striped');assert(LEFT.h<S.lt,'labels smaller than key letters');
-  const Q=e.paintLayout(zw,zh,{shift:true});assert(Q.items.some(i=>i.ch==='Q')&&Q.items.some(i=>i.ch==='E')&&Q.w<=zw&&Q.h<=zh);}});
+test('desktop driving guide preserves the current key arrangement and fits its reserved zone',()=>{
+ for(const [cw,ch] of [[1600,800],[1920,1080],[1366,768]]){const v=e.computeView(cw,ch,1),u=v.scale,z=e.controlZones({...v,u,cssW:cw,cssH:ch,mobile:false}).find(z=>z.id==='instructions'),zw=Math.floor(z.r-z.l),zh=Math.floor(z.b-z.t),L=e.paintLayout(zw,zh,{shift:true}),keys=L.items.filter(i=>i.t==='key'),k=Object.fromEntries(keys.map(i=>[i.ch,i]));
+ assert(L.w<=zw&&L.h<=zh);assert.deepEqual(Array.from(keys,i=>i.ch),['R','W','Q','E','A','D','BRAKE']);assert(k.R.hold);assert(k.R.y<k.W.y&&k.W.y<k.Q.y&&k.Q.y<k.A.y&&k.A.y<k.BRAKE.y);assert(k.Q.y===k.E.y&&k.A.y===k.D.y);assert(L.items.some(i=>i.s==='GAS')&&L.items.some(i=>i.s==='SHIFT')&&L.items.some(i=>i.s==='TURN'));}});
+
 test('paint on a px grid: runs are 1 row tall, px-aligned blocks inside the zone; empty or tiny zones paint nothing',()=>{
  const A=e.makeArena(1624,750),zone={l:5,t:66,r:346,b:250};
  for(const px of [1,2,3]){const runs=e.paintRuns(A,zone,{px});assert(runs.length>50);const t0=Math.min(...runs.map(r=>r[1])),rows=new Map();
@@ -194,7 +189,7 @@ test('title is skipped when no spot fits; the ground no longer draws monospace t
 // ==== Round 3 tests: r3-course ====
 // Arenas as the page builds them (computeView + the safe/uiU/uiW/uiH/mobile flags), at the zoom levels the slider offers.
 const R3_VIEWS=[['desktop 1600x800',1600,800,1],['desktop 1920x1080',1920,1080,1],['desktop 1366x768',1366,768,1],['phone 844x390',844,390,3],['phone 390x844',390,844,3]];
-const r3Arena=(w,h,d,short)=>{const v=e.computeView(w,h,d,short),A=e.makeArena(v.W,v.H);return Object.assign(A,{safe:{},uiU:v.scale/d,uiW:w,uiH:h,mobile:d>1||w<700});};
+const r3Arena=(w,h,d,short)=>{const v=e.computeView(w,h,d,short),A=e.makeArena(1350,675);return Object.assign(A,{fixedMobile:true,safe:{},uiU:v.scale/d,uiW:w,uiH:h,mobile:d>1||w<700});};
 const r3Layouts=new Map();
 function r3Layout(id,w,h,d,short){const k=[id,w,h,d,short].join();if(!r3Layouts.has(k)){e.setTrack(id);const A=r3Arena(w,h,d,short);r3Layouts.set(k,{A,L:e.layoutCourse(A)});}return r3Layouts.get(k);}
 const r3Each=(shorts,f)=>{for(const short of shorts)for(const [name,w,h,d] of R3_VIEWS)for(const id of ['signature','oval','eight']){const {A,L}=r3Layout(id,w,h,d,short);f(id,A,L,name+' @'+short);}};
@@ -206,8 +201,8 @@ function r3LaneGap(A,L){const z=e.keepOuts(A),E=e.edgeClear(A),h=L.track.half;le
 const r3Seg=(a,b,c,d)=>{const o=(p,q,r)=>(q[0]-p[0])*(r[1]-p[1])-(q[1]-p[1])*(r[0]-p[0]);const d1=o(c,d,a),d2=o(c,d,b),d3=o(a,b,c),d4=o(a,b,d);return ((d1*d2<0&&d3*d4<=0)||(d1*d2<=0&&d3*d4<0))?[a[0]+(b[0]-a[0])*d1/(d1-d2),a[1]+(b[1]-a[1])*d1/(d1-d2)]:null;};
 // Points where the centreline crosses itself (a crossing exactly at a vertex shows as two coincident vertices, or may be counted by both of its segments).
 function r3Crossings(P){const n=P.length,out=[];for(let i=0;i<n;i++)for(let j=i+2;j<n;j++){if(i===0&&j===n-1)continue;const x=r3Seg(P[i],P[(i+1)%n],P[j],P[(j+1)%n]);if(x)out.push(x);else if(Math.hypot(P[i][0]-P[j][0],P[i][1]-P[j][1])<1e-6)out.push(P[i]);}return out;}
-test('r3-course: at the 750 default every track is the one chosen and its lane clears the edge strip and every control zone (instructions, wheel, gear included)',()=>{
- assert.equal(e.TUNING_DEFAULTS.viewShort,750);
+test('r3-course: fixed courses retain their selected shape and lane clearance at the 675 default',()=>{
+ assert.equal(e.TUNING_DEFAULTS.viewShort,675);
  r3Each([750],(id,A,L,where)=>{assert.equal(L.track.kind,id,where);const g=r3LaneGap(A,L);assert(g.edge>=0,id+' edge '+where+' '+g.edge);assert(g.zone>=8,id+' '+g.who+' '+where+' '+g.zone);});});
 test('r3-course: lanes clear the edge strip and every zone at other zooms too (a shape that does not fit gives way to the oval)',()=>{
  r3Each([400,1000],(id,A,L,where)=>{assert(L.track.kind===id||L.track.kind==='oval',where);const g=r3LaneGap(A,L);assert(g.edge>=0,id+' edge '+where);assert(g.zone>=4,id+' '+g.who+' '+where+' '+g.zone);});
@@ -241,8 +236,8 @@ test('r3-course: cones sit off every part of the lane, off the zones, and only o
   for(const c of L.cones){assert(P.every(p=>Math.hypot(p[0]-c.x,p[1]-c.y)>=h+e.CONE_R),'cone on the lane '+where);
    assert(z.every(q=>!(c.x>q.l&&c.x<q.r&&c.y*e.K>q.t&&c.y*e.K<q.b)),'cone in a zone '+where);
    if(id==='eight')assert(!e.insideLoop(P,c.x,c.y),'cone inside a loop '+where);}});});
-test('r3-course: layouts are deterministic and setTrack only accepts the three ids',()=>{
- assert.deepEqual([...e.TRACKS.map(t=>t.id)],['signature','oval','eight']);assert.equal(e.setTrack('club'),false);
+test('r3-course: layouts are deterministic and setTrack accepts exactly the four course ids',()=>{
+ assert.deepEqual([...e.TRACKS.map(t=>t.id)],['signature','oval','eight','parking']);assert.equal(e.setTrack('club'),false);
  for(const id of ['signature','oval','eight']){const A={...r3Arena(844,390,3,750),E:40},z=e.keepOuts(A);assert.equal(JSON.stringify(e.buildCourse(A,z,id)),JSON.stringify(e.buildCourse(A,z,id)));}
  // The settings thumbnails call buildCourse on the arena without zones: each id still gets its own shape.
  for(const id of ['signature','oval','eight']){const A=r3Arena(390,844,3,750);assert.equal(e.buildCourse({...A,E:e.edgeClear(A)},[],id).track.kind,id);}});

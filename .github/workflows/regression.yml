@@ -1,4 +1,4 @@
-name: Game regression checks (known failures)
+name: Game regression checks
 
 on:
   push:
@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: [verify.cjs, verify-current.cjs]
+        suite: [verify.cjs, verify-current.cjs, verify-mobile.cjs]
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6

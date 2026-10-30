@@ -25,7 +25,11 @@ jobs:
         with:
           node-version: '24'
       - name: Check standalone page and simulation startup
-        run: node verify-deploy.cjs
+        run: |
+          node verify-deploy.cjs
+          node verify.cjs
+          node verify-current.cjs
+          node verify-mobile.cjs
 
   deploy:
     name: Publish GitHub Pages

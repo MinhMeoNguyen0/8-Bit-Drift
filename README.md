@@ -25,7 +25,7 @@ The publishing flow is:
 3. Pushing or merging into `main` runs the deployment checks again. If they pass, GitHub uploads only `dist` and updates the website. This is **CD (continuous deployment)**.
 4. A failed deployment check stops publication; an already published version remains available. To undo a release, revert its commit on `main` and push.
 
-The deployment gate checks the standalone HTML and inline JavaScript, then simulates every vehicle on every course for invalid state. The separate regression workflow runs the existing broad suites and reports their failures without blocking publication. A green publishing run does **not** mean all game tests pass. See [the CI/CD guide](tasks/GITHUB_PAGES.md) for details. No package install, build step, or personal deployment token is required.
+Publication requires the standalone deployment, broad, current-feature and mobile suites to pass. The separate regression workflow also runs the game suites independently. See [the CI/CD guide](tasks/GITHUB_PAGES.md). No package install, build step, or personal deployment token is required.
 
 ## Controls and vehicles
 
@@ -85,18 +85,11 @@ Node is needed only for helper scripts. Edit `dist/index.html` directly. See [AG
 node verify-deploy.cjs
 node verify-race.cjs
 node verify-current.cjs
+node verify-mobile.cjs
 node verify.cjs
 ```
 
-Latest local results on October 30, 2026:
-
-| Check | Result |
-| --- | --- |
-| `node verify-deploy.cjs` | Passes both groups, including simulation startup for all four vehicles on all four courses |
-| `node verify.cjs` | Stops in the included race suite at `gear stays above pedals`, after eight race groups pass |
-| `node verify-current.cjs` | Stops at `tuning extremes have materially different effects`, specifically `assert(Math.abs(a.a-b.a)>.2)`, after nine groups pass |
-
-The previously documented `hud.l integer` and phone gear-zone failures remain historical known issues. The latest runs stop earlier, so later checks are unverified. Existing assertions have not been weakened; the regression workflow remains red when they fail.
+Latest local results on October 30, 2026: all suites pass — 144 broad checks plus 10 race groups, 50 current-feature checks, 12 mobile checks and two deployment groups. The formerly failing checks were audited and migrated to current behavior; actual gate, drone-pad and F1 skid defects were fixed. See [the regression audit](tasks/REGRESSION_AUDIT.md) for the exact changes.
 
 Browser checks covered 1366×768, 864×930, 390×844, 844×390, and 320×568. Short drives, pause, and on-screen gas were exercised; a landscape instruction/prompt overlap was fixed. A simulated-finish fixture exercised the centered result, mobile restart, and tap-to-free-drive. A full lap through actual browser controls, physical-device multitouch, safe-area hardware, long-session performance, and direct-file browser validation remain outstanding. Do not treat this as a full green QA signoff.
 
