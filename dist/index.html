@@ -129,6 +129,7 @@ kbd{display:inline-block;min-width:13px;padding:0 2px;border:1px solid var(--lin
 
 
 .gearstick[hidden]{display:none}
+.playground:not([data-ui-ready="true"]) .gearstick{visibility:hidden}
 .playground[data-mobile="true"][data-auto="true"] .gearstick{display:none}
 .gear-keys{position:absolute;left:0;top:var(--pt,0px);width:var(--kw,0px);height:var(--ph,100%)}
 .playground[data-mobile="true"] .gear-keys{left:auto;right:0;z-index:2}
@@ -700,7 +701,7 @@ function legacyBuildCourse(A,zones){
 // TRACK_HALF: lane half-width (world units, the same at every zoom: it is sized to the cars). TRACK_BACK: spawn-to-gate distance.
 // TRACK_SHAPES: pts = control points, gate = [segment, fraction] of the gate along them, asp = [min, max] box proportion
 // (width / height in world units, along the shape's own x) tried in 12% steps.
-const TRACK_TRIES=24,TRACK_HALF=34,TRACK_FILL=.83,TRACK_BACK=70,TRACK_POST=TRACK_HALF+12,TRACK_DS=4,TRACK_DENSE=48;
+const TRACK_TRIES=24,TRACK_HALF=42,TRACK_FILL=.83,TRACK_BACK=70,TRACK_POST=TRACK_HALF+12,TRACK_DS=4,TRACK_DENSE=48;
 const TRACK_SHAPES={
  signature:{gate:[16,.5],asp:[1.2,3.2],pts:[[.88,.95],[.1,.95],[.02,.86],[0,.66],[.05,.4],[.19,.15],[.33,.04],[.46,.02],[.545,.05],[.575,.145],[.545,.24],[.46,.27],[.33,.31],[.23,.45],[.2,.64],[.3,.76],[.47,.64],[.64,.34],[.77,.13],[.93,.15],[1,.45],[.99,.74],[.96,.89]]},
  oval:{gate:[3,0],asp:[1.2,3.4],pts:[[.12,.83],[.03,.5],[.12,.17],[.5,.08],[.88,.17],[.97,.5],[.88,.83],[.5,.92]]},
@@ -3260,7 +3261,7 @@ function applyView(){
  if(cameraChanged){canvas.width=rendering.width;canvas.height=rendering.height;ctx.imageSmoothingEnabled=false;buildSurface(A);resetTrackLayer(A);world.trackBreak=true;}
  const gk=groundKeyFor();if(arenaChanged||cameraChanged||gk!==groundKey){buildGround(world.arena);groundKey=gk;}
  canvas.style.width=rendering.cssWidth+'px';canvas.style.height=rendering.cssHeight+'px';canvas.style.transformOrigin='0 0';canvas.style.transform=rotated?'translateX('+cssW+'px) rotate(90deg)':'';canvas.style.left='0px';canvas.style.top='0px';root.dataset.mobile=String(mobile);ui.brake.setAttribute('aria-label',mobile&&world.p.trans==='auto'?'Brake and reverse':'Brake');
- watchPixelRatio(dpr);layoutUI();if(race)raceDisplay();
+ watchPixelRatio(dpr);layoutUI();root.dataset.uiReady='true';if(race)raceDisplay();
  const pg=paintGeom();if((pg?pg.key:'')!==paintKey)buildGround(world.arena);if(mode==='menu')syncTracks();
  draw();updateUI();renderControls();syncRecover();
 }
