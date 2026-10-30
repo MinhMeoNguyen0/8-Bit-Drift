@@ -23,6 +23,39 @@ test('manual Supercar gears control speed and protect downshifts', () => {
  assert(!e.shiftGear(e.createWorld('compact'),2),'other vehicles keep their normal controls');
 });
 
+test('F1 Car: eight sequential paddle gears with the manual rules, a planted chassis, and the selector slot between Supercar and Drone', () => {
+ const p=e.PRESETS.f1;assert.equal(p.name,'F1 Car');assert(p.planted&&p.trans==='paddle'&&p.gears===8&&p.max>e.PRESETS.coupe.max&&p.accel>e.PRESETS.coupe.accel,'faster than the Supercar');
+ assert.deepEqual([...html.matchAll(/data-car="(\w+)"/g)].map(m=>m[1]),['compact','coupe','f1','van'],'F1 sits between the manual Supercar and the Drone');
+ // Paddles shift one gear per pull: E up, Q down, reverse below first, protected downshifts, top gear 8.
+ const car=(gear,speed=0)=>{const w=e.createWorld('f1',e.makeArena(100000,100000));w.manual=true;w.gear=gear;w.cones=[];w.layout=null;Object.assign(w.car,{a:0,vx:speed,vy:0});return w;};
+ const w=car(1);assert(e.isManual(w)&&e.isPaddle(w)&&!e.isPaddle(e.createWorld('coupe')),'paddles are the F1 only');
+ assert.equal(JSON.stringify(e.PADDLE_SEQ),'["R",1,2,3,4,5,6,7,8]');assert.equal(e.gearStep(w,-1),'R','Q from first selects reverse at a standstill');
+ for(let g=1;g<8;g++){assert.equal(e.gearStep(w,1),g+1);assert(e.shiftGear(w,g+1));assert.equal(w.shiftTime,p.shiftTime,'a paddle shift is quick');}
+ assert.equal(w.gear,8);assert.equal(e.gearStep(w,1),0,'no ninth gear');assert(!e.shiftOk(w,9));
+ const fast=car(8,p.max*.9);assert(!e.shiftGear(fast,1),'unsafe downshift refused');assert(!e.shiftGear(fast,'R'),'no reverse at speed');assert(e.shiftGear(fast,7));
+ const top=car(8);for(let i=0;i<3600;i++)e.step(top,{throttle:1,steering:0,brake:0});assert(Math.hypot(top.car.vx,top.car.vy)>p.max*.9,'eighth gear reaches top speed');
+ const low=car(1);for(let i=0;i<3600;i++)e.step(low,{throttle:1,steering:0,brake:0});assert(Math.hypot(low.car.vx,low.car.vy)<p.max*e.PADDLE_GEARS[1]*1.05,'first gear is limited');
+ const t=e.gearTelemetry(low);assert(t.shiftUp&&t.shift>0.95,'shift lights are full at the limit of first');assert(e.gearCues(low).up.hot&&e.gearCues(low).up.ok);
+ assert(e.shiftGear(low,2));assert(e.gearTelemetry(low).shift<.9,'the lights drop after an upshift');
+ // Planted: no sideways speed survives a step, however hard it turns, so it never skids or leaves tyre marks.
+ const c=car(8,p.max*.95);let skid=0,lateral=0;for(let i=0;i<600;i++){e.step(c,{throttle:1,steering:i%240<120?1:-1,brake:0});if(c.car.skidding)skid++;lateral=Math.max(lateral,Math.abs(-Math.sin(c.car.a)*c.car.vx+Math.cos(c.car.a)*c.car.vy));}
+ assert.equal(skid,0,'never skids');assert(lateral<=p.max*e.OMEGA_MAX*e.STEP*1.2,'only the turn itself: '+lateral);
+ const b=car(8,p.max*.9);for(let i=0;i<120;i++){e.step(b,{throttle:0,steering:0,brake:1});assert(!b.car.skidding,'hard braking never skids');}
+ assert.equal(b.car.state,'driving');
+ // Closed cockpit, open wheels, wings: two tones only, and the sprite fits its box at every heading.
+ assert(e.CAR_ART.f1.open&&e.CAR_ART.f1.glass===0);
+ for(let i=0;i<e.FRAMES;i+=5){const a=i*e.TAU/e.FRAMES,box=e.carScreenBounds(p,a);for(const img of [e.carSprite(p,a),e.carShadow(p,a)])for(let y=0;y<img.height;y++)for(let x=0;x<img.width;x++)if(img.data[(y*img.width+x)*4+3]){const col=[img.data[(y*img.width+x)*4],img.data[(y*img.width+x)*4+1],img.data[(y*img.width+x)*4+2]].join();assert(col==='48,52,45'||col==='191,193,177','two tones');assert(x-p.sprite.ax>=box.l&&x-p.sprite.ax<box.r&&y-p.sprite.ay>=box.t&&y-p.sprite.ay<box.b,'inside its box at frame '+i);}}
+});
+test('F1 Car paddles replace the gear stick in the page: a downshift and an upshift paddle, shift lights, Q / E, no stick', () => {
+ const css=html.split('<style>')[1].split('</style>')[0],script=scripts[0][1];
+ assert(/id="paddle-down"[^>]*aria-label="Downshift paddle"[^>]*aria-keyshortcuts="Q"/.test(html)&&/id="paddle-up"[^>]*aria-label="Upshift paddle"[^>]*aria-keyshortcuts="E"/.test(html));
+ assert((html.match(/id="shift-lights"[^>]*><i><\/i>(<i><\/i>){7}<\/div>/g)||[]).length===1,'eight shift lights');
+ assert(/\[data-paddle="true"\] \.paddles\{display:grid\}/.test(css)&&/\[data-paddle="true"\] \.gear-keys[^{]*\.shift-bar[^{]*\.gear-face\{display:none\}/.test(css),'paddles show and the stick parts hide for the F1');
+ assert(/\.paddles\{display:none/.test(css),'hidden for every other car');
+ assert(/root\.dataset\.paddle=String\(isPaddle\(world\)\)/.test(script),'the page flag follows the car');
+ assert(/if\(isPaddle\(world\)\)renderPaddles\(t,cue\)/.test(script)&&/function renderStick\(\)\{\s*if\(isPaddle\(world\)\)return;/.test(script),'no stick gate maths for gears above 5');
+ assert(/#paddle-up,#paddle-down'\)\)return;/.test(script),'Space and Enter on a focused paddle shift instead of braking');
+});
 // Preserve the former roll-prone Van only as a physics regression fixture. The real third preset is a flying drone.
 const actualDrone=e.PRESETS.van;
 test('drone flies at fixed height over cones with no skid marks or rollover', () => {
@@ -168,6 +201,9 @@ test('all presets remain finite and inside the offscreen envelope through five-m
  // The scripted drive was laid out for 0.9 steering; pin it so the default (round 6: 1.1) can change without changing the route.
  e.setTuning({steerAngle:.9});try{
  for(const id of CARS){const w=e.createWorld(id),{bw,bh}=big[id];
+  // A planted car (F1) cannot slide off an obstacle the way the others do, so the route's first turn would pin it against the
+  // gate post: start it in the open lane along the bottom instead (every assertion below still applies).
+  if(e.PRESETS[id].planted)Object.assign(w.car,{x:40,y:250,px:40,py:250,a:0,pa:0});
   for(let i=0;i<36000;i++){e.step(w,input(true,i%1800>=1600,i%1300<400,i%1300>900));
    const c=w.car;assert(c.x>=-bw&&c.x<=e.WIDTH+bw&&c.y*e.K>=-bh&&c.y*e.K<=e.HEIGHT+bh,id+' car left the envelope at step '+i);
    if(i%120===0)for(const o of [c,...w.cones]){assert(Number.isFinite(o.x)&&Number.isFinite(o.y)&&Number.isFinite(o.vx)&&Number.isFinite(o.vy));
@@ -431,11 +467,11 @@ test('page: accessible HUD, settings dialog, controls and painted-text fallbacks
  // touch-action:none only on the wheel and the pedals.
  // (round 2: the gear stick's face joins them)
  const ta=[...css.matchAll(/([^{}]+)\{[^}]*touch-action:([a-z-]+)/g)].map(m=>[m[1].trim(),m[2]]);
- assert.deepEqual(ta.filter(x=>x[1]==='none'),[['.wheel-face','none'],['.pedal','none'],['.gear-face','none'],['.fly-face','none']]);assert(!/touch-action/.test(html.split('</style>')[1].split('<script>')[0]));
+ assert.deepEqual(ta.filter(x=>x[1]==='none'),[['.wheel-face','none'],['.pedal','none'],['.gear-face','none'],['.paddle','none'],['.fly-face','none']]);assert(!/touch-action/.test(html.split('</style>')[1].split('<script>')[0]));
  // Round 2 (r2-paint): canvas text is used only offscreen by the paint rasteriser, thresholded to a 1-bit mask (no antialiasing).
  assert.equal((script.match(/fillText/g)||[]).length,1,'canvas text only in the paint rasteriser');assert(/function canvasTextMask[\s\S]*?fillText[\s\S]*?>=128/.test(script),'paint text thresholded to 1 bit');
  assert(/id="settings-btn"[^>]*aria-expanded="false"[^>]*aria-controls="settings"/.test(html)&&/id="settings"[^>]*role="dialog"[^>]*hidden/.test(html));
- assert(/id="skids" type="checkbox" role="switch" checked/.test(html));assert.equal((html.match(/class="car-choice"[^>]*aria-pressed=/g)||[]).length,3);
+ assert(/id="skids" type="checkbox" role="switch" checked/.test(html));assert.equal((html.match(/class="car-choice"[^>]*aria-pressed=/g)||[]).length,4);
  assert(/id="wheel-face"[^>]*role="slider"[^>]*tabindex="0"[^>]*aria-label="Steering wheel"/.test(html));
  assert(/id="pedal-gas"[^>]*aria-label="Gas/.test(html)&&/id="pedal-brake"[^>]*aria-label="Brake/.test(html));
  assert(/aria-describedby="driving-help"/.test(html)&&/id="driving-help">W accelerates/.test(html),'instructions stay available to screen readers');
@@ -569,7 +605,7 @@ test('cars are at least 20% larger than the original sprites', () => {
  // Original presets and their mean opaque sprite extents over 64 headings, measured from tasks/handoffs/base/index.html.
  const before={compact:{length:24,width:12,height:6.2,roof:10.2,wheelbase:16,w:24.19,h:20.41},coupe:{length:28,width:12.5,height:4.9,roof:8.2,wheelbase:19,w:26.81,h:21.09},van:{length:28,width:14,height:7.3,roof:14,wheelbase:19,w:28.13,h:25.69}};
  const report={};
- for(const id of ids){const p=e.PRESETS[id],o=before[id];for(const k of ['length','width','wheelbase'])assert(p[k]>=o[k]*1.2&&p[k]<=o[k]*1.35,`${id}.${k}`);
+ for(const id of ids){const p=e.PRESETS[id],o=before[id];if(!o)continue; /* the F1 Car is newer than the original sprites it is compared with */ for(const k of ['length','width','wheelbase'])assert(p[k]>=o[k]*1.2&&p[k]<=o[k]*1.35,`${id}.${k}`);
   let w=0,h=0;for(const f of frames[id]){const x=extent(f.car);w+=x.r-x.l;h+=x.b-x.t;}w/=e.FRAMES;h/=e.FRAMES;
   report[id]=[(w/o.w).toFixed(2),(h/o.h).toFixed(2)];assert(w>=o.w*1.2&&h>=o.h*1.1,`${id} sprite only ${w.toFixed(1)}x${h.toFixed(1)}`);}
  console.log('     sprite growth (mean width, height):',JSON.stringify(report));
@@ -583,7 +619,7 @@ test('wheelPoints sit under the rear axle, inside the footprint', () => {
 });
 test('car shadow follows the shared light and stays two-tone', () => {
  for(const id of ids){const p=e.PRESETS[id];
-  for(let i=0;i<64;i+=4){const a=i*e.TAU/64,[body]=e.carShadowPolys(p,a),cx=body.reduce((s,v)=>s+v[0],0)/body.length,cy=body.reduce((s,v)=>s+v[1],0)/body.length;
+  for(let i=0;i<64;i+=4){const a=i*e.TAU/64,centre=(h,k)=>{const [b]=e.carShadowPolys(p,h);return (Math.min(...b.map(v=>v[k]))+Math.max(...b.map(v=>v[k])))/2;},cx=centre(a,0)+centre(a+Math.PI,0),cy=centre(a,1)+centre(a+Math.PI,1); /* bounding-box centre of a heading and its opposite: a low nose over a high tail must not skew it */
    assert(cx>0&&cy>0,'shadow falls down-right');}
   const s=e.carShadow(p,1),car=e.carSprite(p,1);let ink=0,n=0;
   for(const img of [s,car])for(let j=0;j<img.data.length;j+=4)if(img.data[j+3]){const c=[img.data[j],img.data[j+1],img.data[j+2]].join();assert(c==='48,52,45'||c==='191,193,177','two tones only');assert.equal(img.data[j+3],255);if(img===s){n++;if(c==='48,52,45')ink++;}}
@@ -643,8 +679,8 @@ test('course: a closed circuit with the gate across its main straight and the st
 test('course: all cars can drive straight through the gate from the start', () => {
  for(const id of Object.keys(e.PRESETS)){
   const w=e.createWorld(id),g=w.layout.gate;w.cones=[];
-  for(let i=0;i<240;i++)e.step(w,input(true));
-  assert((w.car.x-g.x)*Math.cos(g.a)+(w.car.y-g.y)*Math.sin(g.a)>0,`${id}: passed through gate`);assert.equal(w.hits,0);
+  let passed=false; /* a fast car may wrap round the small arena afterwards, so look for the crossing itself */ for(let i=0;i<240;i++){e.step(w,input(true));if((w.car.x-g.x)*Math.cos(g.a)+(w.car.y-g.y)*Math.sin(g.a)>0)passed=true;}
+  assert(passed,`${id}: passed through gate`);assert.equal(w.hits,0);
  }
 });
 test('course: gate opening fits every (grown) car with the contract clearance', () => {
@@ -960,7 +996,7 @@ test('task 10: high relative velocity: fast cones against posts and against an o
    for(let i=0;i<40;i++){e.step(w,input());assert(finite(o));
     for(const p of w.layout.gate.posts){assert(Math.hypot(o.x-p.x,o.y-p.y)>=R-1e-6,'cone inside a post');
      // The straight path between two steps never cuts through the post itself.
-     const sx=o.x-px,sy=o.y-py,L2=sx*sx+sy*sy,t=L2?Math.max(0,Math.min(1,((p.x-px)*sx+(p.y-py)*sy)/L2)):0;assert(Math.hypot(px+sx*t-p.x,py+sy*t-p.y)>=p.r-1e-6,'cone tunnelled through a post');}
+     const sx=o.x-px,sy=o.y-py,L2=sx*sx+sy*sy,t=L2?Math.max(0,Math.min(1,((p.x-px)*sx+(p.y-py)*sy)/L2)):0;assert(L2>(e.CONE_MAX*e.STEP*4)**2||Math.hypot(px+sx*t-p.x,py+sy*t-p.y)>=p.r-1e-6,'cone tunnelled through a post');} /* a step longer than that wrapped round an edge */
     assert(speedOf(o)<=e.CONE_MAX+1e-9);px=o.x;py=o.y;}
    if(off===0)assert((o.x-q.x)*dx+(o.y-q.y)*dy<0,'head-on cone bounces back');}}
  // Car at top speed meets a cone flying at CONE_MAX straight at it.
@@ -1550,11 +1586,11 @@ test('round 2: handling tuning is wired into drive() and the new defaults steer 
   const yaw=r=>{e.resetTuning();e.setTuning({turnRate:r});const w=bare(id);Object.assign(w.car,{a:0,vx:60,vy:0});for(let i=0;i<12;i++)e.step(w,{steering:1,throttle:forward(w)<60?1:0,brake:0});const o=w.car.omega;e.resetTuning();return o;};
   assert(yaw(2)>yaw(1)*1.05,`${id}: turnRate sharpens turn-in`);
   // grip: less slide at the limit.
-  assert(lock(id,p.max,{grip:1.6}).slip<lock(id,p.max,{grip:.8}).slip,`${id}: grip reduces the slide`);
+  if(p.planted){const lo=lock(id,p.max,{grip:.8}).slip,hi=lock(id,p.max,{grip:1.6}).slip;assert(lo===hi&&lo<=p.max*e.OMEGA_MAX*e.STEP+1e-6,`${id}: a planted car only turns (slip ${lo}), whatever the grip`);}else assert(lock(id,p.max,{grip:1.6}).slip<lock(id,p.max,{grip:.8}).slip,`${id}: grip reduces the slide`);
  }
  // New defaults vs the round 1 feel (1, .48, 10, 1, 1): round 6 wheel angle 1.1 (more lock), still less drift at the limit.
  const old={steerAngle:1,steerFade:.48,steerSpeed:10,turnRate:1,grip:1};
- for(const id of ids){const n=lock(id,e.PRESETS[id].max,{}),o=lock(id,e.PRESETS[id].max,old);assert(n.steer>o.steer&&n.slip<o.slip,`${id}: more lock, less slide (${n.slip.toFixed(0)} vs ${o.slip.toFixed(0)})`);}
+ for(const id of ids){const n=lock(id,e.PRESETS[id].max,{}),o=lock(id,e.PRESETS[id].max,old);assert(n.steer>o.steer&&(e.PRESETS[id].planted?n.slip<=e.PRESETS[id].max*e.OMEGA_MAX*e.STEP+1e-6:n.slip<o.slip),`${id}: more lock, less slide (${n.slip.toFixed(0)} vs ${o.slip.toFixed(0)})`);}
  assert.deepEqual({...e.TUNING},{...e.TUNING_DEFAULTS});
 });
 // (end of r2-sim section)
@@ -1876,13 +1912,13 @@ test('round 4: tight bends get striped curbs just outside the lane, and cones st
  const ring=R=>{const n=Math.round(2*Math.PI*R/4);return Array.from({length:n},(_,i)=>[R*Math.cos(i*2*Math.PI/n),R*Math.sin(i*2*Math.PI/n)]);};
  assert.equal(e.trackCurbs(ring(400)).length,0,'no curbs on a gentle bend');assert.equal(e.trackCurbs(ring(60))[0][1],ring(60).length,'a tight loop is curbed all round');
 });
-test('round 4: parking lot layout has stalls, an accessible pair, a corral of four nested carts, a stray cart and cones, all off the controls', () => {
+test('round 4: parking lot layout has stalls, an accessible pair, a corral of nested carts, a stray cart and cones, all off the controls', () => {
  for(const [W,H] of [[1022,575],[711,400],[400,240],[390,844],[844,390]]){const {A,L}=r4Layout('parking',W,H),name=`${W}x${H}`,zones=e.controlZones(A),lot=L.lot;
   assert.equal(L.track.kind,'parking');assert.equal(L.gate,null,`${name}: no start gate in the lot`);
   assert(lot.rows.length>=2&&lot.rows.every(q=>q.slots.every(s=>Math.abs(s.x1-s.x0-e.LOT_STALL_W)<.02)),`${name}: rows of stalls`);
   const kinds=lot.rows.flatMap(q=>q.slots.map(s=>s.kind));
   if(W>=700){assert.equal(kinds.filter(k=>k==='hc').length,2,`${name}: two accessible stalls`);assert.equal(kinds.filter(k=>k==='access').length,1,`${name}: one access aisle`);
-   assert(lot.corral,`${name}: a cart corral`);assert.equal(L.props.filter(p=>p.type==='cart').length,4,`${name}: four nested carts`);}
+   assert(lot.corral,`${name}: a cart corral`);assert.equal(L.props.filter(p=>p.type==='cart'&&!p.stage).length,e.CORRAL_CARTS,`${name}: nested carts`);}
   const carts=L.cones.filter(o=>o.kind==='cart');assert(carts.length>=1&&carts.length<=2,`${name}: stray carts`);
   assert(L.cones.length>=2,`${name}: traffic cones`);
   // Round 5: the U of cones and a cart on the ground above the lot may use the edge strip, never a control.
@@ -1916,8 +1952,8 @@ test('round 4: the stray cart rolls away when hit, never tips, and the corral st
  assert(w.cones.every(o=>Number.isFinite(o.x)&&Number.isFinite(o.a)));
  // Drive at the corral's back rail: the car never ends up inside the corral.
  const c=L.lot.corral;w=r4World('coupe','parking',A);w.cones=[];
- Object.assign(w.car,{x:c.xb-50,y:c.y,px:c.xb-50,py:c.y,a:0,pa:0,vx:0,vy:0,omega:0});
- let inside=false;for(let i=0;i<360;i++){e.step(w,input(true));if(w.car.x>c.xb+3&&w.car.x<c.xf&&Math.abs(w.car.y-c.y)<e.CORRAL_HW)inside=true;}
+ Object.assign(w.car,{x:c.x,y:c.y0-50,px:c.x,py:c.y0-50,a:Math.PI/2,pa:Math.PI/2,vx:0,vy:0,omega:0});
+ let inside=false;for(let i=0;i<360;i++){e.step(w,input(true));if(w.car.y>c.y0+3&&w.car.y<c.y1&&Math.abs(w.car.x-c.x)<e.CORRAL_HW)inside=true;}
  assert(!inside,'the car drove through the corral rails');
  // Cart vs cone: the heavy cart shoves a cone aside.
  const cone=e.bodyFrom({x:0,y:0},0),k=e.bodyFrom({x:-e.CART_R-1,y:0,kind:'cart',r:e.CART_R,m:e.CART_MASS,a:0},0);k.vx=40;e.coneCone(k,cone);
@@ -1950,13 +1986,12 @@ test('round 5: the lot is a compact ring round an island, centred, clear of ever
  const A=r5Arena(1600,800,1,675);e.setTrack('parking');const L=e.layoutCourse(A);e.setTrack('signature');
  assert(L.lot.r-L.lot.l<A.W*.5,'a small lot when zoomed out');assert(Math.abs((L.lot.l+L.lot.r)/2-A.W/2)<A.W*.2,'roughly centred');
 });
-test('round 5: the corral fills one side-on stall, open to the aisle, with its carts nested in line', () => {
+test('parking corral stands beside the left edge, with its carts nested in line', () => {
  for(const [W,H,dpr] of r5Screens.slice(0,4)){const A=r5Arena(W,H,dpr,300),name=`${W}x${H}`;e.setTrack('parking');const L=e.layoutCourse(A);e.setTrack('signature');
-  const c=L.lot.corral;assert(c,`${name}: corral`);const q=L.lot.cols.find(q=>q.slots.some(s=>s.kind==='corral')),s=q.slots.find(s=>s.kind==='corral');
-  const x0=Math.min(q.back,q.back+q.dir*e.LOT_STALL_D),x1=Math.max(q.back,q.back+q.dir*e.LOT_STALL_D);
-  for(const p of L.posts)assert(p.x-p.r>=x0-1e-6&&p.x+p.r<=x1+1e-6&&p.y-p.r>=s.y0&&p.y+p.r<=s.y1,`${name}: corral collider outside its stall`);
-  assert.equal(c.back,-q.dir,`${name}: back rail on the lot edge, open end to the aisle`);
-  const carts=L.props.filter(p=>p.type==='cart');assert.equal(carts.length,4);assert(carts.every(p=>Math.abs(p.y-c.y)<1e-6&&p.a===(c.back>0?0:Math.PI)),`${name}: carts in one line, noses to the back`);
+  const c=L.lot.corral;assert(c,`${name}: corral`);assert(c.xf+e.RAIL_R<L.lot.l-e.LOT_BAND,`${name}: outside planted edge`);
+  const entrance=L.props.find(p=>p.stage==='entrance');assert(entrance,`${name}: angled entrance cart`);
+  for(const p of L.posts){const isEntrance=p.x===entrance.x&&p.y===entrance.y;assert(p.x-p.r>=c.xb-e.RAIL_R-1e-6&&p.x+p.r<=c.xf+e.RAIL_R+1e-6&&p.y-p.r>=c.y0-e.RAIL_R-1e-6&&p.y+p.r<=c.y1+(isEntrance?e.CART_R:e.RAIL_R)+1e-6,`${name}: corral collider outside its footprint`);}
+  const carts=L.props.filter(p=>p.type==='cart'&&!p.stage);assert.equal(carts.length,e.CORRAL_CARTS);assert(carts.every(p=>Math.abs(p.x-c.x)<1e-6&&p.a===-Math.PI/2&&p.y>c.y0&&p.y<c.y1),`${name}: carts point toward the back rail`);
  }
 });
 test('round 5: lot paint has the planted band, the island outline and a 17 px wheelchair sign; the title reads 8-BIT PARKING', () => {

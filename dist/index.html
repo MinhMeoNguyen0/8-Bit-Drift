@@ -56,12 +56,13 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--ink);outline-of
 
 .panel.wide:not([hidden]){display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.4fr);grid-template-rows:auto auto auto auto auto auto 1fr;grid-template-areas:"head tune" "track tune" "skid tune" "clear tune" "reset tune" "read tune" ". tune";gap:5px 10px;align-items:start}
 .panel.wide .panel-head{grid-area:head}.panel.wide .track-pick{grid-area:track}.panel.wide .switch-row{grid-area:skid}.panel.wide #clear{grid-area:clear}.panel.wide #reset{grid-area:reset}
-.panel.wide .readout{grid-area:read;align-self:center}.panel.wide .tuning{grid-area:tune;align-self:stretch;max-height:calc(var(--panel-max,300px) - 16px);overflow:auto;overscroll-behavior:contain;padding-right:2px}
+.panel.wide .readout{grid-area:read;align-self:center}.panel.wide .settings-sections{grid-area:tune;align-self:stretch;max-height:calc(var(--panel-max,300px) - 16px);overflow:auto;overscroll-behavior:contain;padding-right:2px}
 .panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 
 .panel h2,.entry span{background:repeating-linear-gradient(180deg,currentColor 0 var(--sw,2px),transparent var(--sw,2px) calc(var(--sw,2px) + var(--sg,1px)));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;padding-right:.12em}
 .panel h2{margin:0;font-size:1.7em;line-height:1;letter-spacing:.01em}
-.tuning summary{cursor:pointer;font-size:1.2em;line-height:1.1}
+.tuning summary,.about summary{cursor:pointer;font-size:1.2em;line-height:1.1}
+.settings-sections{display:flex;flex-direction:column;gap:6px;min-width:0}.about a{display:block;color:inherit;padding:4px 0}.about a:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 .panel .close{height:clamp(30px,var(--b),40px);width:clamp(30px,var(--b),40px)}
 .row{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:clamp(32px,var(--b),40px);padding:0 10px;border:2px solid var(--ink);background:var(--paper);text-align:left;box-shadow:2px 2px 0 var(--ink)}
 button.row:hover{background:var(--ink);color:var(--paper)}button.row:active{transform:translate(2px,2px);box-shadow:none}
@@ -128,6 +129,7 @@ kbd{display:inline-block;min-width:13px;padding:0 2px;border:1px solid var(--lin
 
 .gearstick[hidden]{display:none}
 .gear-keys{position:absolute;left:0;top:var(--pt,0px);width:var(--kw,0px);height:var(--ph,100%);pointer-events:none}
+.playground[data-auto="true"] .gear-keys,.playground[data-auto="true"] .shift-bar{display:none}
 .shift-key{position:absolute;left:0;width:calc(var(--kw,24px) - var(--kd,3px));height:var(--kh,24px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:max(1px,calc(var(--kh,24px)*.04));border:max(1.5px,calc(var(--kh,24px)*.06)) solid var(--ink);background:var(--paper);color:var(--ink);font:italic 900 calc(var(--kh,24px)*.5)/.8 var(--heavy);box-shadow:calc(var(--kd,3px)*.34) calc(var(--kd,3px)*.34) 0 var(--ink),calc(var(--kd,3px)*.67) calc(var(--kd,3px)*.67) 0 var(--ink),var(--kd,3px) var(--kd,3px) 0 var(--ink)}
 .shift-key.up{top:0}.shift-key.down{bottom:var(--kd,3px)}
 .shift-key svg{display:block;width:46%;height:auto;shape-rendering:crispEdges}
@@ -142,6 +144,27 @@ kbd{display:inline-block;min-width:13px;padding:0 2px;border:1px solid var(--lin
 .gearstick.held .gear-face{cursor:grabbing}
 .gear-face svg{display:block;width:100%;height:100%;overflow:visible;shape-rendering:geometricPrecision}
 .gear-face:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+/* The F1 Car shifts with paddles behind the wheel (data-paddle): a downshift paddle left, an upshift paddle right, the gear in a
+   display between them and a row of shift lights above that fills as the revs near the shift point. It takes the gear stick's slot. */
+.paddles{display:none;position:absolute;inset:0 var(--pk) var(--pk) 0;grid-template-columns:1fr 1.3fr 1fr;grid-template-rows:auto 1fr;column-gap:calc(var(--u)*3);row-gap:calc(var(--u)*3);--pk:max(2px,calc(var(--u)*1.5))}
+.playground[data-paddle="true"] .paddles{display:grid}
+.playground[data-paddle="true"] .gear-keys,.playground[data-paddle="true"] .shift-bar,.playground[data-paddle="true"] .gear-face{display:none}
+.shift-lights{grid-column:1/4;display:flex;gap:calc(var(--u)*1.5);height:calc(var(--zh,100px)*.1);min-height:6px}
+.shift-lights i{flex:1;border:max(1.5px,calc(var(--u)*.8)) solid var(--ink);background:var(--paper)}
+.shift-lights i.on{background:var(--ink)}
+.shift-lights.hot i{background:var(--ink)}
+.paddle{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:calc(var(--zh,100px)*.02);min-width:0;padding:0;border:max(2px,calc(var(--u)*1.2)) solid var(--ink);background:var(--paper);color:var(--ink);font:italic 900 calc(var(--zh,100px)*.3)/.8 var(--heavy);box-shadow:calc(var(--pk)*.34) calc(var(--pk)*.34) 0 var(--ink),calc(var(--pk)*.67) calc(var(--pk)*.67) 0 var(--ink),var(--pk) var(--pk) 0 var(--ink);touch-action:none;cursor:pointer;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none}
+.paddle.down{border-radius:45% 6% 6% 45%/22% 6% 6% 22%}.paddle.up{border-radius:6% 45% 45% 6%/6% 22% 22% 6%}
+.paddle .sym{display:block;line-height:.7}
+.paddle .tag,.gear-lcd .tag{font:italic 900 clamp(7px,calc(var(--zh,100px)*.085),12px)/1 var(--heavy);letter-spacing:.04em}
+.paddle b{font:italic 900 clamp(7px,calc(var(--zh,100px)*.09),12px)/1 var(--heavy);padding:0 .3em;border:1px solid currentColor}
+.paddle.on{background:var(--ink);color:var(--paper);transform:translate(var(--pk),var(--pk));box-shadow:none}
+.paddle.hot{background:var(--ink);color:var(--paper)}
+.paddle.off{border-style:dashed;box-shadow:none;transform:translate(calc(var(--pk)*.5),calc(var(--pk)*.5))}
+.paddle:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.gear-lcd{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:calc(var(--zh,100px)*.02);min-width:0;border:max(2px,calc(var(--u)*1.2)) solid var(--ink);background:var(--paper);color:var(--ink);box-shadow:calc(var(--pk)*.34) calc(var(--pk)*.34) 0 var(--ink),calc(var(--pk)*.67) calc(var(--pk)*.67) 0 var(--ink),var(--pk) var(--pk) 0 var(--ink)}
+.gear-lcd .num{font:italic 900 calc(var(--zh,100px)*.46)/.85 var(--heavy);font-variant-numeric:tabular-nums;color:var(--ink);padding-right:.06em}
+@media(any-pointer:coarse),(max-width:700px){.paddle b{display:none}}
 /* The Drone flies with two thumb sticks instead of the wheel, pedals and gear stick (data-fly on the playground). */
 .flypad{display:none}.playground[data-fly="true"] .flypad{display:block}
 .playground[data-fly="true"] .wheel,.playground[data-fly="true"] .pedals,.playground[data-fly="true"] .gearstick{display:none}
@@ -174,6 +197,7 @@ kbd{display:inline-block;min-width:13px;padding:0 2px;border:1px solid var(--lin
     <div class="cars" role="group" aria-label="Pick your car">
       <button class="car-choice" data-car="compact" aria-pressed="true" aria-label="Compact: light and nimble" title="Compact: light &amp; nimble"><canvas width="48" height="36" aria-hidden="true"></canvas></button>
       <button class="car-choice" data-car="coupe" aria-pressed="false" aria-label="Supercar: fast and agile" title="Supercar: fast and agile"><canvas width="48" height="36" aria-hidden="true"></canvas></button>
+      <button class="car-choice" data-car="f1" aria-pressed="false" aria-label="F1 Car: fast, perfectly planted, paddle shifters" title="F1 Car: fast &amp; planted, paddle shifters"><canvas width="48" height="36" aria-hidden="true"></canvas></button>
       <button class="car-choice" data-car="van" aria-pressed="false" aria-label="Drone: flies over cones" title="Drone: flies over cones"><canvas width="48" height="36" aria-hidden="true"></canvas></button>
     </div>
     <button class="icon-btn" id="settings-btn" type="button" aria-label="Settings" title="Settings" aria-haspopup="dialog" aria-expanded="false" aria-controls="settings"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" shape-rendering="crispEdges"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none"/><rect x="9" y="2" width="3" height="4" fill="currentColor"/><rect x="4" y="6" width="3" height="4" fill="currentColor"/><rect x="10" y="10" width="3" height="4" fill="currentColor"/></svg></button>
@@ -187,18 +211,18 @@ kbd{display:inline-block;min-width:13px;padding:0 2px;border:1px solid var(--lin
   <section class="panel" id="settings" role="dialog" aria-modal="false" aria-labelledby="settings-title" hidden>
     <div class="panel-head"><h2 id="settings-title">SETTINGS</h2><button class="icon-btn close" id="settings-close" type="button" aria-label="Close settings" title="Close (Esc)"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" fill="none"/></svg></button></div>
     <label class="row switch-row" for="skids"><span>Skid marks</span><input id="skids" type="checkbox" role="switch" checked></label>
-    <label class="row" id="race-debug-label" for="race-debug-toggle"><span>Race debug mode</span><input id="race-debug-toggle" type="checkbox"></label>
+    <label class="row switch-row" id="race-debug-label" for="race-debug-toggle"><span>Race debug mode</span><input id="race-debug-toggle" type="checkbox" role="switch"></label>
     <details id="race-rules"><summary>Race rules</summary><p>Complete the course and cross the gate. Track quality falls with off-road travel. Ranked time = elapsed time + 0.02 × (100 − quality)² seconds.</p></details>
     <button class="row" id="clear" type="button">Clear tracks</button>
     <button class="row" id="reset" type="button">Reset scene</button>
-    <div class="track-pick" role="group" aria-labelledby="track-title"><span id="track-title">Track</span><div class="track-row" id="track-row"></div></div><details class="tuning" id="tuning"><summary id="tuning-title">TUNING</summary><div id="tune-list"></div><button class="row" id="tune-reset" type="button">Reset tuning</button></details>
-    <p class="readout"><span class="live" id="live" data-running="false"><span class="light" aria-hidden="true"></span><output id="status">READY</output></span><span class="fps"><output id="fps">—</output> FPS</span></p>
+    <div class="track-pick" role="group" aria-labelledby="track-title"><span id="track-title">Track</span><div class="track-row" id="track-row"></div></div><div class="settings-sections"><details class="tuning" id="tuning"><summary id="tuning-title">TUNING</summary><div id="tune-list"></div><button class="row" id="tune-reset" type="button">Reset tuning</button></details><details class="about"><summary>ABOUT ME</summary><a href="https://www.linkedin.com/in/minhnguyen161/" target="_blank" rel="noopener noreferrer">LinkedIn</a><a href="https://github.com/MinhMeoNguyen0" target="_blank" rel="noopener noreferrer">GitHub</a></details></div>
+    <p class="readout"><span class="live" id="live" data-running="false"><span class="light" aria-hidden="true"></span><output id="status">READY</output></span></p>
   </section>
   <div class="ui-box wheel" id="wheel"><div class="wheel-face" id="wheel-face" role="slider" tabindex="0" aria-label="Steering wheel" aria-orientation="horizontal" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0" aria-valuetext="centred" title="Drag to steer (or hold A / D, or the arrow keys while focused)"><div class="rim" id="rim"><svg viewBox="0 0 100 100" aria-hidden="true"><defs><pattern id="wheel-dither" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 0h1v1H0zm1 1h1v1H1z"/></pattern><pattern id="wheel-stripes" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 1h2v1H0z"/></pattern></defs><circle cx="50" cy="52" r="43" fill="none" stroke="#30342d" stroke-width="12"/><circle cx="50" cy="49" r="43" fill="none" stroke="#30342d" stroke-width="11"/><circle class="chain" cx="50" cy="49" r="43" fill="none" stroke="url(#wheel-dither)" stroke-width="4.6" stroke-dasharray="4.2 2.55" stroke-linecap="round"/><circle cx="50" cy="49" r="43" fill="none" stroke="#30342d" stroke-width="1.6" stroke-dasharray="2.2 4.55" stroke-dashoffset="-1"/><path d="M10 49C24 49 34 48 43 50M90 49C76 49 66 48 57 50M50 58V91" fill="none" stroke="#30342d" stroke-width="7" stroke-linecap="round"/><path d="M13 47H38M62 47H87M48 65V88" fill="none" stroke="url(#wheel-dither)" stroke-width="2"/><circle cx="50" cy="51" r="17" fill="#30342d"/><circle cx="50" cy="48" r="14" fill="#bfc1b1" stroke="#30342d" stroke-width="2"/><path d="M37 44A14 14 0 0 1 63 44" fill="none" stroke="url(#wheel-dither)" stroke-width="4"/><path class="marker" d="M42.5 0.5h15l-2 12h-11z" fill="url(#wheel-stripes)" stroke="#30342d" stroke-width="1.6" stroke-linejoin="round"/><path d="M47 4.5h6l-3 5z" fill="#30342d"/></svg></div></div></div>
   <div class="ui-box pedals" id="pedals" role="group" aria-label="Pedals"><div class="pedal-set"><button class="pedal" id="pedal-brake" type="button" aria-label="Brake (hold)" title="Brake (Space)"><span aria-hidden="true">BRAKE</span></button><button class="pedal" id="pedal-gas" type="button" aria-label="Gas (hold)" title="Gas (W)"><span aria-hidden="true">GAS</span></button></div></div>
   <p class="sr-only" id="driving-help">W accelerates. Space brakes. A and D steer. Escape pauses. On touch screens, drag the steering wheel and hold the gas or brake pedal. Hold R for a new race, or tap the new race button on touch screens. If the car rolls over, tap R or use the Right the car button that appears next to the car chooser. The edges are connected. Every car has a gear stick. The Supercar is a manual with five gears and reverse under fifth: Q shifts down and E shifts up, and Q in first gear selects reverse when the car is stopped. The other cars are automatics with Park, Reverse, Neutral and Drive; they start in Drive, Q moves the stick down toward Drive and E moves it up toward Park. Reverse and Park only engage when the car is stopped. You can also drag the stick's knob through its gate (on the focused stick, the arrow keys move it, and 1 to 5 pick a gear on the Supercar). The Drone flies with two sticks, like a real drone's remote in Mode 2. The left stick (W and S, A and D) climbs, descends and turns on the spot; the right stick (the arrow keys) tilts the drone to fly forward, back, left and right. Let go and it levels out, holds its height and drifts to a stop. On touch screens, drag the two sticks. The same instructions are painted on the ground.</p>
   <p class="ui-box speed" id="speed" aria-hidden="true"><span class="big" id="speed-value">0</span><span class="unit"><span>KM</span><span>/H</span></span><span class="gear-read" id="gear-read"><span class="big" id="gear-value">1</span><span class="unit"><span id="gear-unit">GEAR</span></span></span></p>
-  <div class="ui-box gearstick" id="gearstick"><div class="gear-keys" aria-hidden="true"><span class="shift-key up" id="shift-up"><svg viewBox="0 0 10 7"><path d="M5 0l5 5H7v2H3V5H0z" fill="currentColor"/></svg><b>E</b></span><span class="shift-key down" id="shift-down"><b>Q</b><svg viewBox="0 0 10 7"><path d="M3 0h4v2h3L5 7 0 2h3z" fill="currentColor"/></svg></span></div><div class="shift-bar" id="shift-bar" aria-hidden="true"><i></i></div><div class="gear-face" id="gear-face" role="slider" tabindex="0" aria-label="Gear stick" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="5" aria-valuenow="1" aria-valuetext="gear 1" aria-keyshortcuts="Q E" title="Drag the knob through the H gate (or Q / E)"><svg viewBox="0 0 110 106" preserveAspectRatio="xMinYMid meet" aria-hidden="true"><defs><pattern id="gear-dither" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 0h1v1H0zm1 1h1v1H1z"/></pattern><pattern id="gear-stripes" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 1h2v1H0z"/></pattern></defs><path d="M6 6h102v100H6z" fill="#30342d"/><path d="M2 2h102v100H2z" fill="#bfc1b1" stroke="#30342d" stroke-width="2"/><g id="gate-manual"><path d="M22 28V76M55 28V76M88 28V76M22 52H88" fill="none" stroke="#30342d" stroke-width="12" stroke-linecap="round"/><path d="M22 28V76M55 28V76M88 28V76M22 52H88" fill="none" stroke="url(#gear-dither)" stroke-width="4" stroke-linecap="round" transform="translate(1.2 1.2)"/><g fill="#30342d" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-style="italic" font-size="12" text-anchor="middle"><text x="22" y="17">1</text><text x="22" y="95">2</text><text x="55" y="17">3</text><text x="55" y="95">4</text><text x="88" y="17">5</text><text x="88" y="95">R</text></g></g><g id="gate-auto" display="none"><path d="M62 22V82M62 22h9M62 42h9M62 62h9M62 82h9" fill="none" stroke="#30342d" stroke-width="12" stroke-linecap="round"/><path d="M62 22V82" fill="none" stroke="url(#gear-dither)" stroke-width="4" stroke-linecap="round" transform="translate(1.2 1.2)"/><g fill="#30342d" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-style="italic" font-size="14" text-anchor="middle"><text x="30" y="27">P</text><text x="30" y="47">R</text><text x="30" y="67">N</text><text x="30" y="87">D</text></g></g><circle id="gear-pivot" cx="55" cy="52" r="13" fill="url(#gear-dither)" stroke="#30342d" stroke-width="2"/><circle id="gear-shadow" cx="26" cy="31" r="10" fill="url(#gear-dither)"/><line id="gear-shaft" x1="55" y1="52" x2="22" y2="28" stroke="#30342d" stroke-width="6" stroke-linecap="round"/><g id="gear-knob" transform="translate(22 28)"><circle r="11.5" fill="#30342d"/><circle r="8.5" fill="none" stroke="url(#gear-stripes)" stroke-width="3"/><text id="gear-num" y="4.2" fill="#bfc1b1" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-style="italic" font-size="11" text-anchor="middle">1</text></g></svg></div></div>
+  <div class="ui-box gearstick" id="gearstick"><div class="paddles" id="paddles" role="group" aria-label="Paddle shifters"><div class="shift-lights" id="shift-lights" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><button class="paddle down" id="paddle-down" type="button" aria-label="Downshift paddle" aria-keyshortcuts="Q" title="Downshift (Q)"><span class="sym" aria-hidden="true">&minus;</span><span class="tag" aria-hidden="true">DOWN</span><b aria-hidden="true">Q</b></button><div class="gear-lcd" aria-hidden="true"><span class="num" id="paddle-gear">1</span><span class="tag">GEAR</span></div><button class="paddle up" id="paddle-up" type="button" aria-label="Upshift paddle" aria-keyshortcuts="E" title="Upshift (E)"><span class="sym" aria-hidden="true">+</span><span class="tag" aria-hidden="true">UP</span><b aria-hidden="true">E</b></button></div><div class="gear-keys" aria-hidden="true"><span class="shift-key up" id="shift-up"><svg viewBox="0 0 10 7"><path d="M5 0l5 5H7v2H3V5H0z" fill="currentColor"/></svg><b>E</b></span><span class="shift-key down" id="shift-down"><b>Q</b><svg viewBox="0 0 10 7"><path d="M3 0h4v2h3L5 7 0 2h3z" fill="currentColor"/></svg></span></div><div class="shift-bar" id="shift-bar" aria-hidden="true"><i></i></div><div class="gear-face" id="gear-face" role="slider" tabindex="0" aria-label="Gear stick" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="5" aria-valuenow="1" aria-valuetext="gear 1" aria-keyshortcuts="Q E" title="Drag the knob through the H gate (or Q / E)"><svg viewBox="0 0 110 106" preserveAspectRatio="xMinYMid meet" aria-hidden="true"><defs><pattern id="gear-dither" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 0h1v1H0zm1 1h1v1H1z"/></pattern><pattern id="gear-stripes" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 1h2v1H0z"/></pattern></defs><path d="M6 6h102v100H6z" fill="#30342d"/><path d="M2 2h102v100H2z" fill="#bfc1b1" stroke="#30342d" stroke-width="2"/><g id="gate-manual"><path d="M22 28V76M55 28V76M88 28V76M22 52H88" fill="none" stroke="#30342d" stroke-width="12" stroke-linecap="round"/><path d="M22 28V76M55 28V76M88 28V76M22 52H88" fill="none" stroke="url(#gear-dither)" stroke-width="4" stroke-linecap="round" transform="translate(1.2 1.2)"/><g fill="#30342d" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-style="italic" font-size="12" text-anchor="middle"><text x="22" y="17">1</text><text x="22" y="95">2</text><text x="55" y="17">3</text><text x="55" y="95">4</text><text x="88" y="17">5</text><text x="88" y="95">R</text></g></g><g id="gate-auto" display="none"><path d="M62 22V82M62 22h9M62 42h9M62 62h9M62 82h9" fill="none" stroke="#30342d" stroke-width="12" stroke-linecap="round"/><path d="M62 22V82" fill="none" stroke="url(#gear-dither)" stroke-width="4" stroke-linecap="round" transform="translate(1.2 1.2)"/><g fill="#30342d" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-style="italic" font-size="14" text-anchor="middle"><text x="30" y="27">P</text><text x="30" y="47">R</text><text x="30" y="67">N</text><text x="30" y="87">D</text></g></g><circle id="gear-pivot" cx="55" cy="52" r="13" fill="url(#gear-dither)" stroke="#30342d" stroke-width="2"/><circle id="gear-shadow" cx="26" cy="31" r="10" fill="url(#gear-dither)"/><line id="gear-shaft" x1="55" y1="52" x2="22" y2="28" stroke="#30342d" stroke-width="6" stroke-linecap="round"/><g id="gear-knob" transform="translate(22 28)"><circle r="11.5" fill="#30342d"/><circle r="8.5" fill="none" stroke="url(#gear-stripes)" stroke-width="3"/><text id="gear-num" y="4.2" fill="#bfc1b1" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-style="italic" font-size="11" text-anchor="middle">1</text></g></svg></div></div>
   <div class="ui-box flypad" id="fly-left" role="group" aria-label="Left stick: push up to climb and down to descend (W and S), left and right to turn (A and D)"><div class="fly-face" id="fly-left-face" title="Left stick: push up to climb and down to descend (W and S), left and right to turn (A and D)"><svg viewBox="0 0 100 100" aria-hidden="true"><defs><pattern id="flyl-dither" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 0h1v1H0zm1 1h1v1H1z"/></pattern><pattern id="flyl-stripes" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 1h2v1H0z"/></pattern></defs><path d="M8 8h90v90H8z" fill="#30342d"/><path d="M3 3h90v90H3z" fill="#bfc1b1" stroke="#30342d" stroke-width="2.5"/><path d="M18 18h60v60H18z" fill="url(#flyl-dither)" stroke="#30342d" stroke-width="2"/><path d="M48 18V78M18 48H78" stroke="#30342d" stroke-width="1.6"/><text x="48" y="13.6" text-anchor="middle">UP</text><text x="48" y="89.6" text-anchor="middle">DOWN</text><path d="M13.5 56A9 9 0 0 1 13.5 40" fill="none" stroke="#30342d" stroke-width="2.6"/><path d="M8.6 42.4l4.9-6.4 3.6 7.1z" fill="#30342d"/><path d="M82.5 56A9 9 0 0 0 82.5 40" fill="none" stroke="#30342d" stroke-width="2.6"/><path d="M87.4 42.4l-4.9-6.4-3.6 7.1z" fill="#30342d"/><g class="fly-knob" id="fly-left-knob"><circle cx="52" cy="52" r="12.5" fill="url(#flyl-dither)"/><circle cx="48" cy="48" r="12.5" fill="#30342d"/><circle cx="48" cy="48" r="8.5" fill="url(#flyl-stripes)"/><circle cx="48" cy="48" r="3" fill="#30342d"/></g></svg></div></div>
   <div class="ui-box flypad" id="fly-right" role="group" aria-label="Right stick: push to fly forward, back, left and right (the arrow keys)"><div class="fly-face" id="fly-right-face" title="Right stick: push to fly forward, back, left and right (the arrow keys)"><svg viewBox="0 0 100 100" aria-hidden="true"><defs><pattern id="flyr-dither" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 0h1v1H0zm1 1h1v1H1z"/></pattern><pattern id="flyr-stripes" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 1h2v1H0z"/></pattern></defs><path d="M8 8h90v90H8z" fill="#30342d"/><path d="M3 3h90v90H3z" fill="#bfc1b1" stroke="#30342d" stroke-width="2.5"/><path d="M18 18h60v60H18z" fill="url(#flyr-dither)" stroke="#30342d" stroke-width="2"/><path d="M48 18V78M18 48H78" stroke="#30342d" stroke-width="1.6"/><text x="48" y="13.6" text-anchor="middle">FWD</text><text x="48" y="89.6" text-anchor="middle">BACK</text><path d="M7 48l7-6v12z" fill="#30342d"/><path d="M89 48l-7-6v12z" fill="#30342d"/><g class="fly-knob" id="fly-right-knob"><circle cx="52" cy="52" r="12.5" fill="url(#flyr-dither)"/><circle cx="48" cy="48" r="12.5" fill="#30342d"/><circle cx="48" cy="48" r="8.5" fill="url(#flyr-stripes)"/><circle cx="48" cy="48" r="3" fill="#30342d"/></g></svg></div></div>
   <button class="entry" id="enter" type="button"><span>PRESS W TO DRIVE</span></button>
@@ -227,12 +251,17 @@ const PRESETS={
  // which the inner wheels lift (1 = the static tipping point). Tall + grippy (Van) is the most roll-prone, low (Coupe) the least.
  compact:{name:'Compact',artId:'compact',trans:'auto',length:31,width:15.6,height:8.1,roof:13.3,wheelbase:21,trackWidth:13,mass:1,accel:105,brake:182,max:207,reverse:61,grip:112,steer:.66,drag:.15,comHeight:5.3,rollThreshold:1.1},
  coupe:{name:'Supercar',artId:'coupe',trans:'manual',length:36,width:16.6,height:5.8,roof:9.8,wheelbase:25,trackWidth:14,mass:.95,accel:127,brake:184,max:257,reverse:70,grip:68,steer:.64,drag:.12,comHeight:4.2,rollThreshold:1.2},
+ // F1 Car: a sequential 8-speed on paddles (trans 'paddle': no clutch, no H gate), fast and perfectly planted (planted: the
+ // tyres never let it slide, so it has no drift or skid marks). Its box matches the Supercar's, so the course does not change.
+ f1:{name:'F1 Car',artId:'f1',trans:'paddle',gears:8,planted:true,shiftTime:.04,length:36,width:16.6,height:4.6,roof:8.2,wheelbase:26,trackWidth:13.8,mass:.8,accel:210,brake:300,max:300,reverse:60,grip:300,steer:.5,drag:.1,comHeight:2.2,rollThreshold:9},
  van:{name:'Drone',artId:'van',trans:'auto',flying:true,flightHeight:20,length:28,width:18,height:9.4,roof:18,wheelbase:20,trackWidth:15.4,mass:1,accel:125,brake:186,max:236,reverse:71,grip:125,steer:.62,drag:.17,comHeight:2,rollThreshold:10}
 };
 // Art-only shape parameters (not physics). x positions are fractions of half-length, + = front. Shades: 0 ink … 1 paper.
 const CAR_ART={
  compact:{tyre:2.6,tyreW:2.4,sill:1.7,cf:[2.6,2.4],cr:[1.4,1.6],hoodDrop:1.6,tailDrop:.4,cabin:[-.9,.3],roofSpan:[-.82,-.08],inset:1,tumble:1.1,pillars:[.47],trim:.5,arch:1,paint:0,side:0,glass:1,rearGlass:.75,roofShade:.25,light:1,tail:1},
  coupe:{tyre:2.4,tyreW:2.4,sill:1.4,cf:[3.2,2.8],cr:[2.2,2],hoodDrop:1.5,tailDrop:.9,cabin:[-.62,.2],roofSpan:[-.4,-.14],inset:1.2,tumble:1.3,pillars:[],paint:1,side:.5,glass:0,rearGlass:0,roofShade:1,light:1,tail:0},
+ // open: wheels stand outside a slim body (bodyW = body width share), with a wing at each end and a closed canopy.
+ f1:{open:1,bodyW:.5,tyre:3.3,tyreW:2.8,sill:.8,cf:[11,2.3],cr:[3,1.4],hoodDrop:2.6,tailDrop:.8,cabin:[-.3,.2],roofSpan:[-.24,.02],inset:.4,tumble:1,pillars:[],trim:.5,paint:.85,side:.35,glass:0,rearGlass:0,roofShade:.55,light:0,tail:0},
  van:{tyre:2.7,tyreW:2.4,sill:2,cf:[2.2,2.2],cr:[1,1.2],hoodDrop:1.4,tailDrop:0,cabin:[-.97,.5],roofSpan:[-.97,.3],inset:.7,tumble:.7,pillars:[.28,.62],paint:1,side:.75,glass:0,rearGlass:0,roofShade:.5,light:0,tail:0}
 };
 const CONE_MASS=.045, CONE_R=2.25;
@@ -258,7 +287,7 @@ const TUNING_SPEC=[
  {key:'steerAngle',group:'car',label:'Steering angle',min:.2,max:3,step:.05,def:1.1},
  {key:'steerFade',group:'car',label:'Steering fade at speed',min:0,max:.98,step:.02,def:.48},
  {key:'steerSpeed',group:'car',label:'Front wheel speed',unit:'/s',min:1,max:60,step:1,def:12},
- {key:'turnRate',group:'car',label:'Turn response',min:.15,max:6,step:.05,def:1.35},
+ {key:'turnRate',group:'car',label:'Turn response',min:.15,max:6,step:.05,def:2.15},
  {key:'grip',group:'car',label:'Grip (less drift)',min:.1,max:4,step:.05,def:1.15},
  {key:'wheelRange',group:'wheel',label:'Wheel turn each way',unit:'°',min:45,max:1080,step:15,def:270},
  {key:'wheelCurve',group:'wheel',label:'Centre softness',min:.3,max:5,step:.1,def:1.2},
@@ -268,9 +297,9 @@ const TUNING_SPEC=[
  {key:'viewLot',group:'view',label:'Zoom out (parking lot)',unit:'px',min:300,max:1000,step:25,def:300},
  // releasing the brake with the gas held launches harder than a plain start while the spin unwinds.
  {key:'burnoutBuild',group:'launch',label:'Burnout build-up',unit:'s',min:.1,max:3,step:.1,def:.8},
- {key:'launchBoost',group:'launch',label:'Launch boost (extra pull)',min:0,max:3,step:.05,def:.8},
+ {key:'launchBoost',group:'launch',label:'Launch boost (extra pull)',min:0,max:3,step:.05,def:1},
  {key:'launchTime',group:'launch',label:'Launch boost length',unit:'s',min:.2,max:4,step:.1,def:1.2},
- {key:'burnoutSmoke',group:'launch',label:'Burnout smoke',min:0,max:3,step:.1,def:.5}
+ {key:'burnoutSmoke',group:'launch',label:'Burnout smoke',min:0,max:3,step:.1,def:.4}
 ];
 const TUNING_DEFAULTS=Object.freeze(Object.fromEntries(TUNING_SPEC.map(s=>[s.key,s.def])));
 const TUNING={...TUNING_DEFAULTS};
@@ -288,7 +317,7 @@ function frameIndex(a,count){return wrap(Math.round(a/TAU*count),count);}
 const models=new WeakMap();
 function carModel(p){
  let m=models.get(p);if(m)return m;
- const art=CAR_ART[p.artId||String(p.name).toLowerCase()]||CAR_ART.compact,L=p.length/2,B=p.width/2,h=p.height,R=p.roof;
+ const art=CAR_ART[p.artId||String(p.name).toLowerCase()]||CAR_ART.compact,L=p.length/2,B=p.width/2*(art.bodyW||1),h=p.height,R=p.roof;
  const xb=art.cabin[0]*L,xf=art.cabin[1]*L,rbx=art.roofSpan[0]*L,rfx=art.roofSpan[1]*L,bw=B-art.inset,rw=bw-art.tumble;
  // Bonnet and boot fall away from the cabin, so the nose and tail read in silhouette.
  const deckZ=x=>x>xf?h-art.hoodDrop*(x-xf)/(L-xf):x<xb?h-art.tailDrop*(xb-x)/(L+xb):h;
@@ -304,7 +333,15 @@ function carModel(p){
   const yIn=side*(p.trackWidth/2-half),yOut=side*(p.trackWidth/2+half);
   tyres.push({axle,side,ring,pts:[...ring.map(([x,z])=>[x,yIn,z]),...ring.map(([x,z])=>[x,yOut,z])]});
  }
- m={art,L,B,h,R,plan,deckZ,xb,xf,rbx,rfx,bw,rw,body,cabin,tyres};models.set(p,m);return m;
+ // Open-wheel cars add a front and a rear wing (flat slabs with end plates) to the bounds, shadow and sprite.
+ const wings=[];
+ if(art.open){
+  const ww=p.trackWidth/2+art.tyreW/2-.6,slab=(x0,x1,y,z)=>[[x0,-y,z],[x1,-y,z],[x1,y,z],[x0,y,z]];
+  wings.push({kind:'front',quad:slab(L-3,L,ww,1.1),plates:[-ww,ww].map(y=>[[L-3,y,1.1],[L,y,3.2]])});
+  wings.push({kind:'rear',quad:slab(-L,-L+3,ww*.78,7),plates:[-ww*.78,ww*.78].map(y=>[[-L,y,2],[-L+3,y,7.8]]),post:[[-L+1.5,0,h],[-L+1.5,0,7]]});
+ }
+ for(const w of wings)w.pts=[...w.quad,...w.plates.flat(),...(w.post||[])];
+ m={art,L,B,h,R,plan,deckZ,xb,xf,rbx,rfx,bw,rw,body,cabin,tyres,wings};models.set(p,m);return m;
 }
 function hull(points){
  const s=points.slice().sort((a,b)=>a[0]-b[0]||a[1]-b[1]),cross=(o,a,b)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]),lo=[],hi=[];
@@ -344,7 +381,9 @@ function carShadowPolys(p,a,tr=0,tp=0){
  const m=carModel(p),cs=Math.cos(a),sn=Math.sin(a),g=([x,y],z)=>[x*cs-y*sn+LIGHT.x*z,K*(x*sn+y*cs)+LIGHT.y*z];
  const body=hull([...m.plan.map(v=>g(v,0)),...m.plan.map(v=>g(v,m.deckZ(v[0])))]);
  const cabin=hull([...m.cabin.pts.map(([x,y,z])=>g([x,y],z))]);
- return [body,cabin];
+ // Open wheels and wings stand clear of the body: each casts its own footprint swept by its height.
+ const extra=m.art.open?[...m.tyres.map(t=>t.pts),...m.wings.map(w=>w.pts)].map(pts=>hull(pts.flatMap(([x,y,z])=>[g([x,y],0),g([x,y],z)]))):[];
+ return [body,cabin,...extra];
 }
 // The Drone's parts in drone-local coordinates (x forward, y right, z up), shared by its sprite and its bounds.
 function droneParts(p){
@@ -381,7 +420,7 @@ function carSpritePoints(p,a,tr=0,tp=0){
  if(p.flying){const cs=Math.cos(a),sn=Math.sin(a),d=droneParts(p);
   return [...d.rotors.flatMap(o=>[...o.arm,...o.disc,...o.hub]),...d.body,...d.canopy,...d.nose].map(v=>{const [x,y,z]=droneTiltPoint(p,v,tr,tp);return [x*cs-y*sn,K*(x*sn+y*cs)-Z*z];});}
  const m=carModel(p),cs=Math.cos(a),sn=Math.sin(a),out=[];
- for(const s of [m.body,m.cabin,...m.tyres])for(const [x,y,z] of s.pts)out.push([x*cs-y*sn,K*(x*sn+y*cs)-Z*z]);
+ for(const s of [m.body,m.cabin,...m.tyres,...m.wings])for(const [x,y,z] of s.pts)out.push([x*cs-y*sn,K*(x*sn+y*cs)-Z*z]);
  return out;
 }
 // right side), then lifts it so its lowest point rests on the ground. Shared by roll sprites, roll shadows and bounds.
@@ -829,8 +868,8 @@ function buildCourse(A,zones,id=SELECTED_TRACK){
 // it; the lot has its own default zoom, TUNING.viewLot). A ring aisle runs round a central island and the stalls face it on
 // all four sides: a row along the top and the bottom, and a short column of side-on stalls at each end. The cut corners and
 // a band round the lot are planted (dither). The island carries the "8-BIT PARKING" paint; the accessible pair (stall,
-// hatched access aisle, stall) sits mid top row; the cart corral fills one side-on stall (rails just inside the stall lines,
-// open end to the aisle, four nested carts side-on); a stray cart rolls away when hit (a movable body in w.cones, kind
+// hatched access aisle, stall) sits mid top row; the cart corral stands outside the left edge (parallel rails,
+// an open end and nested carts); a stray cart rolls away when hit (a movable body in w.cones, kind
 // 'cart'); traffic cones stand at the island ends, in a reserved stall and across a coned-off stall.
 // World units (screen y = y*K). The rails and the corralled carts are fixed colliders (layout.posts: circles, like gate posts).
 // lotFit: the plan with the most stalls per row (LOT_MAX down to the plan's min) whose asphalt clears the edge strip and every
@@ -841,8 +880,9 @@ const LOT_TOP=46,lotTopRect=g=>({l:g.cl,t:g.t*K-LOT_BAND-LOT_TOP,r:g.cr,b:g.t*K-
 const LOT_STALL_W=26,LOT_STALL_D=42,LOT_BAND=6,LOT_MAX=13,LOT_MIN=3,LOT_TITLE='8-BIT PARKING';
 const LOT_PLANS=[{aisle:68,island:40,side:true,min:7},{aisle:60,island:36,side:true,min:6},{aisle:54,island:30,side:true,min:5},{aisle:52,island:0,side:true,min:4},{aisle:52,island:0,side:false,min:3}];
 // CART_S: carts are drawn and collide about 1.3× real size next to the cars, so they read at this pixel scale.
-// The corral: CORRAL_HL half-length (along the stall's depth), CORRAL_HW half-width (across it); one lane of four nested carts.
-const CART_S=1.3,CART_R=5.4,CART_MASS=.3,CART_LEN=10*CART_S,CART_NEST=6.2,CORRAL_HW=9,CORRAL_HL=18,RAIL_R=1.6,RAIL_GAP=2.4;
+// The corral: CORRAL_HL half-length, CORRAL_HW half-width; one row of nested carts.
+const CART_S=1.3,CART_R=5.4,CART_MASS=.3,CART_LEN=10*CART_S,CART_NEST=6.2,CORRAL_CARTS=6,CORRAL_HW=9,CORRAL_HL=35,RAIL_R=1.6,RAIL_GAP=2.4;
+const CORRAL_OFFSETS=[0,4.7,11.9,17.3,25.3,31];
 // Asphalt of a lot as three world rects [x0, y0, x1, y1]: the top row, the middle band (aisles, island and side columns, full
 // width) and the bottom row. The corners above and below the side columns are planted.
 const lotRects=g=>[[g.cl,g.t,g.cr,g.my],[g.l,g.my,g.r,g.mb],[g.cl,g.mb,g.cr,g.b]];
@@ -879,24 +919,25 @@ function buildParking(A,zones){
  if(P.island){const x0=cl+P.aisle*.9,x1=cr-P.aisle*.9;if(x1-x0>=60)island={x0:r2(x0),x1:r2(x1),y0:r2(my+P.aisle),y1:r2(mb-P.aisle)};}
  const aisles=[{y0:r2(my),y1:r2(my+P.aisle)},{y0:r2(mb-P.aisle),y1:r2(mb)}];
  const props=[],posts=[];let corral=null;
- // Corral: the middle side-on stall of the right column (else the left one), when its rails and sign clear every control.
- for(const q of [...cols].reverse()){const k=Math.floor(q.slots.length/2),sl=q.slots[k];if(!sl)continue;
-  const s=-q.dir,cy=(sl.y0+sl.y1)/2,xb=q.back-s*2,xo=xb-s*2*CORRAL_HL;
-  if(!zonesClear(zones,Math.min(xb,xo)-4,(cy-CORRAL_HW)*K-14,Math.max(xb,xo)+4,(cy+CORRAL_HW+4)*K,2))continue;
-  sl.kind='corral';corral={x:r2((xb+xo)/2),y:r2(cy),xb:r2(Math.min(xb,xo)),xf:r2(Math.max(xb,xo)),back:s};
-  const H2=CORRAL_HW,c=3;
-  // Rails (plan view), each split into pieces of at most 12 units so the pieces depth-sort against the cars; post = upright at that end.
-  const rail=(x0,y0,x1,y1,post0,post1)=>{const L=Math.hypot(x1-x0,y1-y0),m=Math.max(1,Math.ceil(L/12));
-   for(let k=0;k<m;k++)props.push({type:'rail',x0:r2(x0+(x1-x0)*k/m),y0:r2(y0+(y1-y0)*k/m),x1:r2(x0+(x1-x0)*(k+1)/m),y1:r2(y0+(y1-y0)*(k+1)/m),p0:k===0&&post0||k===Math.floor(m/2)&&m>3,p1:k===m-1&&post1});
+ // Cart return stands alongside the left edge, aligned with it. The open end faces down the lot.
+ // Keep a clear gap from the planted border; rails and the nested carts remain solid as before.
+ const cx=g.l-LOT_BAND-CORRAL_HW-13,cy=(my+mb)/2,back=cy-CORRAL_HL,front=cy+CORRAL_HL;
+ if(cx-CORRAL_HW-4>=8&&zonesClear(zones,cx-CORRAL_HW-4,back*K-18,cx+CORRAL_HW+4,front*K+5,2)){
+  corral={x:r2(cx),y:r2(cy),xb:r2(cx-CORRAL_HW),xf:r2(cx+CORRAL_HW),y0:r2(back),y1:r2(front),back:-1};
+  // Short rail segments sort independently by their ground depth; matching post circles block cars.
+  const rail=(x0,y0,x1,y1)=>{const L=Math.hypot(x1-x0,y1-y0),m=Math.max(1,Math.ceil(L/10));
+   for(let k=0;k<m;k++)props.push({type:'rail',x0:r2(x0+(x1-x0)*k/m),y0:r2(y0+(y1-y0)*k/m),x1:r2(x0+(x1-x0)*(k+1)/m),y1:r2(y0+(y1-y0)*(k+1)/m),p0:k===0||k%2===0,p1:k===m-1});
    for(let k=0,n=Math.max(1,Math.ceil(L/RAIL_GAP));k<=n;k++)posts.push({x:r2(x0+(x1-x0)*k/n),y:r2(y0+(y1-y0)*k/n),r:RAIL_R});};
-  rail(xb,cy-H2+c,xb,cy+H2-c,false,false);rail(xb-s*c,cy-H2,xb,cy-H2+c,true,false);rail(xb,cy+H2-c,xb-s*c,cy+H2,false,true);
-  rail(xb-s*c,cy-H2,xo,cy-H2,false,true);rail(xb-s*c,cy+H2,xo,cy+H2,false,true);
-  // The sign hangs on the front rail near the open end, facing the camera (like "please place carts here").
-  props.push({type:'sign',x:r2(xo+s*14),y:r2(cy+H2+.5)});
-  // Four nested carts side-on, noses to the back rail, handles to the aisle.
-  for(let k=0;k<4;k++)props.push({type:'cart',x:r2(xb-s*(1.5+CART_LEN/2+k*CART_NEST)),y:r2(cy),a:s>0?0:Math.PI});
-  for(let d=1.5+CART_LEN/2-3;d<=1.5+CART_LEN/2+3*CART_NEST+4+1e-9;d+=3)posts.push({x:r2(xb-s*d),y:r2(cy),r:4.6});
-  break;}
+  rail(cx-CORRAL_HW,back,cx+CORRAL_HW,back);rail(cx-CORRAL_HW,back,cx-CORRAL_HW,front);rail(cx+CORRAL_HW,back,cx+CORRAL_HW,front);
+  props.push({type:'sign',x:r2(cx),y:r2(back)});
+  for(const d of CORRAL_OFFSETS)props.push({type:'cart',x:r2(cx),y:r2(back+1.5+CART_LEN/2+d),a:-Math.PI/2});
+  // A seventh cart is nearly nested; another sits at the entrance at an angle.
+  const partial=back+1.5+CART_LEN/2+CORRAL_OFFSETS[CORRAL_OFFSETS.length-1]+9,entrance=front-2;
+  props.push({type:'cart',stage:'partial',x:r2(cx),y:r2(partial),a:-Math.PI/2});
+  props.push({type:'cart',stage:'entrance',x:r2(cx+2),y:r2(entrance),a:-Math.PI/2-.6});
+  for(let d=1.5+CART_LEN/2-3;d<=partial-back+4+1e-9;d+=3)posts.push({x:r2(cx),y:r2(back+d),r:4.6});
+  posts.push({x:r2(cx+2),y:r2(entrance),r:4.6});
+ }
  // Accessible stalls: three slots mid top row (stall, hatched access aisle, stall), clear of every control; else the bottom row.
  for(const q of rows){if(q.slots.length<5)continue;const yb=q.back*K,ym=(q.back+q.dir*D)*K,vis=s=>zonesClear(zones,s.x0,Math.min(yb,ym),s.x1,Math.max(yb,ym),4);
   const ks=q.slots.map((s,k)=>k).filter(k=>k>0&&k<q.slots.length-1).sort((a,b)=>Math.abs((q.slots[a].x0+q.slots[a].x1)/2-cx0)-Math.abs((q.slots[b].x0+q.slots[b].x1)/2-cx0)||a-b);
@@ -942,7 +983,7 @@ function inIsland(I,x,y){
 }
 // The wheelchair symbol painted in accessible stalls: an 8-bit pictogram (head, back, arm, seat, leg and a round wheel) in
 // paper on an ink square, ACCESS_MARK px (screen, not squashed).
-const ACCESS_MARK=['.................','.......##........','......####.......','.......##........','.................','.......##........','.......######....','.......##........','....#..##........','...#...######....','..#.........##...','..#.........##...','..#..........##..','...#.....#...###.','....#...#........','.....###.........','.................'];
+const ACCESS_MARK=['.................','.......###.......','......#####......','.......###.......','.......##........','.......###.......','.......#######...','.......###.......','....#..###.......','...##..########..','..##......###....','..##.......###...','..##........###..','...##....##..##..','....######.......','.....####........','.................'];
 // Lot paint pixels in screen px (plot(x, y)): the planted band and corners (a checker dither, a solid edge on the asphalt and
 // round the outside), the stall dividers of every row and column, the hatched access aisle, the wheelchair squares and the
 // island (outline and a dithered drop shadow on the light's side). The planted band is ground texture and runs under the
@@ -966,6 +1007,11 @@ function lotMarks(layout,plot,W,H,zones=[]){
  // The island's outline: its own pixels next to the outside.
  if(I){const c=(u,v)=>inIsland(I,u+.5,v+.5);
   for(let y=Math.floor(I.y0*K);y<=Math.ceil(I.y1*K);y++)for(let x=Math.floor(I.x0);x<=Math.ceil(I.x1);x++)if(c(x,y)&&(!c(x-1,y)||!c(x+1,y)||!c(x,y-1)||!c(x,y+1)))put(x,y);}
+ // Ground pad beneath the freestanding cart return, just outside the planted edge.
+ const C=lot.corral;if(C&&Number.isFinite(C.y0)){
+  const l=Math.round(C.xb-2),r=Math.round(C.xf+2),t=Math.round(C.y0*K-2),b=Math.round(C.y1*K+2);
+  for(let x=l;x<=r;x++){put(x,t);put(x,b);}for(let y=t;y<=b;y++){put(l,y);put(r,y);}
+ }
 }
 // The island's title box in screen px (the "8-BIT PARKING" paint), or null when the lot has no island.
 function lotTitleRect(lot){const I=lot&&lot.island;return I?{l:Math.ceil(I.x0)+5,t:Math.ceil(I.y0*K)+3,r:Math.floor(I.x1)-5,b:Math.floor(I.y1*K)-2}:null;}
@@ -1073,39 +1119,41 @@ function groundDots(gc,l,t,r,b){
  const x0=15+20*Math.ceil((l-15)/20),y0=15+20*Math.ceil((t-15)/20);
  gc.fillStyle=ink;for(let y=y0;y<b;y+=20)for(let x=x0;x<r;x+=20)if(((x*17+y*13)%7+7)%7<4)gc.fillRect(x,y,1,1);
 }
-// The garage and canopy are scenery only. Their pixel art shares one angled, fixed world-space anchor.
-function pitStopGeometry(A){return {x:12,y:Math.round(A.H*.46),angle:-.14,w:136,h:115,bay:{x:77,y:73,w:53,h:34}};}
-function pitStopPixels(){
- const w=136,h=115,p=new Int8Array(w*h).fill(-1);
- const rect=(x,y,W,H,c)=>{for(let j=Math.max(0,y);j<Math.min(h,y+H);j++)for(let i=Math.max(0,x);i<Math.min(w,x+W);i++)p[j*w+i]=c;};
- // Ground apron, building facade, roof and fascia.
- rect(0,8,136,104,0);rect(3,29,67,56,1);rect(6,32,61,50,0);
- rect(0,20,72,14,1);rect(4,16,64,5,1);rect(5,22,62,2,0);rect(3,28,66,2,0);
- for(let x=8;x<65;x+=10)rect(x,17,1,3,0);
- // Brickwork, shop window and door, plus a roller garage door.
- for(let y=35;y<81;y+=8)for(let x=7+(y%16?0:4);x<66;x+=9)rect(x,y,4,1,1);
- rect(9,39,20,22,1);rect(11,41,16,18,0);rect(18,41,2,18,1);rect(11,49,16,2,1);rect(12,42,5,2,1);
- rect(31,39,12,39,1);rect(33,41,8,34,0);rect(34,43,6,11,1);rect(39,59,1,3,1);
- rect(46,39,18,39,1);rect(48,41,14,35,0);for(let y=45;y<75;y+=5)rect(48,y,14,1,1);rect(50,57,10,3,1);
- rect(7,82,60,3,1);rect(14,66,13,4,1);rect(16,67,9,1,0);
- // Roof continues to the right over a pump island. Posts and striped fascia give it depth.
- rect(69,20,64,6,1);rect(69,26,63,4,0);rect(69,30,63,4,1);for(let x=72;x<130;x+=8)rect(x,27,4,2,1);
- rect(73,34,3,30,1);rect(128,34,3,32,1);rect(71,63,7,3,1);rect(126,65,7,3,1);
- rect(84,45,12,19,1);rect(86,47,8,6,0);rect(87,49,6,2,1);rect(86,56,8,6,0);rect(96,49,2,13,1);rect(93,61,5,2,1);
- rect(80,64,21,3,1);rect(82,67,17,2,0);
- // Parking bay: spaced dashes, open interior, beside the pump and under the canopy.
- for(let x=77;x<130;x+=10){rect(x,73,Math.min(4,130-x),2,1);rect(x,105,Math.min(4,130-x),2,1);}
- for(let y=73;y<107;y+=10){rect(77,y,2,Math.min(4,107-y),1);rect(128,y,2,Math.min(4,107-y),1);}
- return {w,h,p};
+// Fixed roadside station: local u/v are world units; projection uses the same K and Z as cars.
+const pitGeometryCache=new WeakMap();
+function pitStopGeometry(A,layout){
+ if(!A||!A.fixedMobile||!layout)return null;
+ const cached=pitGeometryCache.get(layout);if(cached&&cached.W===A.W&&cached.H===A.H)return cached.g;
+ // Keep the station in the upper-right clearing and face its front toward the nearest track segment.
+ const lot=layout.lot,x=lot?lot.r+LOT_BAND+61:A.W*.863,y=lot?(lot.t*K+52)/K:A.H*.148/K,pts=layout.track&&layout.track.pts||[];let best=null;
+ const segment=(ax,ay,bx,by)=>{const dx=bx-ax,dy=by-ay,den=dx*dx+dy*dy;if(!den)return;const t=clamp(((x-ax)*dx+(y-ay)*dy)/den,0,1),qx=ax+t*dx,qy=ay+t*dy,d=(x-qx)**2+(y-qy)**2;if(!best||d<best.d)best={qx,qy,dx,dy,d};};
+ for(let i=0;i<pts.length;i++){const a=pts[i],b=pts[(i+1)%pts.length];segment(a[0],a[1],b[0],b[1]);}
+ if(!best&&layout.lot){const l=layout.lot;segment(l.l,l.t,l.r,l.t);segment(l.r,l.t,l.r,l.b);segment(l.r,l.b,l.l,l.b);segment(l.l,l.b,l.l,l.t);}
+ let angle=best?Math.atan2(best.dy,best.dx):0;if(best&&-Math.sin(angle)*(best.qx-x)+Math.cos(angle)*(best.qy-y)<0)angle+=Math.PI;
+ // Parking's gas station turns a quarter turn counterclockwise around the same centre.
+ if(lot)angle-=Math.PI/2;
+ const c=Math.cos(angle),s=Math.sin(angle),g={x:x-55*c+40*s,y:y-55*s-40*c,angle,w:48,d:48,height:46,bay:lot?{x:65,y:40,w:56,h:78,lanes:2}:{x:57,y:37,w:50,h:60}};
+ if(lot){g.gasStation=true;g.canopyEnd=145;}
+ pitGeometryCache.set(layout,{W:A.W,H:A.H,g});return g;
 }
-function drawPitStop(gc,A){
- const g=pitStopGeometry(A),art=pitStopPixels(),c=Math.cos(g.angle),s=Math.sin(g.angle);
- // Inverse-map to whole pixels so the slanted art remains strictly two-tone and crisp.
- for(let y=-20;y<art.h+4;y++)for(let x=0;x<art.w+20;x++){
-  const u=Math.floor(x*c+y*s),v=Math.floor(-x*s+y*c);if(u<0||v<0||u>=art.w||v>=art.h)continue;
-  const color=art.p[v*art.w+u];if(color<0)continue;gc.fillStyle=color?ink:paper;gc.fillRect(g.x+x,g.y+y,1,1);
- }
+function pitPoint(g,u,v){const c=Math.cos(g.angle),s=Math.sin(g.angle);return {x:g.x+u*c-v*s,y:g.y+u*s+v*c};}
+// Quarter-turn a pump counterclockwise in screen coordinates: its front (+v) faces right (+u).
+function gasPumpPoint([u,v,z],offset=0){return [56+offset+(v-64),64-(u-56),z];}
+function pitPosts(g){if(!g)return [];const end=g.canopyEnd||108,posts=[[end,3,2.6],[end,45,2.6],[56,g.gasStation?64:18,3.5]];if(g.gasStation)posts.push([g.bay.x+g.bay.w/2,64,3.5]);return posts.map(([u,v,r])=>({...pitPoint(g,u,v),r}));}
+// Bay paint is ground-only; all vertical structures are rendered separately with shadows.
+function drawPitBay(gc,A,layout){const g=pitStopGeometry(A,layout);if(!g)return;const b=g.bay,point=(u,v)=>{const q=pitPoint(g,u,v);return [Math.round(q.x),Math.round(q.y*K)];};
+ const lines=[[b.x,b.y,b.x+b.w,b.y],[b.x,b.y+b.h,b.x+b.w,b.y+b.h],[b.x,b.y,b.x,b.y+b.h],[b.x+b.w,b.y,b.x+b.w,b.y+b.h]];
+ if(b.lanes===2)lines.push([b.x+b.w/2,b.y,b.x+b.w/2,b.y+b.h]);
+ gc.fillStyle=ink;for(const [u0,v0,u1,v1] of lines){
+  const len=Math.hypot(u1-u0,v1-v0);for(let d=0;d<len;d+=11){const a=d/len,z=Math.min(len,d+5)/len,p=point(u0+(u1-u0)*a,v0+(v1-v0)*a),q=point(u0+(u1-u0)*z,v0+(v1-v0)*z);plotLine(p[0],p[1],q[0],q[1],(x,y)=>gc.fillRect(x,y,2,2),A.W,A.H);}}
 }
+// Separating-axis collision against the garage's oriented footprint, including car corners.
+function pitOverlap(p,c,g){const cs=Math.cos(c.a),sn=Math.sin(c.a),gs=Math.cos(g.angle),gn=Math.sin(g.angle),centre=pitPoint(g,g.w/2,g.d/2),dx=c.x-centre.x,dy=c.y-centre.y,axes=[[cs,sn],[-sn,cs],[gs,gn],[-gn,gs]];let best=null;
+ for(const [nx,ny] of axes){const car=p.length/2*Math.abs(nx*cs+ny*sn)+p.width/2*Math.abs(-nx*sn+ny*cs),building=g.w/2*Math.abs(nx*gs+ny*gn)+g.d/2*Math.abs(-nx*gn+ny*gs),signed=dx*nx+dy*ny,depth=car+building-Math.abs(signed);if(depth<=0)return null;if(!best||depth<best.depth)best={x:nx*(signed<0?-1:1),y:ny*(signed<0?-1:1),depth};}return best;}
+function carPit(w,g){const c=w.car,q=pitOverlap(w.p,c,g);if(!q)return false;c.x+=q.x*(q.depth+.01);c.y+=q.y*(q.depth+.01);const vn=c.vx*q.x+c.vy*q.y;if(vn<0){c.vx-=(1+POST_E)*vn*q.x;c.vy-=(1+POST_E)*vn*q.y;}return vn<0;}
+function conePit(o,g){const c=Math.cos(g.angle),s=Math.sin(g.angle),dx=o.x-g.x,dy=o.y-g.y,u=dx*c+dy*s,v=-dx*s+dy*c,r=bodyR(o),x=clamp(u,0,g.w),y=clamp(v,0,g.d);let nx=u-x,ny=v-y,d=Math.hypot(nx,ny),push;
+ if(d>=r)return;if(d<1e-8){const faces=[[u,-1,0],[g.w-u,1,0],[v,0,-1],[g.d-v,0,1]].sort((a,b)=>a[0]-b[0]);nx=faces[0][1];ny=faces[0][2];push=r+faces[0][0];}else{nx/=d;ny/=d;push=r-d;}
+ const X=nx*c-ny*s,Y=nx*s+ny*c;o.x+=X*(push+.01);o.y+=Y*(push+.01);const speed=o.vx*X+o.vy*Y;if(speed<0){o.vx-=(1+CONE_POST_E)*speed*X;o.vy-=(1+CONE_POST_E)*speed*Y;}}
 function drawGround(gc,A,layout){
  const W=A.W,H=A.H,dot=(x,y)=>gc.fillRect(x,y,1,1);
  gc.fillStyle=paper;gc.fillRect(0,0,W,H);gc.fillStyle=ink;
@@ -1123,7 +1171,7 @@ function drawGround(gc,A,layout){
    for(const start of [3.35,.2])for(let t=start;t<start+1.8;t+=.04)gc.fillRect(Math.round(best.x+31*Math.cos(t)),Math.round(best.y+31*Math.sin(t)),1,1);
   }
  }
- drawPitStop(gc,A);
+ drawPitBay(gc,A,layout);
 
 }
 function createWorld(id='compact',arena=DEFAULT_ARENA) {
@@ -1146,26 +1194,30 @@ function limitVelocity(o,max){const s=Math.hypot(o.vx,o.vy);if(s>max){o.vx*=max/
 const GEARS=[0,.36,.54,.72,.88,1.08],GEAR_TORQUE=[0,1.2,1.1,1,.9,.82],SPEED_TO_KMH=.6;
 const BURN_SPEED=4; // px/s: below this, brake + gas is a burnout rather than braking a moving car
 const AUTO_GEARS=['P','R','N','D'],REV_SHIFT=8,SHIFT_AT=.83,SHIFT_FROM=.35;
-const isManual=w=>!!w.manual&&w.p.trans==='manual',forwardSpeed=c=>c.vx*Math.cos(c.a)+c.vy*Math.sin(c.a);
-const MANUAL_GEARS=['R',1,2,3,4,5];
+// The F1 Car's sequential 8-speed (trans 'paddle'): the manual's rules (reverse below first, protected downshifts) with eight
+// ratios; the right paddle (E) shifts up and the left (Q) down, one gear per pull.
+const PADDLE_GEARS=[0,.26,.38,.5,.62,.74,.86,.97,1.08],PADDLE_TORQUE=[0,1.2,1.16,1.12,1.08,1.04,1,.95,.9];
+const isManual=w=>!!w.manual&&(w.p.trans==='manual'||w.p.trans==='paddle'),isPaddle=w=>isManual(w)&&w.p.trans==='paddle',forwardSpeed=c=>c.vx*Math.cos(c.a)+c.vy*Math.sin(c.a);
+const topGear=p=>p.gears||5,ratioOf=(p,g)=>(p.trans==='paddle'?PADDLE_GEARS:GEARS)[g],torqueOf=(p,g)=>(p.trans==='paddle'?PADDLE_TORQUE:GEAR_TORQUE)[g];
+const MANUAL_GEARS=['R',1,2,3,4,5],PADDLE_SEQ=['R',1,2,3,4,5,6,7,8],gearSeq=w=>w.p.trans==='paddle'?PADDLE_SEQ:MANUAL_GEARS;
 // Whether the car may shift into next now (pure): the gear exists on this car, and the speed rules above allow it.
 function shiftOk(w,next){
  if(next===w.gear)return false;
  const speed=Math.hypot(w.car.vx,w.car.vy),fwd=forwardSpeed(w.car);
  if(isManual(w)){
   if(next==='R')return fwd<=REV_SHIFT;
-  if(!Number.isInteger(next)||next<1||next>5)return false;
+  if(!Number.isInteger(next)||next<1||next>topGear(w.p))return false;
   if(w.gear==='R')return fwd>=-REV_SHIFT;
-  return !(next<w.gear&&speed>w.p.max*GEARS[next]*.98);
+  return !(next<w.gear&&speed>w.p.max*ratioOf(w.p,next)*.98);
  }
- if(w.p.trans==='manual'||!AUTO_GEARS.includes(next))return false;
+ if(w.p.trans==='manual'||w.p.trans==='paddle'||!AUTO_GEARS.includes(next))return false;
  return !((next==='P'&&speed>REV_SHIFT)||(next==='R'&&fwd>REV_SHIFT)||(next==='D'&&fwd<-REV_SHIFT));
 }
-function shiftGear(w,next){if(!shiftOk(w,next))return false;w.gear=next;if(isManual(w))w.shiftTime=.12;return true;}
+function shiftGear(w,next){if(!shiftOk(w,next))return false;w.gear=next;if(isManual(w))w.shiftTime=w.p.shiftTime||.12;return true;}
 // The gear one step from the current one for E (dir +1) or Q (dir -1), or 0 at the end. Manual: R 1 2 3 4 5 (E shifts up, Q
 // from first selects R). Automatic: the knob moves the way the key's arrow points, so E goes up toward P and Q down toward D.
 function gearStep(w,dir){
- const manual=isManual(w),seq=manual?MANUAL_GEARS:AUTO_GEARS,i=seq.indexOf(w.gear),j=i+(manual?dir:-dir);
+ const manual=isManual(w),seq=manual?gearSeq(w):AUTO_GEARS,i=seq.indexOf(w.gear),j=i+(manual?dir:-dir);
  return i<0||j<0||j>=seq.length?0:seq[j];
 }
 // Spoken / readable names: 'Gear 3', 'Reverse', 'Park', 'Neutral', 'Drive'.
@@ -1177,10 +1229,10 @@ const gearName=g=>({R:'Reverse',P:'Park',N:'Neutral',D:'Drive'})[g]||'Gear '+g;
 function gearTelemetry(w){
  const p=w.p,speed=Math.hypot(w.car.vx,w.car.vy),g=w.gear||1,num=Number.isInteger(g);let load=0;
  if(g==='R')load=speed/p.reverse;
- else if(num&&p.trans==='manual')load=speed/(p.max*GEARS[g]);
+ else if(num&&(p.trans==='manual'||p.trans==='paddle'))load=speed/(p.max*ratioOf(p,g));
  else if(num||g==='D'){let a=1;while(a<5&&speed>p.max*GEARS[a]*SHIFT_AT)a++;load=speed/(p.max*GEARS[a]);}
  load=clamp(load,0,1);
- return {speed:Math.round(speed*SPEED_TO_KMH),gear:g,rpm:Math.round(1000+load*7000),load,shift:clamp((load-SHIFT_FROM)/(SHIFT_AT-SHIFT_FROM),0,1),shiftUp:num&&p.trans==='manual'&&load>SHIFT_AT&&g<5};
+ return {speed:Math.round(speed*SPEED_TO_KMH),gear:g,rpm:Math.round(1000+load*7000),load,shift:clamp((load-SHIFT_FROM)/(SHIFT_AT-SHIFT_FROM),0,1),shiftUp:num&&(p.trans==='manual'||p.trans==='paddle')&&load>SHIFT_AT&&g<topGear(p)};
 }
 // Drone flight with Mode 2 sticks, the consumer-drone default: angle mode (self-levelling) with altitude hold.
 // input.sticks = {lift, yaw, pitch, roll}, each -1..1: the left stick's lift (+ climbs) and yaw (+ turns right), the right
@@ -1226,7 +1278,7 @@ const carBox=(w,a=w.car.a,alpha=1)=>liftBox(carScreenBounds(w.p,a,w.car.roll||0)
 function drive(w,input,dt){
  const c=w.car,p=w.p,cs=Math.cos(c.a),sn=Math.sin(c.a);
  const manual=isManual(w),gear=w.gear||1,fwdGear=manual&&Number.isInteger(gear),rev=gear==='R',park=gear==='P',idle=park||gear==='N';
- const cap=fwdGear?p.max*GEARS[gear]:p.max;w.shiftTime=Math.max(0,(w.shiftTime||0)-dt);
+ const cap=fwdGear?p.max*ratioOf(p,gear):p.max;w.shiftTime=Math.max(0,(w.shiftTime||0)-dt);
  let forward=c.vx*cs+c.vy*sn,lateral=-c.vx*sn+c.vy*cs;
  const {steering,throttle,brake}=normalizeInput(input),gas=throttle>0,back=brake>0;
  // Brake wins over throttle and only brakes: finite deceleration to a stop, whichever way the car rolls, and never a reverse
@@ -1243,7 +1295,7 @@ function drive(w,input,dt){
  let accel=0;
  if(c.braking){accel=-Math.sign(forward)*Math.min(p.brake*brake,Math.abs(forward)/dt);}
  else if(park&&Math.abs(forward)>.01)accel=-Math.sign(forward)*Math.min(p.brake,Math.abs(forward)/dt);
- else if(gas&&!back&&!idle)accel=(rev?-1:1)*p.accel*throttle*launch*(manual?(w.shiftTime>0?0:rev?1:GEAR_TORQUE[gear]*(.3+.7*clamp(Math.abs(forward)/(p.max*.15),0,1))):1);
+ else if(gas&&!back&&!idle)accel=(rev?-1:1)*p.accel*throttle*launch*(manual?(w.shiftTime>0?0:rev?1:torqueOf(p,gear)*(.3+.7*clamp(Math.abs(forward)/(p.max*.15),0,1))):1);
  const rolling=3.8+p.drag*Math.abs(forward)+.001*Math.abs(forward)*Math.abs(forward);
  if(Math.abs(forward)>.01)accel-=Math.sign(forward)*Math.min(rolling,Math.abs(forward)/dt);
  if(fwdGear&&forward>=cap&&accel>0)accel=0;
@@ -1260,7 +1312,8 @@ function drive(w,input,dt){
  c.omega+=clamp((desiredYaw-c.omega)*8.5*T.turnRate,-8*T.turnRate,8*T.turnRate)*dt;
  c.omega=clamp(c.omega,-OMEGA_MAX,OMEGA_MAX);
  const grip=p.grip*T.grip*(c.braking?.7:1);
- const tyreY=clamp(-lateral*8,-grip,grip);c.aLat=tyreY;
+ // A planted car (the F1 Car) has tyres that never let go: all sideways speed is removed each step, so it cannot slide.
+ const tyreY=p.planted?(dt>0?-lateral/dt:0):clamp(-lateral*8,-grip,grip);c.aLat=p.planted?0:tyreY;
  lateral+=tyreY*dt;
  c.vx=cs*forward-sn*lateral;c.vy=sn*forward+cs*lateral;
  limitVelocity(c,p.max*SPEED_CAP);
@@ -1268,7 +1321,7 @@ function drive(w,input,dt){
  c.x+=c.vx*dt;c.y+=c.vy*dt;
  c.slip=Math.abs(-Math.sin(c.a)*c.vx+Math.cos(c.a)*c.vy);
  const speed=Math.hypot(c.vx,c.vy);
- c.skidding=speed>12&&(c.slip>(c.skidding?3.6:6.5)||(c.braking&&speed>24));
+ c.skidding=!p.planted&&speed>12&&(c.slip>(c.skidding?3.6:6.5)||(c.braking&&speed>24));
 }
 function carCone(w,o){
  if(w.p.flying)return 0;
@@ -1465,7 +1518,7 @@ const STALL_SPEED=4,STALL_TIME=.5,STALL_BUMP=45;
 function step(w,input,dt=STEP){
  const c=w.car,A=w.arena,svx=c.vx,svy=c.vy,flying=!!w.p.flying;c.px=c.x;c.py=c.y;c.pa=c.a;if(flying)c.pz=c.z;let pressed=false;
  for(const o of w.cones){o.px=o.x;o.py=o.y;o.pa=o.a;}
- const n=substeps(w,dt),h=dt/n,posts=gatePosts(w);
+ const n=substeps(w,dt),h=dt/n,pit=pitStopGeometry(A,w.layout),posts=gatePosts(w).concat(pitPosts(pit));
  for(let sub=0;sub<n;sub++){
   const st=c.state||'driving';
   if(st==='driving')(flying?fly:drive)(w,input,h);else if(st==='tipping')drive(w,NO_INPUT,h);else tumble(w,h);
@@ -1479,6 +1532,7 @@ function step(w,input,dt=STEP){
    // Posts go last, so they win: nothing ends a substep inside a post. A Drone flying above FLY.clear passes over them.
    const over=flying&&c.z>=FLY.clear;
    for(const q of posts){if(!over&&carPost(w,q)>0)pressed=true;for(const o of w.cones)conePost(o,q);}
+   if(pit){if((!flying||c.z<pit.height)&&carPit(w,pit))pressed=true;for(const o of w.cones)conePit(o,pit);}
   }
   rollover(w,h,c.vx-vx0,c.vy-vy0);
   transferEdges(w);
@@ -1503,7 +1557,7 @@ function boxDistance(p,cx,cy,a,x,y){const dx=x-cx,dy=y-cy,cs=Math.cos(a),sn=Math
 // arena and off every keepOuts zone, and the body RECOVER_GAP clear of every cone and gate post. {x, y} world units, or null.
 function recoverSpot(w,a,sx,sy){
  const A=w.arena,p=w.p,b=carScreenBounds(p,a,0),v=visibleBounds(A),E=edgeClear({W:v.r-v.l,H:v.b-v.t}),M=SPAWN_INSIDE,zones=keepOuts(A),g=Math.max(2,2*Math.ceil(Math.sqrt((v.r-v.l)*(v.b-v.t)/40000)/2));
- const obstacles=[...w.cones.map(o=>({x:o.x,y:o.y,r:bodyR(o)})),...gatePosts(w)],reach=Math.hypot(p.length,p.width)/2+RECOVER_GAP;
+ const pit=pitStopGeometry(A,w.layout),obstacles=[...w.cones.map(o=>({x:o.x,y:o.y,r:bodyR(o)})),...gatePosts(w),...pitPosts(pit)],reach=Math.hypot(p.length,p.width)/2+RECOVER_GAP;
  const bands=[];let best=null,bd=Infinity;
  for(let y=Math.ceil(Math.max(v.t+E,v.t+M-b.t)/g)*g;y<=Math.min(v.b-E,v.b-M-b.b);y+=g)for(let x=Math.ceil(Math.max(v.l+E,v.l+M-b.l)/g)*g;x<=Math.min(v.r-E,v.r-M-b.r);x+=g){
   // Every check uses the screen y the car will really have (world y = y/K, so (y/K)*K can differ from y by 1e-14).
@@ -1514,7 +1568,7 @@ function recoverSpot(w,a,sx,sy){
  for(const list of bands){if(!list)continue;
   for(let i=0;i<list.length;i+=3){const d=list[i],x=list[i+1],y=list[i+2];if(d>=bd)continue;
    if(!zonesClear(zones,x+b.l,y+b.t,x+b.r,y+b.b))continue;
-   const yw=y/K;if(obstacles.some(o=>Math.abs(o.x-x)<reach+o.r&&Math.abs(o.y-yw)<reach+o.r&&boxDistance(p,x,yw,a,o.x,o.y)<o.r+RECOVER_GAP))continue;
+   const yw=y/K;if(pit&&pitOverlap(p,{x,y:yw,a},pit))continue;if(obstacles.some(o=>Math.abs(o.x-x)<reach+o.r&&Math.abs(o.y-yw)<reach+o.r&&boxDistance(p,x,yw,a,o.x,o.y)<o.r+RECOVER_GAP))continue;
    best={x,y:y/K};bd=d;}
   if(best)break;}
  return best;
@@ -1556,7 +1610,7 @@ function sceneItems(w,alpha=1){
  const v=visibleBounds(w.arena),out=[],seen=(x,y,b)=>!(x+b.r<=v.l||x+b.l>=v.r||y+b.b<=v.t||y+b.t>=v.b);
  const car=carDrawable(w,alpha);if(seen(car.x,car.y,car.box))out.push(car);
  for(const o of w.cones){const p=position(o,alpha),x=Math.round(p.x),y=Math.round(p.y*K),cart=o.kind==='cart';if(seen(x,y,cart?CART_BOX:CONE_BOX))out.push({type:cart?'cart':'cone',x,y,a:p.a,tipped:!!o.tipped,key:y});}
- out.push(...gateDrawables(w),...propDrawables(w));
+ out.push(...gateDrawables(w),...propDrawables(w),...pitDrawables(w));
  return out;
 }
 const drawOrder=(a,b)=>a.key-b.key||(a.type==='car')-(b.type==='car');
@@ -1682,6 +1736,7 @@ function createControls(options={}){
 // Every on-screen control is sized in logical px from the arena's short side, so it keeps the same share of the screen
 // as the cars do. The page positions the DOM from controlZones() itself, so the zones and the real layout cannot drift.
 const UI_MARGIN=4,UI_GAP=3;
+// The HUD strip is fixed: the four car buttons (Compact, Supercar, F1 Car, Drone) share the width of three, so nothing else moves.
 // (360-dp Android at dpr 3, iPhones at dpr 2 or 3) get >= 44 CSS px targets.
 // ~58% of the short side (was 36%, max 112), the pedals 15% wide (was 14%, max 42) and inset pedalIn from the right edge.
 // New: spW = speed readout width (one HUD row tall), iw × ih = painted instructions, gw × gh = the Supercar's gear stick.
@@ -1938,6 +1993,11 @@ function controlZones(view,safe){
   const h=Math.max(20,Math.min(153/1.4,(g.b-g.t)*1.12*1.7,p.t-hud.b-30/1.4)),kw=shiftKeyW(h*1.4),w=h*110/106+(kw+2*shiftKeyGap(kw)+shiftBarW(kw))/1.4;
   const right=cw/1.4-Math.max(0,(safe&&safe.right||0)*u/1.4),left=Math.max(0,right-w);
   Object.assign(g,{l:left,r:left+w,t:p.t-h-24/1.4,b:p.t-24/1.4});
+  g.flyOrigin={...g};
+  const centerY=ch/2/1.4,pedalY=(p.t+p.b)/2,gearY=centerY+(pedalY-centerY)*.35;
+  Object.assign(g,{l:left,r:left+w,t:gearY-h/2,b:gearY+h/2});
+  if(g.l<p.r&&g.r>p.l&&g.b>p.t){g.b=p.t-UI_GAP;g.t=g.b-h;}
+  if(g.l<wheel.r&&g.r>wheel.l&&g.b>wheel.t){g.b=wheel.t-UI_GAP;g.t=g.b-h;}
   const D=Math.max(32,Math.min(uiMetrics(Math.min(cw,ch)/1.4).D,p.l-UI_GAP-wheel.l));wheel.r=wheel.l+D;wheel.t=Math.round(ch/1.4-D*.6);
   if(mobile){const i=z.find(q=>q.id==='instructions');i.r=i.l;i.b=i.t;}}
 
@@ -1953,16 +2013,16 @@ function controlZones(view,safe){
  const raceRight=Math.max(raceLeft+1,restart.l-gap),race={id:'race',l:raceLeft,t:hud.t,r:raceRight,b:hud.b};z.push(race);
  Object.assign(rec,{l:hud.l,r:hud.r,t:speed.b+gap,b:speed.b+gap+row});
  if(!mobile){const wheel=z.find(q=>q.id==='wheel');help.t=hud.t;help.r=Math.min(race.l-gap,help.l+350/1.4);help.b=Math.max(help.t,Math.min(wheel.t-gap,help.t+300/1.4));}
- return z.map(q=>({...q,l:q.l*1.4/u,r:q.r*1.4/u,t:q.t*1.4/u,b:q.b*1.4/u}));
+ const scaleZone=q=>({...q,l:q.l*1.4/u,r:q.r*1.4/u,t:q.t*1.4/u,b:q.b*1.4/u});
+ return z.map(q=>({...scaleZone(q),...(q.flyOrigin?{flyOrigin:scaleZone(q.flyOrigin)}:{})}));
 }
-// The Drone's two thumb sticks (zone units, like controlZones): equal squares in the bottom corners, the left stick over
-// the wheel's visible area and the right stick in the column of the pedals and the gear stick (the Drone hides all three),
-// as big as both slots allow without meeting. The gear slot reaches the screen edge, so the right stick keeps margin m (zone
-// units: UI_MARGIN on screen, like the wheel's). FLYPAD is the pad artwork's geometry in its 100 × 100 viewBox: the gimbal
+// The Drone's two thumb sticks occupy the wheel and pedal corners, keeping a gap for independent touches.
+// FLYPAD is the pad artwork's geometry in its 100 × 100 viewBox: the gimbal
 // centre (cx, cy) and the knob's travel (each axis ±travel units, a square gate like a real transmitter's).
 const FLYPAD={vb:100,cx:48,cy:48,travel:30};
 function flyPadZones(zs,m=0){
- const z=id=>zs.find(q=>q.id===id),wh=z('wheel'),pe=z('pedals'),ge=z('gear');if(!wh||!pe||!ge)return [];
+ const z=id=>zs.find(q=>q.id===id),wh=z('wheel'),pe=z('pedals'),gear=z('gear');if(!wh||!pe||!gear)return [];
+ const ge=gear.flyOrigin||gear;
  const rr=Math.max(pe.r,ge.r)-Math.max(0,+m||0),rb=Math.max(pe.b,ge.b),rw=rr-Math.min(pe.l,ge.l),rh=rb-Math.min(pe.t,ge.t);
  const s=Math.max(1,Math.min(wh.r-wh.l,wh.b-wh.t,rw,rh,(rr-wh.l-UI_GAP)/2));
  return [{id:'flyL',l:wh.l,t:wh.b-s,r:wh.l+s,b:wh.b},{id:'flyR',l:rr-s,t:rb-s,r:rr,b:rb}];
@@ -2186,6 +2246,14 @@ function carSprite(p,a,box=p.sprite){
  const draw=(f,shade)=>r.poly(f.v.map(r.project),shade,true);
  // Tyres are solid ink, so each is one filled hull of its projected points, far ones first.
  m.tyres.map(t=>({t,d:dot(mean(t.pts.map(rot)),VIEW)})).sort((a,b)=>a.d-b.d).forEach(({t})=>r.poly(hull(t.pts.map(P)),0,true));
+ // A wing farther than the body is painted before it (the body then covers its middle); a nearer one after the cabin.
+ const bodyDepth=dot(mean(m.body.pts.map(rot)),VIEW),wingNear=m.wings.map(w=>dot(mean(w.pts.map(rot)),VIEW)>=bodyDepth);
+ const wing=w=>{
+  if(w.post)r.line(P(w.post[0]),P(w.post[1]),0);
+  r.poly(w.quad.map(P),.4,true);
+  for(const [a0,a1] of w.plates)r.line(P(a0),P(a1),0);
+ };
+ m.wings.forEach((w,i)=>{if(!wingNear[i])wing(w);});
  const body=faces(m.body),cabin=faces(m.cabin),flank=edge=>body[edge+1].visible; // body[0] is the deck, body[1+i] the panel on plan edge i
  for(const f of body)if(f.visible)draw(f,f.kind==='deck'?art.paint:sideShade(f.n));
  for(const f of cabin)if(f.visible)draw(f,f.kind==='roof'?art.roofShade:f.kind==='rear'?art.rearGlass:f.kind==='screen'?art.glass:art.glass);
@@ -2195,7 +2263,12 @@ function carSprite(p,a,box=p.sprite){
  for(const f of cabin)if(f.visible&&f.kind==='window')for(const k of art.pillars){const s=f.side,x0=m.xb+(m.xf-m.xb)*k,x1=m.rbx+(m.rfx-m.rbx)*k;r.line(P([x0,s*m.bw,m.h]),P([x1,s*m.rw,m.R]),art.paint);}
  // Near tyres sit in their arches, in front of the body side; hub caps are one light pixel.
  const sideVisible={1:flank(2),[-1]:flank(6)};
- for(const t of m.tyres)if(sideVisible[t.side]){
+ if(art.open){
+  // Open wheels: a suspension arm from the body to each hub, then the near tyres redrawn whole in front of the body.
+  for(const t of m.tyres){const y=t.side*(p.trackWidth/2-art.tyreW/2);r.line(P([t.axle,t.side*m.B,art.sill+1.2]),P([t.axle,y,art.tyre]),0);}
+  for(const t of m.tyres)if(sideVisible[t.side]){r.poly(hull(t.pts.map(P)),0,true);r.pixel(...P([t.axle,t.side*(p.trackWidth/2+art.tyreW/2),art.tyre]),1);}
+ }
+ else for(const t of m.tyres)if(sideVisible[t.side]){
   const y=t.side*(m.B+.01),ring=t.ring.map(([x,z])=>[clamp(x,-m.L+bx,m.L-fx),y,z]);
   const pr=ring.map(P);r.poly(pr,0,true);
   // On a dark body, a light arch line separates the tyre from the flank.
@@ -2207,6 +2280,7 @@ function carSprite(p,a,box=p.sprite){
   const y0=m.B-art.cf[1]*(edge?0:1)-art.cr[1]*(edge?1:0),z=m.deckZ(x)-1.1;
   for(const s of [-1,1])r.line(P([x,s*(y0-.5),z]),P([x,s*(y0-1.7),z]),shade);
  }
+ m.wings.forEach((w,i)=>{if(wingNear[i])wing(w);});
  if(p.artId==='coupe'){r.line(P([m.L-4,-m.B+3,m.h-.4]),P([m.L-1,-m.B+4,m.h-.8]),0);r.line(P([m.L-4,m.B-3,m.h-.4]),P([m.L-1,m.B-4,m.h-.8]),0);}
  return r.finish(true);
 }
@@ -2230,8 +2304,13 @@ function carRollSprite(p,a,k,box=rollSpriteBox(p)){
 function carRollShadow(p,a,k,box=rollSpriteBox(p)){const r=raster(box.size,box.ax,box.ay);for(const poly of rollShadowPolys(p,a,k))r.poly(poly.map(([x,y])=>[box.ax+x,box.ay+y]),0,false,r.shadowPixel);return r.finish(true);}
 function coneSprite(tipped=false,a=0){
  const r=raster(20,10,14);
- if(tipped){const cs=Math.cos(a),sn=Math.sin(a),pt=(x,y,z=0)=>r.project([x*cs-y*sn,x*sn+y*cs,z]);r.poly([pt(-2,-2),pt(2,-2),pt(2,2),pt(-2,2)],.5);r.poly([pt(-1,-2,2),pt(6,0,1),pt(-1,2,2)],.15);r.line(pt(1,-1,2),pt(2,1,2),1);}
- else{r.poly([[7,14],[10,12],[14,14],[11,16]],.5);r.poly([[7,13],[10,5],[13,13],[10,15]],.25);r.line([8,11],[11,12],1);r.pixel(10,7,1);}
+ if(tipped){const cs=Math.cos(a),sn=Math.sin(a),pt=(x,y,z=0)=>r.project([x*cs-y*sn,x*sn+y*cs,z]);r.poly([pt(-2.5,-2.5),pt(2,-2.5),pt(2,2.5),pt(-2.5,2.5)],.35);r.poly([pt(-1.5,-2,2),pt(6,0,1),pt(-1.5,2,2)],.35);r.line(pt(.5,-1.4,2),pt(.8,1.4,2),1);r.line(pt(2.5,-.8,1.6),pt(2.7,.8,1.6),1);}
+ else{
+  // Heavy square base, tapered body and two pale reflective bands.
+  r.poly([[6,14],[10,12],[14,14],[11,16]],.25);r.line([7,14],[11,16],1);
+  r.poly([[7,13],[10,5],[13,13],[10,15]],.25);r.poly([[8,11],[9,9],[11,9],[12,11],[10,12]],1,false);
+  r.line([9,7],[10,7],1);r.line([7,13],[10,14],0);r.pixel(10,5,0);
+ }
  return r.finish();
 }
 // shared shadowPixel / SHADOW_INK dither. Same 20 × 20 raster and anchor (10, 14) as coneSprite; CONE_H is the upright cone's
@@ -2257,13 +2336,17 @@ function cartParts(cx,cy,a){
 }
 function cartArt(r,P,cx,cy,a){
  const c=cartParts(cx,cy,a),pp=v=>P(...v),top=c.top.map(pp),bot=c.bot.map(pp);
- for(const w of c.wheels){const q=pp(w);r.pixel(q[0],q[1],0);}
+ // Wheels and lower tubular frame, then an open, tapered wire basket with a visible inner floor.
+ for(const w of c.wheels){const q=pp(w);r.pixel(q[0],q[1],0);r.pixel(q[0]+1,q[1],0);}
  for(const [u,v] of c.frame)r.line(pp(u),pp(v),0);
- // Inside the rim (convex, either winding) the mesh is the floor grid seen from above; elsewhere it is the side mesh.
- const inRim=(x,y)=>{let pos=0,neg=0;for(let i=0;i<4;i++){const a=top[i],b=top[(i+1)%4],c=(b[0]-a[0])*(y-a[1])-(b[1]-a[1])*(x-a[0]);if(c>0)pos++;else if(c<0)neg++;}return !pos||!neg;};
- r.poly(hull([...top,...bot]),0,false,(x,y)=>{if(inRim(x+.5,y+.5)||(x&1)||(y&1))return;r.pixel(x,y,0);});
- // Nose corner posts, the rim, and the handle with its two struts.
- r.line(top[1],bot[1],0);r.line(top[2],bot[2],0);
+ r.poly(hull([...top,...bot]),1,true);r.poly(top,1,true);
+ const mix=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t);
+ // Fine horizontal and vertical wires follow the projected basket instead of a screen-space checker.
+ for(let i=0;i<4;i++){
+  const j=(i+1)%4;r.line(top[i],bot[i],0);r.line(bot[i],bot[j],0);
+  r.line(mix(top[i],bot[i],.55),mix(top[j],bot[j],.55),0);
+  for(const t of [.33,.67])r.line(mix(top[i],top[j],t),mix(bot[i],bot[j],t),0);
+ }
  for(let i=0;i<4;i++)r.line(top[i],top[(i+1)%4],0);
  const h=c.handle.map(pp);r.line(h[0],h[1],0);r.line(top[0],h[0],0);r.line(top[3],h[1],0);
 }
@@ -2284,21 +2367,92 @@ function propAnchor(p){
 function propDrawables(w){const L=w&&w.layout,P=L&&Array.isArray(L.props)?L.props:[];return P.map((p,i)=>({type:'prop',i,...propAnchor(p)}));}
 // One fixed prop's sprite and shadow as raw rasters with the same anchor (ax, ay): a corral rail piece (two bars at RAIL_LOW
 // and RAIL_HIGH, uprights where p0 / p1 say), the corral's sign panel, or a corralled cart.
-const RAIL_LOW=3,RAIL_HIGH=7.5;
+const RAIL_LOW=3,RAIL_HIGH=10;
+// Labels use a screen-space pixel grid: projecting each letter row through Z would merge strokes.
+const PROP_LETTERS={
+ A:['01110','10001','10001','11111','10001','10001','10001'],
+ C:['01111','10000','10000','10000','10000','10000','01111'],
+ G:['01111','10000','10000','10111','10001','10001','01111'],
+ R:['11110','10001','10001','11110','10100','10010','10001'],
+ S:['01111','10000','10000','01110','00001','00001','11110'],
+ T:['11111','00100','00100','00100','00100','00100','00100']
+};
+function propLabel(r,text,x,y){
+ x=Math.round(x);y=Math.round(y);const width=text.length*6-1;
+ r.poly([[x-1,y-1],[x+width,y-1],[x+width,y+7],[x-1,y+7]],0,false);
+ for(let k=0;k<text.length;k++){const glyph=PROP_LETTERS[text[k]];if(!glyph)continue;for(let row=0;row<7;row++)for(let col=0;col<5;col++)if(glyph[row][col]==='1')r.pixel(x+k*6+col,y+row,1);}
+}
 function propArt(p){
- const size=40,ax=20,ay=24,A=propAnchor(p),r=raster(size,ax,ay),sh=raster(size,ax,ay),P=(x,y,z)=>[ax+x-A.x,ay+y*K-A.y-Z*z],S=(x,y,z)=>{const q=P(x,y,0);return [q[0]+LIGHT.x*z,q[1]+LIGHT.y*z];};
+ const size=p.type==='sign'?56:40,ax=p.type==='sign'?28:20,ay=p.type==='sign'?30:24,A=propAnchor(p),r=raster(size,ax,ay),sh=raster(size,ax,ay),P=(x,y,z)=>[ax+x-A.x,ay+y*K-A.y-Z*z],S=(x,y,z)=>{const q=P(x,y,0);return [q[0]+LIGHT.x*z,q[1]+LIGHT.y*z];};
  const shLine=(u,v)=>{const n=Math.ceil(Math.hypot(v[0]-u[0],v[1]-u[1])*2)+1;for(let k=0;k<=n;k++)sh.shadowPixel(u[0]+(v[0]-u[0])*k/n,u[1]+(v[1]-u[1])*k/n);};
  if(p.type==='rail'){
   for(const z of [RAIL_LOW,RAIL_HIGH])shLine(S(p.x0,p.y0,z),S(p.x1,p.y1,z));
   for(const [on,x,y] of [[p.p0,p.x0,p.y0],[p.p1,p.x1,p.y1]])if(on){shLine(S(x,y,0),S(x,y,RAIL_HIGH+.5));r.line(P(x,y,0),P(x,y,RAIL_HIGH+.5),0);}
-  for(const z of [RAIL_LOW,RAIL_HIGH])r.line(P(p.x0,p.y0,z),P(p.x1,p.y1,z),0);
+  for(const z of [RAIL_LOW,RAIL_HIGH]){r.line(P(p.x0,p.y0,z),P(p.x1,p.y1,z),0);r.line(P(p.x0,p.y0,z+.8),P(p.x1,p.y1,z+.8),1);}
  }else if(p.type==='sign'){
-  const q=[[-5,2.5],[5,2.5],[5,RAIL_HIGH+.5],[-5,RAIL_HIGH+.5]];
-  sh.poly(hull(q.map(([u,z])=>S(p.x+u,p.y,z)).concat([S(p.x-5,p.y,0),S(p.x+5,p.y,0)])),0,false,sh.shadowPixel);
-  r.poly(q.map(([u,z])=>P(p.x+u,p.y,z)),.25,true);r.line(P(p.x-2,p.y,3),P(p.x+1,p.y,RAIL_HIGH),1);r.line(P(p.x-1,p.y,3),P(p.x+2,p.y,RAIL_HIGH),1);
- }else if(p.type==='cart')cartArt(r,P,p.x,p.y,p.a); // corralled carts: no shadow of their own (it only muddies the stack)
+  // A raised return sign spans two uprights, above the nested carts.
+  const q=[[-12,11],[12,11],[12,24],[-12,24]];
+  sh.poly(hull(q.map(([u,z])=>S(p.x+u,p.y,z)).concat([S(p.x-9,p.y,0),S(p.x+9,p.y,0)])),0,false,sh.shadowPixel);
+  for(const x of [p.x-9,p.x+9])r.line(P(x,p.y,0),P(x,p.y,12),0);
+  r.poly(q.map(([u,z])=>P(p.x+u,p.y,z)),0,true);
+  const label=P(p.x,p.y,23);propLabel(r,'CART',label[0]-11,label[1]+1);
+ }else if(p.type==='cart'){cartShadowArt(sh,P,p.x,p.y,p.a);cartArt(r,P,p.x,p.y,p.a);}
  return {sprite:r.finish(true),shadow:sh.finish(true),ax,ay};
 }
+// Raised garage, canopy, pump and their swept shadows, all built in the same world projection as the cars.
+function pitArt(g){
+ const size=g.gasStation?384:320,ax=130,ay=130,base=raster(size,ax,ay),roof=raster(size,ax,ay),sh=raster(size,ax,ay),co=Math.cos(g.angle),si=Math.sin(g.angle);
+ const P=(u,v,z=0)=>[ax+u*co-v*si,ay+K*(u*si+v*co)-Z*z],S=(u,v,z=0)=>{const p=P(u,v,0);return [p[0]+LIGHT.x*z,p[1]+LIGHT.y*z];};
+ const poly=(r,points,shade=1)=>r.poly(points.map(q=>P(...q)),shade,true),line=(r,a,b,shade=0)=>r.line(P(...a),P(...b),shade);
+ const shadow=(foot,h)=>sh.poly(hull(foot.flatMap(([u,v])=>[S(u,v,0),S(u,v,h)])),0,false,sh.shadowPixel);
+ const end=g.canopyEnd||108,edge=end+2;
+ shadow([[0,0],[48,0],[48,48],[0,48]],46);shadow([[48,0],[edge,0],[edge,47],[48,47]],32);
+ // Garage side, front and broad roof. The front has a shop window, door and closed service shutter.
+ poly(base,[[0,0,0],[0,48,0],[0,48,46],[0,0,46]],.35);
+ poly(base,[[0,48,0],[48,48,0],[48,48,46],[0,48,46]],.8);
+ for(let u=3;u<48;u+=4)line(base,[u,48,1],[u,48,44],.35);
+ poly(base,[[3,48.2,8],[15,48.2,8],[15,48.2,26],[3,48.2,26]],0);
+ poly(base,[[5,48.3,10],[13,48.3,10],[13,48.3,24],[5,48.3,24]],1);line(base,[9,48.4,10],[9,48.4,24]);line(base,[5,48.4,17],[13,48.4,17]);
+ poly(base,[[17,48.3,2],[26,48.3,2],[26,48.3,27],[17,48.3,27]],0);poly(base,[[19,48.4,4],[24,48.4,4],[24,48.4,24],[19,48.4,24]],1);line(base,[19,48.5,15],[24,48.5,15]);
+ poly(base,[[29,48.3,2],[45,48.3,2],[45,48.3,28],[29,48.3,28]],0);poly(base,[[31,48.4,4],[43,48.4,4],[43,48.4,26],[31,48.4,26]],1);for(let z=7;z<26;z+=4)line(base,[31,48.5,z],[43,48.5,z]);
+ poly(base,[[-2,-2,46],[50,-2,46],[50,50,46],[-2,50,46]],.65);poly(base,[[-2,50,43],[50,50,43],[50,50,47],[-2,50,47]],0);line(base,[0,1,47],[48,1,47],1);
+ // Pump and canopy uprights are solid obstacles; the space between remains driveable.
+ for(const [u,v] of [[end,3],[end,45]]){poly(base,[[u-1.5,v,0],[u+1.5,v,0],[u+1.5,v,32],[u-1.5,v,32]],.2);}
+ if(!g.gasStation){poly(base,[[52,16,0],[60,16,0],[60,16,15],[52,16,15]],.8);poly(base,[[53,16.2,8],[59,16.2,8],[59,16.2,13],[53,16.2,13]],0);line(base,[60,16,11],[62,18,2]);}
+ if(g.gasStation){
+  // Two pump islands: one at the outer edge, one between the two parking lanes.
+  for(const offset of [0,g.bay.x+g.bay.w/2-56]){
+   // The display faces right, with the island and collision centre kept in place.
+   const turn=([u,v,z])=>gasPumpPoint([56+(u-56)*.72,64+(v-64)*.5,z],offset);
+   const shape=(points,shade)=>poly(base,points.map(turn),shade),stroke=(a,b,shade=0)=>line(base,turn(a),turn(b),shade);
+   shape([[50,57,1],[62,57,1],[62,70,1],[50,70,1]],.45);
+   shape([[52,58,2],[52,68,2],[52,68,19],[52,58,19]],.35);
+   shape([[52,68,2],[60,68,2],[60,68,19],[52,68,19]],.85);
+   shape([[52,58,19],[60,58,19],[60,68,19],[52,68,19]],.6);
+   shape([[53,68.2,11],[59,68.2,11],[59,68.2,17],[53,68.2,17]],0);
+   stroke([54,68.3,15],[58,68.3,15],1);stroke([54,68.3,7],[58,68.3,7]);
+   // Hanging hose loop and a separate hooked nozzle beside the slender dispenser.
+   stroke([60,66,15],[65,66,13]);stroke([65,66,13],[67,67,6]);
+   stroke([67,67,6],[65,70,3]);stroke([65,70,3],[61,71,4]);
+   stroke([61,71,4],[60,70,10]);
+   shape([[59,69,10],[62,69,10],[62,69,14],[59,69,14]],0);
+   stroke([60,69.2,11],[60,69.2,13],1);
+   stroke([61,69,14],[63,69,16]);stroke([63,69,16],[63,67,16]);
+   for(const u of [49,63]){stroke([u,70,0],[u,70,6]);stroke([u,70,4],[u,70,5],1);}
+  }
+ }
+ // Separate overhead roof sorts above the vehicle, so the car passes beneath the canopy.
+ poly(roof,[[47,-2,32],[edge+2,-2,32],[edge+2,49,32],[47,49,32]],.7);
+ poly(roof,[[47,49,g.gasStation?27:29],[edge+2,49,g.gasStation?27:29],[edge+2,49,g.gasStation?35:33],[47,49,g.gasStation?35:33]],0);
+ if(g.gasStation){
+  line(roof,[49,49.2,28],[edge,49.2,28],1);
+  // A raised contrasting sign keeps GAS legible at the native pixel resolution.
+  const label=P(78,49.3,39);propLabel(roof,'GAS',label[0],label[1]);
+ }else line(roof,[49,49.2,31],[110,49.2,31],1);
+ for(let u=52;u<end;u+=12)line(roof,[u,2,32.3],[u,44,32.3],.45);
+ return {base:base.finish(true),roof:roof.finish(true),shadow:sh.finish(true),ax,ay};
+}
+function pitDrawables(w){const g=pitStopGeometry(w.arena,w.layout);if(!g)return [];const front=pitPoint(g,g.w,g.d);return [{type:'pit',part:'base',x:Math.round(g.x),y:Math.round(g.y*K),key:Math.round(front.y*K)},{type:'pit',part:'roof',x:Math.round(g.x),y:Math.round(g.y*K),key:GATE_FRONT-1}];}
 // opening (inner clear height gate.height, thickness 2r). The front face is ink (it faces away from the light); the top and
 const GATE_TOP_SHADE=.25;
 // Arch pixels higher than GATE_SPLIT world units (above every car roof) can only ever overlap things BEHIND the gate plane:
@@ -2406,15 +2560,15 @@ function raceFingerprint(route,id,car,tuning){let h=2166136261;const str=JSON.st
 function raceRecords(store){try{const raw=store&&store.getItem(RACE_STORE),v=raw?JSON.parse(raw):{};if(!v||typeof v!=='object'||Array.isArray(v))return {};return Object.fromEntries(Object.entries(v).filter(([k,r])=>/^[a-z0-9]+$/.test(k)&&r&&Number.isFinite(r.elapsed)&&r.elapsed>=0&&Number.isFinite(r.quality)&&r.quality>=0&&r.quality<=100&&Number.isFinite(r.ranked)&&Math.abs(r.ranked-raceRank(r.elapsed,r.quality).ranked)<1e-6).slice(-RACE_LIMIT));}catch(_){return {};}}
 function raceSave(store,records){try{if(!store)return false;store.setItem(RACE_STORE,JSON.stringify(Object.fromEntries(Object.entries(records).slice(-RACE_LIMIT))));return true;}catch(_){return false;}}
 if(typeof document==='undefined'){if(typeof module!=='undefined'){
- module.exports={BURN_SPEED,GEARS,AUTO_GEARS,MANUAL_GEARS,REV_SHIFT,SHIFT_AT,isManual,shiftOk,gearStep,gearName,shiftGear,gearTelemetry,WIDTH,HEIGHT,K,Z,WORLD_H,STEP,TAU,PRESETS,CAR_ART,FRAMES,SHADOW_INK,LIGHT,DEFAULT_ARENA,edgeClear,CROSS_GAP,carBoxAll,SPAWN_INSIDE,CONE_COUNT,CONE_R,CONTROL_ZONES,keepOuts,layoutCourse,drawGround,resetCones,TRANSFER_MARGIN,CONE_BOX,transferBody,transferEdges,sceneItems,carDrawable,gateDrawables,drawOrder,SKID,createTrackRecorder,breakTracks,recordTracks,coneSprite,coneShadowSprite,CONE_H,archShape,inArch,gateArt,GATE_SPLIT,GATE_FRONT,plotLine,frameIndex,carModel,carShadowPolys,frameBounds,spriteBox,raster,carSprite,carShadow,buildCarAtlases,makeArena,normalizeInput,keysToInput,carScreenBounds,resizeWorld,wrap,delta,angleDelta,createWorld,drive,step,carCone,coneCone,position,wheelPoints,SPEED_CAP,OMEGA_MAX,CONE_MAX,FASTEST,SUB_MOVE,gatePosts,carPost,conePost,substeps,limitVelocity,ROLL_STEPS,ROLL_G,LOAD_W,LOAD_ZETA,IMPACT_GAIN,TIP_COMMIT,TIP_DROP,TIP_MIN,TIP_SOFT,ROLL_SPIN,ROLL_DECEL,ROLL_SETTLE,ROLL_FRICTION,REST_SPEED,RECOVER_TIME,RECOVER_GAP,CAR_STATES,uprightState,rollKappa,tipAngle,tumble,rollover,rollFrame,rolledModel,rollShadowPolys,rollSpritePoints,rollFrameBounds,rollSpriteBox,carRollSprite,carRollShadow,carHidden,canRecover,recover,recoverSpot,boxDistance};
+ module.exports={BURN_SPEED,GEARS,AUTO_GEARS,MANUAL_GEARS,PADDLE_GEARS,PADDLE_SEQ,isPaddle,REV_SHIFT,SHIFT_AT,isManual,shiftOk,gearStep,gearName,shiftGear,gearTelemetry,WIDTH,HEIGHT,K,Z,WORLD_H,STEP,TAU,PRESETS,CAR_ART,FRAMES,SHADOW_INK,LIGHT,DEFAULT_ARENA,edgeClear,CROSS_GAP,carBoxAll,SPAWN_INSIDE,CONE_COUNT,CONE_R,CONTROL_ZONES,keepOuts,layoutCourse,drawGround,resetCones,TRANSFER_MARGIN,CONE_BOX,transferBody,transferEdges,sceneItems,carDrawable,gateDrawables,drawOrder,SKID,createTrackRecorder,breakTracks,recordTracks,coneSprite,coneShadowSprite,CONE_H,archShape,inArch,gateArt,GATE_SPLIT,GATE_FRONT,plotLine,frameIndex,carModel,carShadowPolys,frameBounds,spriteBox,raster,carSprite,carShadow,buildCarAtlases,makeArena,normalizeInput,keysToInput,carScreenBounds,resizeWorld,wrap,delta,angleDelta,createWorld,drive,step,carCone,coneCone,position,wheelPoints,SPEED_CAP,OMEGA_MAX,CONE_MAX,FASTEST,SUB_MOVE,gatePosts,carPost,conePost,substeps,limitVelocity,ROLL_STEPS,ROLL_G,LOAD_W,LOAD_ZETA,IMPACT_GAIN,TIP_COMMIT,TIP_DROP,TIP_MIN,TIP_SOFT,ROLL_SPIN,ROLL_DECEL,ROLL_SETTLE,ROLL_FRICTION,REST_SPEED,RECOVER_TIME,RECOVER_GAP,CAR_STATES,uprightState,rollKappa,tipAngle,tumble,rollover,rollFrame,rolledModel,rollShadowPolys,rollSpritePoints,rollFrameBounds,rollSpriteBox,carRollSprite,carRollShadow,carHidden,canRecover,recover,recoverSpot,boxDistance};
  Object.assign(module.exports,{raceRoute,raceProject,raceCross,raceNew,raceMove,raceTime,raceRank,raceBetter,raceFingerprint,raceRecords,raceSave,RACE_VERSION});
  Object.assign(module.exports,{setTrack,TUNING,TUNING_SPEC,TUNING_DEFAULTS,setTuning,resetTuning}); // shared tuning interface
- Object.assign(module.exports,{visibleBounds,cameraGeometry,renderMetrics,titleRasterSpec,groundDots,pitStopGeometry,pitStopPixels,drawPitStop,VIEW_SHORT,computeView,createControls,UI_MARGIN,UI_GAP,uiMetrics,controlZones,WHEEL_DEAD,turnDelta,pointerAngle,wheelDrag,wheelValue,wheelKickback,createModes,recoverAvailable,tryRecover,isRecoverKey,recoverFromKey}); // ui (r2-ui)
+ Object.assign(module.exports,{visibleBounds,cameraGeometry,renderMetrics,titleRasterSpec,groundDots,pitStopGeometry,pitPoint,gasPumpPoint,pitPosts,pitOverlap,carPit,conePit,drawPitBay,pitArt,pitDrawables,VIEW_SHORT,computeView,createControls,UI_MARGIN,UI_GAP,uiMetrics,controlZones,WHEEL_DEAD,turnDelta,pointerAngle,wheelDrag,wheelValue,wheelKickback,createModes,recoverAvailable,tryRecover,isRecoverKey,recoverFromKey}); // ui (r2-ui)
  Object.assign(module.exports,{PAINT_SLANT,PAINT_STRIPE,PAINT_SOLID_BELOW,PAINT_KEY_SOLID_BELOW,PAINT_COPY,GLYPHS,glyphMask,shearMask,maskRuns,keycapRuns,wrapPhrases,paintLayout,paintRuns,drawPaint}); // ground paint (r2-paint)
  Object.assign(module.exports,{buildCourse,fitTrack,roundedPath,circuitVerts,laneHalf,laneSelfClear,gateSpot,trackMarks,LANE_PAD,LANE_GAP,GATE_LEAD,TRACK_STEP,CONE_OFF,inGate,TRACKS,TRACK_SHAPES,TRACK_HALF,TRACK_FILL,shapeUnit,trackSelfClear,insideLoop,titleSpot,trackRadiusOk,TRACK_MIN_R}); // sim + course extra exports (r2-sim)
  Object.assign(module.exports,{wheelLimit,wheelInput,wheelAngle,GEAR_GATE,STICK_VB,gearSlot,stickMove,stickSlot,stickPath,AUTO_GATE,autoSlot,autoMove,autoSlotAt,autoPath,stickGate,pathPoint,shiftBarW,TUNING_STORE,loadTuning,saveTuning,tuningGroups,uiPx,SPEED_EM,speedFit,shiftKeyW,shiftKeyGap,shiftKeyLayout,gearCues,trackThumbSize,trackThumb}); // ui extra exports (r2-ui, r3-ui)
  Object.assign(module.exports,{stripeH,scaleRuns,PAINT_PX_CSS,TITLE_TEXT,TITLE_MAX,TITLE_MIN,TITLE_GAP,TITLE_CELL,paintPx,titleFit,titleFallbackSpot,titleRuns,titleRect,drawTitle}); // ground paint extra exports (r2-paint)
- Object.assign(module.exports,{EDGE_PX,CURB_W,CURB_R,CURB_STRIPE,trackCurbs,curbFlags,laneField,buildParking,lotMarks,lotThumb,ACCESS_MARK,LOT_STALL_W,LOT_STALL_D,CART_R,CART_MASS,CART_BOX,CART_FRAMES,cartSprite,cartShadowSprite,propArt,propAnchor,propDrawables,bodyFrom,bodyR,bodyM,CORRAL_HW,CORRAL_HL});
+ Object.assign(module.exports,{EDGE_PX,CURB_W,CURB_R,CURB_STRIPE,trackCurbs,curbFlags,laneField,buildParking,lotMarks,lotThumb,ACCESS_MARK,LOT_STALL_W,LOT_STALL_D,CART_R,CART_MASS,CART_BOX,CART_FRAMES,cartSprite,cartShadowSprite,propArt,propAnchor,propDrawables,bodyFrom,bodyR,bodyM,CORRAL_HW,CORRAL_HL,CORRAL_CARTS,RAIL_R});
  Object.assign(module.exports,{LOT_BAND,LOT_MAX,LOT_PLANS,LOT_TITLE,LOT_TITLE_MIN,lotRects,lotGeom,lotFit,lotBox,onAsphalt,inIsland,lotTitleRect,titleOpts,viewFor});
  Object.assign(module.exports,{TILT_MAX,TILT_PITCH,TILT_STEPS,TILT_STEP,droneTiltPoint,tiltIndex,droneTilt,droneParts,droneSprite,droneShadow}); // drone tilt
  Object.assign(module.exports,{FLY,STICK_AXES,normalizeSticks,fly,liftOf,liftBox,carBox,flyPadZones,FLYPAD}); // drone flight (Mode 2 sticks)
@@ -2425,9 +2579,9 @@ const root=document.getElementById('playground'),canvas=document.getElementById(
 if(!ctx){document.getElementById('enter').textContent='Canvas 2D is unavailable';return;}
 ctx.imageSmoothingEnabled=false;
 const $=id=>document.getElementById(id);
-const ui={enter:$('enter'),fps:$('fps'),status:$('status'),live:$('live'),skids:$('skids'),announce:$('announcement'),settingsBtn:$('settings-btn'),panel:$('settings'),close:$('settings-close'),
+const ui={enter:$('enter'),status:$('status'),live:$('live'),skids:$('skids'),announce:$('announcement'),settingsBtn:$('settings-btn'),panel:$('settings'),close:$('settings-close'),
  wheel:$('wheel'),wheelFace:$('wheel-face'),rim:$('rim'),gas:$('pedal-gas'),brake:$('pedal-brake'),probe:$('safe-probe'),recover:$('recover'),
- speed:$('speed'),speedValue:$('speed-value'),gearRead:$('gear-read'),gearValue:$('gear-value'),stick:$('gearstick'),stickFace:$('gear-face'),
+ speed:$('speed'),speedValue:$('speed-value'),gearRead:$('gear-read'),gearValue:$('gear-value'),stick:$('gearstick'),stickFace:$('gear-face'),paddles:$('paddles'),paddleDown:$('paddle-down'),paddleUp:$('paddle-up'),paddleGear:$('paddle-gear'),lights:$('shift-lights'),
  knob:$('gear-knob'),shaft:$('gear-shaft'),pivot:$('gear-pivot'),gateManual:$('gate-manual'),gateAuto:$('gate-auto'),shiftBar:$('shift-bar'),knobShadow:$('gear-shadow'),knobNum:$('gear-num'),tuneList:$('tune-list'),tuneReset:$('tune-reset'),
  shiftUp:$('shift-up'),shiftDown:$('shift-down'),trackRow:$('track-row'),gearUnit:$('gear-unit'),
  flyL:$('fly-left'),flyLFace:$('fly-left-face'),flyLKnob:$('fly-left-knob'),flyR:$('fly-right'),flyRFace:$('fly-right-face'),flyRKnob:$('fly-right-knob')};
@@ -2480,6 +2634,8 @@ const uprightCone=coneSprite(),tippedCones=Array.from({length:16},(_,i)=>coneSpr
 const cartFrames=Array.from({length:CART_FRAMES},(_,i)=>cartSprite(i*TAU/CART_FRAMES)),cartShades=Array.from({length:CART_FRAMES},(_,i)=>cartShadowSprite(i*TAU/CART_FRAMES));
 const propCanvases=new Map();
 function propSprites(p){const key=JSON.stringify(p);let c=propCanvases.get(key);if(!c){const art=propArt(p);c={sprite:toCanvas(art.sprite),shadow:toCanvas(art.shadow),ax:art.ax,ay:art.ay};if(propCanvases.size>400)propCanvases.clear();propCanvases.set(key,c);}return c;}
+const pitCanvases=new WeakMap();
+function pitSprites(A,layout){const g=pitStopGeometry(A,layout);let result=pitCanvases.get(g);if(!result){const art=pitArt(g);result={base:toCanvas(art.base),roof:toCanvas(art.roof),shadow:toCanvas(art.shadow),ax:art.ax,ay:art.ay};pitCanvases.set(g,result);}return result;}
 const uprightShade=coneShadowSprite(),tippedShades=Array.from({length:16},(_,i)=>coneShadowSprite(true,i*TAU/16));
 const gateCanvases=new WeakMap();
 function gateSprites(g){const art=gateArt(g);let c=gateCanvases.get(art);if(!c){c={art,arch:toCanvas(art.arch),leg0:toCanvas(art.legs[0]),leg1:toCanvas(art.legs[1]),shadow:toCanvas(art.shadow)};gateCanvases.set(art,c);}return c;}
@@ -2550,7 +2706,7 @@ function buildPaint(){
 function buildSurface(A){surface=makeCanvas(Math.ceil(A.viewR-A.viewL),Math.ceil(A.viewB-A.viewT));const sc=surface.getContext('2d'),l=A.viewL||0,t=A.viewT||0;sc.fillStyle=paper;sc.fillRect(0,0,surface.width,surface.height);sc.translate(-l,-t);groundDots(sc,l,t,l+surface.width,t+surface.height);}
 function resetTrackLayer(A){tracks=makeCanvas(Math.ceil(A.viewR-A.viewL),Math.ceil(A.viewB-A.viewT));trackCtx=tracks.getContext('2d');trackCtx.fillStyle=ink;breakTracks(trackRec);trackPixels=0;}
 let race=null,raceKey='',raceBest=null,raceSessionOnly=false,raceRecordsCache=raceRecords(tuneStore),raceDebug=false;
-let world=fitTransmission(createWorld()),enabled=true,mode='paused',raf=0,lastTime=0,accumulator=0,fpsStart=0,frameCount=0,lastUI=0,trackPixels=0,drawList=[],view=null;
+let world=fitTransmission(createWorld()),enabled=true,mode='paused',raf=0,lastTime=0,accumulator=0,lastUI=0,trackPixels=0,drawList=[],view=null;
 const trackRec=createTrackRecorder();
 const controls=createControls({onEngage:()=>{if(!race||!['ready','finished'].includes(race.state))modes.engage();},reverse:()=>world.gear==='R'});
 const modes=createModes(controls,(next,prev)=>onModeChange(next,prev));
@@ -2606,6 +2762,7 @@ function drawShadow(o){
  else if(o.type==='cone')ctx.drawImage(o.tipped?tippedShades[frameIndex(o.a,16)]:uprightShade,o.x-10,o.y-14);
  else if(o.type==='cart')ctx.drawImage(cartShades[frameIndex(o.a,CART_FRAMES)],o.x-16,o.y-20);
  else if(o.type==='prop'){const c=propSprites(world.layout.props[o.i]);ctx.drawImage(c.shadow,o.x-c.ax,o.y-c.ay);}
+ else if(o.type==='pit'&&o.part==='base'){const p=pitSprites(world.arena,world.layout);ctx.drawImage(p.shadow,o.x-p.ax,o.y-p.ay);}
  else if(o.type==='gate'&&o.part==='leg0'){const g=gateSprites(world.layout.gate),b=g.art.shadowBox;ctx.drawImage(g.shadow,o.x-b.ax,o.y-b.ay);}
 }
 function drawItem(o){
@@ -2613,6 +2770,7 @@ function drawItem(o){
  else if(o.type==='cone')ctx.drawImage(o.tipped?tippedCones[frameIndex(o.a,16)]:uprightCone,o.x-10,o.y-14);
  else if(o.type==='cart')ctx.drawImage(cartFrames[frameIndex(o.a,CART_FRAMES)],o.x-16,o.y-20);
  else if(o.type==='prop'){const c=propSprites(world.layout.props[o.i]);ctx.drawImage(c.sprite,o.x-c.ax,o.y-c.ay);}
+ else if(o.type==='pit'){const p=pitSprites(world.arena,world.layout);ctx.drawImage(p[o.part],o.x-p.ax,o.y-p.ay);}
  else if(o.type==='gate'){const g=gateSprites(world.layout.gate),b=g.art.box;ctx.drawImage(g[o.part],o.x-b.ax,o.y-b.ay);}
 }
 // Contract §6 order: ground, tracks, every shadow, then the depth-sorted drawables (cones, car, gate legs; the arch top last).
@@ -2637,16 +2795,15 @@ function updateUI(){
 function frameInput(){const input=controls.sample();if(world.p.flying)input.sticks=controls.sticks();return input;}
 function animate(time){
  raf=0;if(mode!=='running')return;
- if(!lastTime){lastTime=time;fpsStart=time;}
+ if(!lastTime)lastTime=time;
  accumulator+=Math.min(.1,(time-lastTime)/1000);lastTime=time;
  // One controls.sample() per fixed physics step (contract §3).
  let ticks=0;while(accumulator>=STEP&&ticks<8){const before={x:world.car.x,y:world.car.y},wraps=world.wraps;step(world,frameInput());
   if(race&&race.state==='racing'){if(world.wraps!==wraps)raceInvalidate('Edge wrap ended the timed run.');else if(raceMove(race,before,world.car,world.p.width)){raceFinish(Math.min(time,Math.max(race.anchor||0,time-(accumulator-STEP)*1000)));break;}}
   addTracks();accumulator-=STEP;ticks++;}
  if(ticks===8&&accumulator>=STEP)accumulator%=STEP;
- draw(accumulator/STEP);renderControls();syncRecover();if(time-lastRaceUI>=100){raceDisplay();lastRaceUI=time;}frameCount++;
+ draw(accumulator/STEP);renderControls();syncRecover();if(time-lastRaceUI>=100){raceDisplay();lastRaceUI=time;}
  if(mode!=='running')return;
- if(time-fpsStart>=600){ui.fps.textContent=String(Math.round(frameCount*1000/(time-fpsStart)));fpsStart=time;frameCount=0;}
  if(time-lastUI>250){updateUI();lastUI=time;}
  raf=requestAnimationFrame(animate);
 }
@@ -2657,18 +2814,19 @@ const setEntry=text=>{ui.enter.replaceChildren(Object.assign(document.createElem
 function onModeChange(next){
  if(race&&race.state==='racing'){if(next!=='running'&&race.anchor!==null){race.elapsed=raceElapsed();race.anchor=null;}else if(next==='running'&&race.anchor===null)race.anchor=performance.now();}
  mode=next;
- cancelAnimationFrame(raf);raf=0;accumulator=0;lastTime=0;frameCount=0;breakTracks(trackRec);
+ cancelAnimationFrame(raf);raf=0;accumulator=0;lastTime=0;breakTracks(trackRec);
  if(next!=='running')endStick(true); // pause, menu, blur: the stick lets go too (contract §3 release-all)
  const menu=next==='menu';ui.panel.hidden=!menu;ui.settingsBtn.setAttribute('aria-expanded',String(menu));
  if(next==='running'){for(const o of [world.car,...world.cones]){o.px=o.x;o.py=o.y;o.pa=o.a;}ui.enter.hidden=true;updateUI();renderControls();syncRecover();raf=requestAnimationFrame(animate);return;}
  world.trackBreak=true;
- ui.enter.hidden=next!=='paused'||!!(race&&race.state==='finished');setEntry(race&&race.state==='ready'?'TAP OR PRESS W TO START RACE':'PAUSED · '+entryText());ui.fps.textContent='—';draw();updateUI();renderControls();syncRecover();
+ ui.enter.hidden=next!=='paused'||!!(race&&race.state==='finished');setEntry(race&&race.state==='ready'?'TAP OR PRESS W TO START RACE':'PAUSED · '+entryText());draw();updateUI();renderControls();syncRecover();
 }
 const setMode=next=>modes.set(next),pause=()=>setMode('paused'),resume=()=>modes.engage();
 // (so W drives straight away; P, R and N are there when wanted).
-function fitTransmission(w){w.manual=w.p.trans==='manual';w.gear=w.manual?1:'D';return w;}
-// The Drone flies with the thumb sticks; the cars drive with the wheel, pedals and gear stick (CSS reads data-fly).
-const syncFly=()=>{root.dataset.fly=String(!!world.p.flying);};
+function fitTransmission(w){w.manual=w.p.trans==='manual'||w.p.trans==='paddle';w.gear=w.manual?1:'D';return w;}
+// The Drone flies with the thumb sticks; the cars drive with the wheel, pedals and gear stick (CSS reads data-fly). The F1 Car
+// swaps the gear stick for paddle shifters (CSS reads data-paddle).
+const syncFly=()=>{root.dataset.fly=String(!!world.p.flying);root.dataset.paddle=String(isPaddle(world));root.dataset.auto=String(world.p.trans==='auto');};
 function reset(id=world.id){world=fitTransmission(createWorld(id,world.arena));syncFly();world.trackBreak=true;controls.releaseAll();endStick(false);clearTracks();accumulator=0;lastTime=0;
  buildGround(world.arena);groundKey=groundKeyFor();
  draw();updateUI();renderControls();syncRecover();if(!ui.enter.hidden)setEntry(entryText());ui.announce.textContent=PRESETS[id].name+' ready. Scene reset.';}
@@ -2802,12 +2960,21 @@ function renderSpeed(){
  const hint=!flying&&!manual&&(world.gear==='P'||world.gear==='N')&&controls.visual().throttle>0;
  // The Drone shows its height in metres (1 world unit = 1/6 m, as SPEED_TO_KMH) where the cars show their gear.
  const alt=flying?Math.round((world.car.z||0)/6):0;
- const key=[t.speed,manual,t.gear,t.shiftUp,cue.up.ok,cue.down.ok,cue.down.hot,bar,hint,flying,alt].join('|');
+ const key=[t.speed,manual,isPaddle(world),t.gear,t.shiftUp,cue.up.ok,cue.up.hot,cue.down.ok,cue.down.hot,bar,hint,flying,alt].join('|');
  if(key===speedShown)return;speedShown=key;
  ui.speedValue.textContent=String(t.speed);ui.gearValue.textContent=String(flying?alt:t.gear);ui.gearUnit.textContent=flying?'M ALT':'GEAR';
  for(const [el,c] of [[ui.shiftUp,cue.up],[ui.shiftDown,{...cue.down,hot:cue.down.hot||hint}]]){el.classList.toggle('hot',c.hot);el.classList.toggle('off',!c.ok);}
  ui.speed.dataset.shift=String(manual&&t.shiftUp);
  ui.shiftBar.style.setProperty('--shift',bar.toFixed(1));ui.shiftBar.classList.toggle('hot',t.shiftUp);
+ if(isPaddle(world))renderPaddles(t,cue);
+}
+// The paddle shifters: the gear in the display, the shift lights climbing with the revs (all lit = shift now), a paddle
+// dashed when its shift is impossible right now, and the upshift paddle inverted when the car is ready for it.
+function renderPaddles(t,cue){
+ ui.paddleGear.textContent=String(world.gear||1);
+ const lit=Math.round(t.shift*ui.lights.children.length);
+ [...ui.lights.children].forEach((el,i)=>el.classList.toggle('on',i<lit));ui.lights.classList.toggle('hot',t.shiftUp);
+ ui.paddleUp.classList.toggle('hot',cue.up.hot);ui.paddleUp.classList.toggle('off',!cue.up.ok);ui.paddleDown.classList.toggle('off',!cue.down.ok);
 }
 function renderControls(){
  renderSpeed();renderStick();
@@ -2846,6 +3013,7 @@ function placeKnob(p){
 }
 let gateShown=null;
 function renderStick(){
+ if(isPaddle(world))return; // paddle shifters have no knob or gate (renderSpeed draws them)
  const manual=isManual(world),G=stickGate(manual),seq=manual?MANUAL_GEARS:AUTO_GEARS;
  if(gateShown!==manual){ // the car changed transmission: swap the gate drawing and move the pivot
   gateShown=manual;knobShown='';ui.gateManual.setAttribute('display',manual?'inline':'none');ui.gateAuto.setAttribute('display',manual?'none':'inline');
@@ -2870,7 +3038,7 @@ function animateKnob(g){
 // One shift request from any source; returns true when the gear changed. A refusal is announced.
 function requestGear(g,source){
  if(mode==='menu'||!g||g===world.gear||world.p.flying)return false; // the Drone has no gearbox
- if(shiftGear(world,g)){resume();if(source!=='drag')animateKnob(g);renderControls();say(gearName(g)+'.');return true;}
+ if(shiftGear(world,g)){resume();if(source!=='drag'&&!isPaddle(world))animateKnob(g);renderControls();say(gearName(g)+'.');return true;}
  const stop=typeof g==='string'||world.gear==='R'; // R, P and D (or leaving R) wait for a stop; a downshift waits for less speed
  say((stop?'Stop the car before shifting to ':'Too fast for ')+gearName(g).toLowerCase()+'.');return false;
 }
@@ -2902,11 +3070,22 @@ ui.stickFace.addEventListener('keydown',e=>{
  const next=dir?gearStep(world,dir):({Home:manual?1:'P',End:manual?5:'D'})[e.key]||(manual&&/^[1-5]$/.test(e.key)?+e.key:0);
  if(!dir&&!next)return;e.preventDefault();if(next&&(!e.repeat||dir))requestGear(next,'key');
 });
-window.addEventListener('keydown',event=>{if(event.repeat||event.ctrlKey||event.metaKey||event.altKey||mode==='menu')return;const target=event.target;if(target&&target.closest&&target.closest('input,textarea,select'))return;const key=event.key.toLowerCase();if(key==='q'||key==='e'){event.preventDefault();requestGear(gearStep(world,key==='e'?1:-1),'key');}});
+window.addEventListener('keydown',event=>{if(event.repeat||event.ctrlKey||event.metaKey||event.altKey||mode==='menu')return;const target=event.target;if(target&&target.closest&&target.closest('input,textarea,select'))return;const key=event.key.toLowerCase();if(key==='q'||key==='e'){event.preventDefault();const dir=key==='e'?1:-1;requestGear(gearStep(world,dir),'key');if(isPaddle(world))flashPaddle(dir);}});
 const primaryPress=e=>!(e.pointerType==='mouse'&&e.button!==0);
 const capture=(el,id)=>{try{el.setPointerCapture(id);}catch(_){/* synthetic or already-ended pointer */}};
 // Grabbing a control while the menu is open closes it first; the grab itself is the intentional action that resumes.
 const leaveMenu=()=>{if(mode==='menu')closeMenu(false);};
+// Paddle shifters (F1 Car): each pull is one gear, like the real paddles behind the wheel. A touch or click shifts on press;
+// Enter / Space on a focused paddle (a click with no pointer) shifts too. Q / E show the pull on the paddle for a moment.
+const paddleOf=dir=>dir>0?ui.paddleUp:ui.paddleDown;
+function flashPaddle(dir,ms=140){const el=paddleOf(dir);el.classList.add('on');setTimeout(()=>el.classList.remove('on'),ms);}
+for(const dir of [1,-1]){
+ const el=paddleOf(dir);
+ el.addEventListener('pointerdown',e=>{if(!primaryPress(e))return;e.preventDefault();leaveMenu();el.classList.add('on');requestGear(gearStep(world,dir),'paddle');capture(el,e.pointerId);renderControls();});
+ for(const type of ['pointerup','pointercancel','lostpointercapture'])el.addEventListener(type,()=>el.classList.remove('on'));
+ el.addEventListener('click',e=>{if(e.detail===0){requestGear(gearStep(world,dir),'paddle');flashPaddle(dir);}});
+ el.addEventListener('contextmenu',e=>e.preventDefault());
+}
 ui.wheelFace.addEventListener('pointerdown',e=>{
  if(!primaryPress(e))return;e.preventDefault();leaveMenu();
  if(controls.owner('wheel')!==null)return; // another finger already steers
@@ -2972,7 +3151,7 @@ window.addEventListener('keydown',event=>{
  if(event.key==='Escape'||event.key==='Esc'){if(mode==='menu'){event.preventDefault();closeMenu(true);}else if(mode==='running'){event.preventDefault();pause();}return;}
  // A short R press recovers; holding it for 1.8 seconds starts a fresh race.
  if(recoverFromKey(event,mode,ownsKeys(document.activeElement))){event.preventDefault();if(!raceHoldTimer&&!raceHoldTriggered)raceHoldTimer=setTimeout(()=>{raceHoldTimer=0;raceHoldTriggered=true;if(race&&race.route&&mode!=='menu')raceReset(false);},1000);return;}
- if((event.key===' '||event.key==='Enter')&&event.target.closest&&event.target.closest('#pedal-gas,#pedal-brake'))return;
+ if((event.key===' '||event.key==='Enter')&&event.target.closest&&event.target.closest('#pedal-gas,#pedal-brake,#paddle-up,#paddle-down'))return;
  const key=driveKey(event);if(!key)return;
  if(event.ctrlKey||event.metaKey||event.altKey)return; // leave browser and OS shortcuts alone
  if(!modes.acceptsKeys()||ownsKeys(document.activeElement))return;
@@ -2999,7 +3178,7 @@ function layoutUI(){
  // The speed text fills its row: about 70% of the row height, narrower when the zone is short of room ("188 KM/H 5 GEAR").
  sizeSpeed();
  const rz=zoneOf('race');if(rz){const width=(rz.r-rz.l)*u;raceHud.style.left=px(rz.l);const size=Math.max(8,Math.min(50,Math.floor(width/10.2),Math.floor((rz.b-rz.t)*u*.78)));raceHud.style.top=((rz.t*u)+Math.max(0,((rz.b-rz.t)*u-size)/2))+'px';raceHud.style.width=width+'px';raceHud.style.setProperty('--sp',size+'px');}
- const gz=zoneOf('gear');if(gz){const s=shiftKeyLayout((gz.r-gz.l)*u,(gz.b-gz.t)*u);for(const n of ['kw','kd','kh','bl','bw','fl','pt','ph'])ui.stick.style.setProperty('--'+n,s[n].toFixed(2)+'px');ui.stickFace.style.left='auto';ui.stickFace.style.width=Math.min((gz.r-gz.l)*u-s.fl,(gz.b-gz.t)*u*110/106)+'px';}
+ const gz=zoneOf('gear');if(gz){const s=shiftKeyLayout((gz.r-gz.l)*u,(gz.b-gz.t)*u);for(const n of ['kw','kd','kh','bl','bw','fl','pt','ph'])ui.stick.style.setProperty('--'+n,s[n].toFixed(2)+'px');ui.stickFace.style.left='auto';ui.stickFace.style.width=Math.min((gz.r-gz.l)*u-s.fl,(gz.b-gz.t)*u*110/106)+'px';ui.paddles.style.setProperty('--zh',((gz.b-gz.t)*u).toFixed(1)+'px');}
  const promptY=view.cssH*.42,gearTop=gz.t*u,gearBottom=gz.b*u;
  if(promptY>=gearTop-30&&promptY<=gearBottom+30){const free=Math.max(120,gz.l*u-12);ui.enter.style.left=(free/2)+'px';ui.enter.style.maxWidth=(free-12)+'px';}else{ui.enter.style.left='';ui.enter.style.maxWidth='';}
  // The settings panel drops from the HUD, right-aligned with it, and scrolls if the screen is very short.

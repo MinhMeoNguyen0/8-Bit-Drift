@@ -14,6 +14,10 @@ node preview.cjs
 
 Then visit [the local preview](http://127.0.0.1:4173/). The preview reads the saved HTML on each request; refresh after an edit. Local changes do not update the published site automatically.
 
+## Play online and publish updates
+
+[Play on GitHub Pages](https://minhmeonguyen0.github.io/8-Bit-Drift/). Changes pushed or merged into `main` automatically publish after the standalone deployment checks pass. Pull requests run checks without publishing. The existing broad regression suites run separately and currently have failures; a successful deployment does not mean all game tests pass. See [the CI/CD guide](tasks/GITHUB_PAGES.md) for the flow, known failures, and rollback instructions.
+
 ## Controls and vehicles
 
 | Action | Control |
@@ -27,6 +31,8 @@ Then visit [the local preview](http://127.0.0.1:4173/). The preview reads the sa
 | Right a stuck ground car | R or the recovery button when available |
 
 The **Compact** uses a P/R/N/D automatic and starts in Drive. Q moves the automatic selector toward Drive; E moves it toward Park. The **Supercar** is a five-speed manual with reverse below fifth on its H gate; it starts in first. Q from first can select reverse when stopped. Shifts into reverse and Park, and unsafe manual downshifts, are protected. A brake alone never selects reverse.
+
+The **F1 Car** (between the Supercar and the Drone in the chooser) is the fastest ground car and is perfectly planted: its tyres never let go, so it cannot drift or skid, and it never rolls. It has a sequential 8-speed with no clutch and no stick. Like the paddles behind a real F1 wheel, a **downshift paddle (Q, left)** and an **upshift paddle (E, right)** sit either side of a gear display, with a row of eight shift lights above that fills as the revs climb and lights fully when it is time to shift up. One pull is one gear. Reverse is below first (Q from first when stopped), unsafe downshifts are refused, and tapping or clicking a paddle works on touch and mouse as well as Q / E.
 
 On a ground car, hold gas and brake near a standstill to build a burnout, then release the brake while holding gas for a boosted launch.
 
