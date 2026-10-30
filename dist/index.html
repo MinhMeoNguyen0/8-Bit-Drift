@@ -15,7 +15,8 @@ html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none;backgrou
 body{font:italic 900 12px/1.25 var(--heavy);text-transform:uppercase;letter-spacing:.02em;-webkit-text-size-adjust:100%}
 button,input{font:inherit;color:inherit;text-transform:inherit}button{cursor:pointer}
 button:focus-visible,input:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
-.playground{position:fixed;left:0;top:0;width:100%;height:100vh;height:100dvh;overflow:hidden;background:var(--screen);-webkit-user-select:none;user-select:none}
+.playground{position:fixed;left:0;top:0;width:100%;height:100vh;height:100dvh;overflow:hidden;background:var(--screen);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation}
+.playground *:not(input):not(textarea){-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 #game{position:absolute;left:0;top:0;display:block;image-rendering:crisp-edges;image-rendering:pixelated;outline:none;-webkit-touch-callout:none}
 
 #paint{position:absolute;left:0;top:0;display:block;image-rendering:crisp-edges;image-rendering:pixelated;pointer-events:none}
@@ -642,8 +643,8 @@ function fallbackTrack(A,hw){
 }
 // layoutCourse costs tens of ms, so results are cached per arena size and zone set (contract §11). Each call returns a fresh copy.
 // the UI reads ids and names from here only.
-const TRACKS=[{id:'signature',name:'Signature circuit'},{id:'oval',name:'Easy oval'},{id:'eight',name:'Figure eight'},{id:'parking',name:'Parking lot'}];
-let SELECTED_TRACK='signature';
+const TRACKS=[{id:'signature',name:'Daily Challenge'},{id:'oval',name:'Easy oval'},{id:'eight',name:'Figure eight'},{id:'parking',name:'Parking lot'}];
+let SELECTED_TRACK='eight';
 function setTrack(id){if(!TRACKS.some(t=>t.id===id))return false;SELECTED_TRACK=id;layoutCache.clear();return true;}
 const layoutCache=new Map();
 function layoutCourse(A=DEFAULT_ARENA){
@@ -1675,6 +1676,17 @@ function cameraGeometry(cssW,cssH,short,defaultZoom,courseW,courseH){
  const l=(courseW-w)/2,t=(courseH-h)/2;
  return {scale,l,t,r:l+w,b:t+h,w,h};
 }
+// Fit the course into the open region between mobile controls; the viewport still covers the whole screen.
+function mobileCameraGeometry(cssW,cssH,short,courseW,courseH,zones,u){
+ const rotated=cssH>cssW,get=id=>zones.find(z=>z.id===id),wheel=get('wheel'),gear=get('gear'),hud=get('hud');
+ const left=rotated?12:wheel.r*u+8,right=rotated?cssW-12:gear.l*u-8;
+ const top=hud.b*u+12,bottom=rotated?Math.min(wheel.t,gear.t)*u-12:cssH-12;
+ const availableW=Math.max(cssW*.22,right-left),availableH=Math.max(cssH*.22,bottom-top);
+ const vw=rotated?cssH:cssW,vh=rotated?cssW:cssH;
+ const scale=Math.min(Math.min(vw/courseW,vh/courseH)*VIEW_SHORT/Math.max(short,VIEW_SHORT),rotated?availableH/courseW:availableW/courseW,rotated?availableW/courseH:availableH/courseH)*.94;
+ const x=(left+right)/2,y=(top+bottom)/2,cx=rotated?y:x,cy=rotated?cssW-x:y,w=vw/scale,h=vh/scale,l=courseW/2-cx/scale,t=courseH/2-cy/scale;
+ return {scale,l,t,r:l+w,b:t+h,w,h};
+}
 // Keep at least one output pixel per CSS pixel when the world is zoomed in.
 // World caches stay in logical pixels; only the final compositing canvas grows.
 function renderMetrics(visibleW,visibleH,worldScale){
@@ -2581,7 +2593,7 @@ if(typeof document==='undefined'){if(typeof module!=='undefined'){
  module.exports={BURN_SPEED,GEARS,AUTO_GEARS,MANUAL_GEARS,PADDLE_GEARS,PADDLE_SEQ,isPaddle,REV_SHIFT,SHIFT_AT,isManual,shiftOk,gearStep,gearName,shiftGear,gearTelemetry,WIDTH,HEIGHT,K,Z,WORLD_H,STEP,TAU,PRESETS,CAR_ART,FRAMES,SHADOW_INK,LIGHT,DEFAULT_ARENA,edgeClear,CROSS_GAP,carBoxAll,SPAWN_INSIDE,CONE_COUNT,CONE_R,CONTROL_ZONES,keepOuts,layoutCourse,drawGround,resetCones,TRANSFER_MARGIN,CONE_BOX,transferBody,transferEdges,sceneItems,carDrawable,gateDrawables,drawOrder,SKID,createTrackRecorder,breakTracks,recordTracks,coneSprite,coneShadowSprite,CONE_H,archShape,inArch,gateArt,GATE_SPLIT,GATE_FRONT,plotLine,frameIndex,carModel,carShadowPolys,frameBounds,spriteBox,raster,carSprite,carShadow,buildCarAtlases,makeArena,normalizeInput,keysToInput,carScreenBounds,resizeWorld,wrap,delta,angleDelta,createWorld,drive,step,carCone,coneCone,position,wheelPoints,SPEED_CAP,OMEGA_MAX,CONE_MAX,FASTEST,SUB_MOVE,gatePosts,carPost,conePost,substeps,limitVelocity,ROLL_STEPS,ROLL_G,LOAD_W,LOAD_ZETA,IMPACT_GAIN,TIP_COMMIT,TIP_DROP,TIP_MIN,TIP_SOFT,ROLL_SPIN,ROLL_DECEL,ROLL_SETTLE,ROLL_FRICTION,REST_SPEED,RECOVER_TIME,RECOVER_GAP,CAR_STATES,uprightState,rollKappa,tipAngle,tumble,rollover,rollFrame,rolledModel,rollShadowPolys,rollSpritePoints,rollFrameBounds,rollSpriteBox,carRollSprite,carRollShadow,carHidden,canRecover,recover,recoverSpot,boxDistance};
  Object.assign(module.exports,{raceRoute,raceProject,raceCross,raceNew,raceMove,raceTime,raceRank,raceBetter,raceFingerprint,raceRecords,raceSave,RACE_VERSION});
  Object.assign(module.exports,{setTrack,TUNING,TUNING_SPEC,TUNING_DEFAULTS,setTuning,resetTuning}); // shared tuning interface
- Object.assign(module.exports,{visibleBounds,cameraGeometry,renderMetrics,titleRasterSpec,groundDots,pitStopGeometry,pitPoint,gasPumpPoint,pitPosts,pitOverlap,carPit,conePit,drawPitBay,pitArt,pitDrawables,VIEW_SHORT,computeView,createControls,UI_MARGIN,UI_GAP,uiMetrics,controlZones,WHEEL_DEAD,turnDelta,pointerAngle,wheelDrag,wheelValue,wheelKickback,createModes,recoverAvailable,tryRecover,isRecoverKey,recoverFromKey}); // ui (r2-ui)
+ Object.assign(module.exports,{visibleBounds,cameraGeometry,mobileCameraGeometry,renderMetrics,titleRasterSpec,groundDots,pitStopGeometry,pitPoint,gasPumpPoint,pitPosts,pitOverlap,carPit,conePit,drawPitBay,pitArt,pitDrawables,VIEW_SHORT,computeView,createControls,UI_MARGIN,UI_GAP,uiMetrics,controlZones,WHEEL_DEAD,turnDelta,pointerAngle,wheelDrag,wheelValue,wheelKickback,createModes,recoverAvailable,tryRecover,isRecoverKey,recoverFromKey}); // ui (r2-ui)
  Object.assign(module.exports,{PAINT_SLANT,PAINT_STRIPE,PAINT_SOLID_BELOW,PAINT_KEY_SOLID_BELOW,PAINT_COPY,GLYPHS,glyphMask,shearMask,maskRuns,keycapRuns,wrapPhrases,paintLayout,paintRuns,drawPaint}); // ground paint (r2-paint)
  Object.assign(module.exports,{buildCourse,fitTrack,roundedPath,circuitVerts,laneHalf,laneSelfClear,gateSpot,trackMarks,LANE_PAD,LANE_GAP,GATE_LEAD,TRACK_STEP,CONE_OFF,inGate,TRACKS,TRACK_SHAPES,TRACK_HALF,TRACK_FILL,shapeUnit,trackSelfClear,insideLoop,titleSpot,trackRadiusOk,TRACK_MIN_R}); // sim + course extra exports (r2-sim)
  Object.assign(module.exports,{wheelLimit,wheelInput,wheelAngle,GEAR_GATE,STICK_VB,gearSlot,stickMove,mobileStickMove,stickSlot,simpleAutoInput,stickPath,AUTO_GATE,autoSlot,autoMove,autoSlotAt,autoPath,stickGate,pathPoint,shiftBarW,TUNING_STORE,loadTuning,saveTuning,tuningGroups,uiPx,SPEED_EM,speedFit,shiftKeyW,shiftKeyGap,shiftKeyLayout,gearCues,trackThumbSize,trackThumb}); // ui extra exports (r2-ui, r3-ui)
@@ -3227,7 +3239,7 @@ function applyView(){
  view={...next,dpr,cssW,cssH,u,safe,mobile};uiZones=controlZones(view,safe);
  const mobileShort=VIEW_SHORT,A=makeArena(mobileShort*2,mobileShort);A.fixedMobile=true;A.safe=safe;A.uiU=u;A.uiW=cssW;A.uiH=cssH;A.mobile=mobile;
  // Both courses use the same world reference; each slider selects its own visible span.
- const rotated=mobile&&cssH>cssW, camera=cameraGeometry(rotated?cssH:cssW,rotated?cssW:cssH,mobile?Math.max(viewFor(),VIEW_SHORT*1.1):viewFor(),VIEW_SHORT,A.W,A.H),worldScale=camera.scale,visibleW=camera.w,visibleH=camera.h;view.worldScale=worldScale;
+ const rotated=mobile&&cssH>cssW, camera=mobile?mobileCameraGeometry(cssW,cssH,viewFor(),A.W,A.H,uiZones,u):cameraGeometry(cssW,cssH,viewFor(),VIEW_SHORT,A.W,A.H),worldScale=camera.scale,visibleW=camera.w,visibleH=camera.h;view.worldScale=worldScale;
  Object.assign(A,{viewL:camera.l,viewT:camera.t,viewR:camera.r,viewB:camera.b});
  const arenaChanged=first||world.arena.W!==A.W||world.arena.H!==A.H||!world.arena.fixedMobile||!ground;
  const cameraChanged=arenaChanged||Math.abs((world.arena.viewL??0)-A.viewL)>.001||Math.abs((world.arena.viewT??0)-A.viewT)>.001||Math.abs((world.arena.viewR??A.W)-A.viewR)>.001||Math.abs((world.arena.viewB??A.H)-A.viewB)>.001;
