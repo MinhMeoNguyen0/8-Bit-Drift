@@ -128,7 +128,7 @@ test('tracks are clipped to the arena, never wrapped; wheel points are not wrapp
 });
 test('accelerate, coast, then brake to a stop without reversing', () => {
  const w=empty();run(w,3,input(true));assert(forward(w)>75);const speed=forward(w);run(w,1,input());assert(forward(w)<speed);
- run(w,2,input(true));const before=forward(w);run(w,.1,input(false,true));assert(forward(w)>0&&forward(w)<before,'brake slows with finite deceleration, not an instant stop');for(let n=0;forward(w)>.5&&n<1200;n++)e.step(w,input(false,true));run(w,.3,input(false,true));assert(forward(w)>-.01&&forward(w)<1,'braking a moving car stops it, never reversing');run(w,2,input(false,true));assert(forward(w)<-5,'held at a standstill the brake backs the car out');run(w,2,input(true));assert(forward(w)>15);
+ run(w,2,input(true));const before=forward(w);run(w,.1,input(false,true));assert(forward(w)>0&&forward(w)<before,'brake slows with finite deceleration, not an instant stop');for(let n=0;forward(w)>.5&&n<1200;n++)e.step(w,input(false,true));run(w,.3,input(false,true));assert(forward(w)>-.01&&forward(w)<1,'braking a moving car stops it, never reversing');run(w,2,input(false,true));assert(Math.abs(forward(w))<.01,'held at a standstill the brake keeps the car still (no reverse)');run(w,2,input(true));assert(forward(w)>15);
 });
 test('stationary steering does not rotate; steering turns while driving', () => {
  const w=empty();const initial=w.car.a;run(w,2,input(false,false,true));assert(Math.abs(w.car.a-initial)<1e-12);
@@ -190,10 +190,10 @@ test('resizeWorld maps objects proportionally and breaks tracks', () => {
 // ---- Agent 1 (interface and controls): task 01 viewport and task 03 shared input ----
 // Round 2 (r2-ui): the view is zoomed out to ~400 logical px on the short side (was 300) and takes the target as a 4th argument
 // (default TUNING.viewShort). Expected values recomputed for 400; the 300 cases are kept below through the argument.
-test('computeView: scale fits the short side to TUNING.viewShort (575) logical px, screen covered', () => {
- assert.equal(e.VIEW_SHORT,575);assert.equal(e.TUNING.viewShort,575);
+test('computeView: scale fits the short side to TUNING.viewShort (675) logical px, screen covered', () => {
+ assert.equal(e.VIEW_SHORT,675);assert.equal(e.TUNING.viewShort,675);
  for(const [name,w,h,dpr] of [['desktop 1920x1080@1',1920,1080,1],['laptop 1366x768@1',1366,768,1],['phone portrait 390x844@3',390,844,3],['phone landscape 844x390@3',844,390,3],['high-DPI 1440x900@2',1440,900,2]]){
-  const v=e.computeView(w,h,dpr);assert.equal(Math.min(v.W,v.H),575,name);assert(v.scale>0,name);
+  const v=e.computeView(w,h,dpr);assert.equal(Math.min(v.W,v.H),675,name);assert(v.scale>0,name);
   for(const [n,dev] of [[v.W,w*dpr],[v.H,h*dpr]])assert(n*v.scale>=dev-1e-9,name);
   assert(v.W*v.scale/dpr>=w-1e-9&&v.H*v.scale/dpr>=h-1e-9,name);}
  // The target is an argument (Settings > Zoom out); the old 300 view is still reachable, and the default follows TUNING.
@@ -815,11 +815,10 @@ test('task 10: W+S brakes and reverse steering is correct for every car at the n
  for(const id of ids){const w=bare(id);run(w,4,input(true));const v0=forward(w);assert(v0>e.PRESETS[id].max*.95);
   let prev=v0;for(let i=0;i<240;i++){e.step(w,c.sample());assert(Math.abs(forward(w))<=prev+1e-9,`${id} W+S never accelerates`);prev=Math.abs(forward(w));}
   assert(Math.abs(forward(w))<1,`${id} W+S stops the car`);
-  // Reversing: S then S+A yaws positive, S+D negative, at full reverse speed; forward D yaws positive.
-  for(const [keys,sign] of [[input(false,true,true),1],[input(false,true,false,true),-1],[input(true,false,false,true),1]]){
-   const r=bare(id);run(r,keys.throttle?2:3,keys.throttle?input(true):input(false,true));
-   if(!keys.throttle)assert(Math.abs(forward(r)+e.PRESETS[id].reverse)<1e-9,`${id} reaches full reverse speed`);
-   run(r,.5,keys);assert(Math.sign(r.car.omega)===sign,`${id} steering ${JSON.stringify(keys)} yaws ${r.car.omega}`);}}
+  // Round 5: no reverse. Held from a standstill, S (with or without steering) keeps the car still; forward D yaws positive.
+  for(const keys of [input(false,true),input(false,true,true),input(false,true,false,true)]){const r=bare(id);run(r,3,keys);
+   assert(Math.abs(forward(r))<1e-9&&Math.abs(r.car.omega)<1e-9,`${id} ${JSON.stringify(keys)} never backs the car out`);}
+  const r=bare(id);run(r,2,input(true));run(r,.5,input(true,false,false,true));assert(r.car.omega>0,`${id} forward D yaws ${r.car.omega}`);}
 });
 test('task 10: substeps keep every relative move under half a cone radius, with bounded cost', () => {
  const reach=Math.max(...ids.map(id=>Math.hypot(e.PRESETS[id].length,e.PRESETS[id].width)/2));
@@ -1534,11 +1533,12 @@ test('r2-ui: wheel range, centre curve and kickback come from TUNING and apply a
 // each event moves the knob toward the finger's position with stickMove. Returns every knob position.
 function r2drag(p,targets,stepLen=2){const trail=[p];let f={...p};for(const t of targets){for(let i=0;i<400;i++){const dx=t.x-f.x,dy=t.y-f.y,d=Math.hypot(dx,dy);
  f=d<=stepLen?{...t}:{x:f.x+dx/d*stepLen,y:f.y+dy/d*stepLen};trail.push(e.stickMove(trail[trail.length-1],f));if(d<=stepLen)break;}}return trail;}
-const onGate=p=>{const G=e.GEAR_GATE;const inCol=G.cols.some((c,i)=>Math.abs(p.x-c)<1e-9&&p.y>=G.top-1e-9&&p.y<=(i===2?G.mid:G.bot)+1e-9),onRow=Math.abs(p.y-G.mid)<1e-9&&p.x>=G.cols[0]-1e-9&&p.x<=G.cols[2]+1e-9;return inCol||onRow;};
+const onGate=p=>{const G=e.GEAR_GATE;const inCol=G.cols.some(c=>Math.abs(p.x-c)<1e-9&&p.y>=G.top-1e-9&&p.y<=G.bot+1e-9),onRow=Math.abs(p.y-G.mid)<1e-9&&p.x>=G.cols[0]-1e-9&&p.x<=G.cols[2]+1e-9;return inCol||onRow;};
 test('r2-ui: gear stick H gate: slots, constrained movement, engage, paths', () => {
  const G=e.GEAR_GATE;
- // Odd gears on top, even below; 5 has no bottom slot. Each slot is engaged only at its end.
+ // Odd gears on top, even below; round 6: R sits under 5. Each slot is engaged only at its end.
  for(let g=1;g<=5;g++){const s=e.gearSlot(g);assert.equal(e.stickSlot(s),g);assert(onGate(s));assert.equal(s.y,g%2?G.top:G.bot);}
+ r2eq(e.gearSlot('R'),{x:G.cols[2],y:G.bot});assert.equal(e.stickSlot(e.gearSlot('R')),'R');
  assert.equal(e.stickSlot({x:G.cols[0],y:G.mid}),0,'neutral is no gear');assert.equal(e.stickSlot({x:G.cols[1],y:G.top+G.engage+1}),0,'not yet in the slot');
  // In a column the knob only slides along it: pulling sideways from slot 1 does not reach column 3/4.
  let p=e.stickMove(e.gearSlot(1),{x:G.cols[1],y:G.top});r2eq(p,e.gearSlot(1),'cannot cut across the gate');
@@ -1547,7 +1547,7 @@ test('r2-ui: gear stick H gate: slots, constrained movement, engage, paths', () 
  p=e.stickMove({x:G.cols[0],y:G.mid},{x:38,y:G.mid+2});r2eq(p,{x:38,y:G.mid});
  p=e.stickMove({x:38,y:G.mid},{x:38,y:G.top});r2eq(p,{x:38,y:G.mid},'between columns it cannot go up');
  p=e.stickMove({x:50,y:G.mid},{x:52,y:G.top});r2eq(p,{x:G.cols[1],y:G.top},'snaps into the nearby column');
- r2eq(e.stickMove({x:G.cols[2],y:G.mid},{x:G.cols[2],y:G.bot}),{x:G.cols[2],y:G.mid},'fifth has no bottom slot');
+ r2eq(e.stickMove({x:G.cols[2],y:G.mid},{x:G.cols[2],y:G.bot}),e.gearSlot('R'),'R is straight down from the neutral channel under 5');
  r2eq(e.stickMove({x:G.cols[0],y:G.mid},{x:-50,y:G.mid}),{x:G.cols[0],y:G.mid},'the neutral channel ends at the outer columns');
  // Real drags in small steps: every position stays on the gate, and the shifts come out in the right order.
  const seq=(from,targets)=>{const trail=r2drag(e.gearSlot(from),targets),gears=[];for(const q of trail){assert(onGate(q),'off the gate '+JSON.stringify(q));const g=e.stickSlot(q);if(g&&g!==gears[gears.length-1])gears.push(g);}return {trail,gears};};
@@ -1559,7 +1559,7 @@ test('r2-ui: gear stick H gate: slots, constrained movement, engage, paths', () 
  assert([3,5].includes(diag(G.cols[1]).pop()),'a diagonal from the 3/4 column ends in 3 or 5');assert.deepEqual([...new Set(diag(G.cols[1]+G.catch+3))],[5]);
  r2eq(seq(3,[e.gearSlot(5)]).gears,[3],'a straight diagonal pull from 3 toward 5 never skips the gate');
  // Paths for Q / E and the spring-back follow the gate, and pathPoint walks them evenly.
- for(let a=1;a<=5;a++)for(let b=1;b<=5;b++){const pts=e.stickPath(e.gearSlot(a),b);r2eq(pts[0],e.gearSlot(a));r2eq(pts[pts.length-1],e.gearSlot(b));
+ for(const a of e.MANUAL_GEARS)for(const b of e.MANUAL_GEARS){const pts=e.stickPath(e.gearSlot(a),b);r2eq(pts[0],e.gearSlot(a));r2eq(pts[pts.length-1],e.gearSlot(b));
   for(let f=0;f<=1;f+=.05)assert(onGate(e.pathPoint(pts,f)),`path ${a}>${b} leaves the gate at ${f}`);}
  assert.equal(e.stickPath(e.gearSlot(1),2).length,2,'same column: straight');assert.equal(e.stickPath(e.gearSlot(2),3).length,4,'via neutral');
  const mid=e.stickPath({x:40,y:G.mid},1);r2eq(mid,[{x:40,y:G.mid},{x:G.cols[0],y:G.mid},e.gearSlot(1)],'from the neutral channel');
@@ -1575,6 +1575,60 @@ test('r2-ui: the stick shifts through shiftGear: refused downshifts spring back,
  assert.equal(engage([{x:G.cols[2],y:G.mid},{x:G.cols[0],y:G.mid},e.gearSlot(1)]),false);assert.equal(w.gear,5,'refused');
  const back=e.stickPath(knob,w.gear);r2eq(back[back.length-1],e.gearSlot(5),'springs back to the engaged gear');
  assert.equal(e.shiftGear(e.createWorld('compact'),2),false);
+});
+test('round 6: automatics shift P R N D, the manual gets R under 5, and reverse only engages at a stop', () => {
+ const A=e.makeArena(100000,100000),run=(w,n,inp)=>{for(let i=0;i<n;i++)e.step(w,{steering:0,brake:0,throttle:0,...inp});},fwd=w=>w.car.vx*Math.cos(w.car.a)+w.car.vy*Math.sin(w.car.a);
+ const mk=id=>{const w=e.createWorld(id,A);w.cones=[];w.layout=null;w.manual=w.p.trans==='manual';return w;};
+ assert.equal(e.PRESETS.coupe.trans,'manual');assert.equal(e.PRESETS.compact.trans,'auto');assert.equal(actualDrone.trans,'auto');
+ assert.equal(e.createWorld('compact',A).gear,'D','the simulation starts automatics in D');assert.equal(e.createWorld('coupe',A).gear,1);
+ for(const id of ['compact','van']){
+  const w=mk(id);w.gear='P';run(w,120,{throttle:1});assert(Math.abs(fwd(w))<.01,id+': P never moves');
+  assert(e.shiftGear(w,'N'));run(w,120,{throttle:1});assert(Math.abs(fwd(w))<.01,id+': N gives no drive');
+  assert(e.shiftGear(w,'R'));run(w,240,{throttle:1});assert(fwd(w)<-30&&fwd(w)>=-w.p.reverse-1e-9,id+': R backs up to the reverse limit '+fwd(w));
+  assert(!e.shiftGear(w,'D'),id+': no D while rolling back');assert(!e.shiftGear(w,'P'),id+': no P while moving');
+  run(w,240,{brake:1});assert(Math.abs(fwd(w))<.01);assert(e.shiftGear(w,'D'));run(w,240,{throttle:1});assert(fwd(w)>60,id+': D drives forward');
+  assert(!e.shiftGear(w,'R'),id+': no R while rolling forward');assert(e.shiftGear(w,'N'),id+': N any time');assert(!e.shiftGear(w,3),id+': no numbered gears');
+  // P holds a nudged car still.
+  run(w,600,{brake:1});assert(e.shiftGear(w,'P'));w.car.vx=40*Math.cos(w.car.a);w.car.vy=40*Math.sin(w.car.a);run(w,120,{});assert(Math.abs(fwd(w))<.01,id+': P brakes a nudged car');
+  // Q / E: the knob moves the way the key points (E up toward P, Q down toward D).
+  w.gear='P';assert.equal(e.gearStep(w,1),0);assert.equal(e.gearStep(w,-1),'R');w.gear='N';assert.equal(e.gearStep(w,-1),'D');assert.equal(e.gearStep(w,1),'R');w.gear='D';assert.equal(e.gearStep(w,-1),0);
+ }
+ const m=mk('coupe');assert.deepEqual([...e.MANUAL_GEARS],['R',1,2,3,4,5]);
+ assert.equal(e.gearStep(m,-1),'R','Q from first is R');assert.equal(e.gearStep(m,1),2);m.gear=5;assert.equal(e.gearStep(m,1),0);m.gear=1;
+ assert(e.shiftGear(m,'R'),'R at a standstill');assert.equal(m.shiftTime,.12,'R goes through the clutch too');run(m,240,{throttle:1});assert(fwd(m)<-30&&fwd(m)>=-m.p.reverse-1e-9,'R backs the Supercar up');
+ assert(!e.shiftGear(m,1),'no first gear while reversing');run(m,240,{brake:1});assert(e.shiftGear(m,1));run(m,120,{throttle:1});assert(fwd(m)>20);
+ assert(!e.shiftGear(m,'R'),'no R while rolling forward');assert(!e.shiftGear(m,'P')&&!e.shiftGear(m,'D'),'the manual has no P / D');
+ // An unflagged Supercar (no page) keeps its plain controls; the compact never takes manual gears.
+ const plain=e.createWorld('coupe',A);assert(!e.shiftGear(plain,2)&&!e.shiftGear(plain,'R'));assert(!e.shiftGear(e.createWorld('compact'),2));
+ assert.deepEqual(['R','P','N','D',3].map(e.gearName),['Reverse','Park','Neutral','Drive','Gear 3']);
+});
+test('round 6: the shift bar climbs to the shift point and drops after each shift (manual and automatic)', () => {
+ const A=e.makeArena(100000,100000),mk=id=>{const w=e.createWorld(id,A);w.cones=[];w.layout=null;w.manual=w.p.trans==='manual';return w;};
+ const m=mk('coupe');assert.equal(e.gearTelemetry(m).shift,0);
+ let full=false,drops=0,last=0;for(let i=0;i<2400;i++){e.step(m,{throttle:1,steering:0,brake:0});const t=e.gearTelemetry(m);assert(t.shift>=0&&t.shift<=1);
+  if(t.shiftUp){assert.equal(t.shift,1,'full bar when it is time to shift');full=true;const before=t.shift;if(e.shiftGear(m,m.gear+1)){const after=e.gearTelemetry(m).shift;assert(after<before-.25,'the bar drops after an upshift');drops++;}}last=t.shift;}
+ assert(full&&drops===4,'four upshifts to fifth: '+drops);
+ const cues=e.gearCues(m);assert.equal(cues.up.ok,false,'no gear above fifth');assert.equal(cues.down.ok,false,'too fast for fourth at top speed');
+ // The automatic box shifts by itself in D: the bar rises and falls more than once on the way to top speed.
+ const a=mk('compact');let falls=0,prev=0;for(let i=0;i<2400;i++){e.step(a,{throttle:1,steering:0,brake:0});const s=e.gearTelemetry(a).shift;if(s<prev-.15)falls++;prev=s;assert.equal(e.gearTelemetry(a).shiftUp,false,'automatics never ask for a shift');}
+ assert(falls>=3,'automatic box shifts: '+falls);
+ for(const g of ['P','N']){a.gear=g;assert.equal(e.gearTelemetry(a).shift,0,g+' idles');}
+});
+test('round 6: the gear zone fits keys, the shift bar and the stick side by side; the plate clears its labels', () => {
+ for(const [w,h] of [[150,136],[105,95],[80,66],[230,190]]){const L=e.shiftKeyLayout(w,h);
+  assert(L.bl>=L.kw&&L.fl>=L.bl+L.bw,'keys, then the bar, then the face '+JSON.stringify(L));assert(L.bw>=6,'the bar is visible');
+  assert(L.fl+L.ph*e.STICK_VB.w/e.STICK_VB.h<=w+1e-6,'the face fits beside the bar');assert(L.pt>=0&&L.pt+L.ph<=h+1e-6);}
+ // The SVG plate is taller than the old 100 units; the bottom labels (2, 4, R) sit above its edge, not on it.
+ const svg=html.match(/<svg viewBox="0 0 110 106"[\s\S]*?<\/svg>/)[0],plate=svg.match(/<path d="M2 2h102v(\d+)H2z"/);assert(plate,'plate');const bottom=2+ +plate[1];
+ for(const t of ['2','4','R']){const y=+svg.match(new RegExp('<text x="\\d+" y="([\\d.]+)">'+t+'</text>'))[1];assert(bottom-y>=5,t+' label clears the plate edge ('+y+' vs '+bottom+')');}
+ assert(/id="gate-auto"[^>]*>[\s\S]*>P<[\s\S]*>R<[\s\S]*>N<[\s\S]*>D</.test(svg),'the automatic gate is labelled P R N D');
+ // Automatic gate: one column, P at the top, the knob never leaves it.
+ const G=e.AUTO_GATE;r2eq(e.autoMove(e.autoSlot('P'),{x:0,y:999}),e.autoSlot('D'));r2eq(e.autoMove(e.autoSlot('D'),{x:200,y:-50}),e.autoSlot('P'));
+ assert.deepEqual([...e.AUTO_GEARS.map(g=>e.autoSlotAt(e.autoSlot(g)))],['P','R','N','D']);assert.equal(e.autoSlotAt({x:G.x,y:G.top+G.step/2}),0,'between slots');
+ assert.equal(e.stickGate(true).slot,e.gearSlot);assert.equal(e.stickGate(false).slot,e.autoSlot);
+ // Page: the bar sits between the keys and the face and reads gearTelemetry's shift.
+ assert(/<div class="gear-keys"[\s\S]*?<\/div><div class="shift-bar" id="shift-bar" aria-hidden="true"><i><\/i><\/div><div class="gear-face"/.test(html));
+ assert(/ui\.shiftBar\.style\.setProperty\('--shift'/.test(html)&&/\.shift-bar\{[^}]*left:var\(--bl/.test(html));
 });
 test('r2-ui: tuning persistence (only changed keys, guarded storage) and groups for the settings panel', () => {
  const mem=()=>{const m=new Map();return {m,getItem:k=>m.has(k)?m.get(k):null,setItem:(k,v)=>m.set(k,String(v)),removeItem:k=>m.delete(k)};};
@@ -1608,13 +1662,13 @@ test('r2-ui: speed and gear zones; the gear slot is reserved for every car; pain
 });
 test('r2-ui: page wiring: gear stick, floating speed, tuning panel, view and ground rebuilds', () => {
  const css=html.split('<style>')[1].split('</style>')[0],script=scripts[0][1],browser=script.split('// ---- Browser only below.')[1];
- // Gear stick: a focusable slider, hidden unless the Supercar is chosen, Q / E announced; no tap buttons left.
- assert(/id="gearstick" hidden/.test(html)&&/id="gear-face"[^>]*role="slider"[^>]*tabindex="0"[^>]*aria-label="Gear stick"[^>]*aria-valuemin="1"[^>]*aria-valuemax="5"[^>]*aria-keyshortcuts="Q E"/.test(html));
+ // Gear stick: a focusable slider on every car (round 6), Q / E announced; no tap buttons left.
+ assert(/id="gearstick">/.test(html)&&/id="gear-face"[^>]*role="slider"[^>]*tabindex="0"[^>]*aria-label="Gear stick"[^>]*aria-valuemin="0"[^>]*aria-valuemax="5"[^>]*aria-keyshortcuts="Q E"/.test(html));
  assert(!/data-gear=/.test(html)&&!/gearbox|drive-console/.test(html),'the five tap buttons are gone');
  assert(/\.gearstick\[hidden\]\{display:none\}/.test(css));
  for(const ev of ['pointerdown','pointermove','pointerup','pointercancel','lostpointercapture'])assert(new RegExp(ev).test(browser.split('---- Round 2: the gear stick')[1].split('// ---- Keyboard (task 03)')[0]),'stick handles '+ev);
  assert(/if\(next!=='running'\)endStick\(true\)/.test(browser)&&/onRotate=\(\)=>\{controls\.releaseAll\(\);endStick\(true\)/.test(browser),'the stick lets go on pause, menu, blur and rotation');
- assert(/requestGear\(\(world\.gear\|\|1\)\+\(key==='e'\?1:-1\),'key'\)/.test(browser),'Q / E go through the animated shift');
+ assert(/requestGear\(gearStep\(world,key==='e'\?1:-1\),'key'\)/.test(browser),'Q / E go through the animated shift');
  // Speed: floating text, no box: no background colour or border on the readout, and no box on its children.
  const speedCss=[...css.matchAll(/(\.speed[^{]*)\{([^}]*)\}/g)];assert(speedCss.length>=3);
  for(const [,sel,body] of speedCss){assert(!/border|box-shadow|background-color|background:var\(--screen\)|background:var\(--glass/.test(body),sel+' has no box');}
@@ -1622,7 +1676,7 @@ test('r2-ui: page wiring: gear stick, floating speed, tuning panel, view and gro
  // Tuning: built from TUNING_SPEC, saved, Zoom out re-lays out the view; computeView gets TUNING.viewShort.
  assert(/for\(const grp of tuningGroups\(\)\)/.test(browser)&&/type:'range'/.test(browser)&&/saveTuning\(tuneStore\)/.test(browser)&&/loadTuning\(tuneStore\)/.test(browser));
  assert(/try\{return window\.localStorage;\}catch/.test(browser),'storage access is guarded');
- assert(/keys\.includes\('viewShort'\)\)scheduleView\(\)/.test(browser)&&/computeView\(cssW,cssH,dpr,TUNING\.viewShort\)/.test(browser));
+ assert(/keys\.includes\('viewShort'\)\|\|keys\.includes\('viewLot'\)\)\)scheduleView\(\)/.test(browser)&&/computeView\(cssW,cssH,dpr,viewFor\(\)\)/.test(browser));
  // Ground paint is rebuilt on a car change and when the pointer type or car changes the key.
  assert(/function reset\([^]*?buildGround\(world\.arena\)/.test(browser),'reset() rebuilds the ground');assert(/groundKeyFor=\(\)=>[^\n]*isTouch\(\)\+world\.id/.test(browser));
  // The wheel rim turns by the full (tunable) angle, keyboard included.
@@ -1769,9 +1823,10 @@ test('round 4: parking lot layout has stalls, an accessible pair, a corral of fo
   const kinds=lot.rows.flatMap(q=>q.slots.map(s=>s.kind));
   if(W>=700){assert.equal(kinds.filter(k=>k==='hc').length,2,`${name}: two accessible stalls`);assert.equal(kinds.filter(k=>k==='access').length,1,`${name}: one access aisle`);
    assert(lot.corral,`${name}: a cart corral`);assert.equal(L.props.filter(p=>p.type==='cart').length,4,`${name}: four nested carts`);}
-  const carts=L.cones.filter(o=>o.kind==='cart');assert.equal(carts.length,1,`${name}: one stray cart`);
+  const carts=L.cones.filter(o=>o.kind==='cart');assert(carts.length>=1&&carts.length<=2,`${name}: stray carts`);
   assert(L.cones.length>=2,`${name}: traffic cones`);
-  for(const o of L.cones)assert(clearOf(A,o.x,o.y*e.K,o.r||e.CONE_R,zones),`${name}: body under a control`);
+  // Round 5: the U of cones and a cart on the ground above the lot may use the edge strip, never a control.
+  for(const o of L.cones){const m=o.r||e.CONE_R,above=o.y<lot.t;assert(above?o.y*e.K-m>=8&&zones.every(z=>!(o.x>z.l-m&&o.x<z.r+m&&o.y*e.K>z.t-m&&o.y*e.K<z.b+m)):clearOf(A,o.x,o.y*e.K,m,zones),`${name}: body under a control`);}
   for(const q of L.posts)assert(zones.every(z=>!(q.x>z.l&&q.x<z.r&&q.y*e.K>z.t&&q.y*e.K<z.b)),`${name}: corral under a control`);
   for(const o of L.cones)for(const q of L.posts)assert(Math.hypot(o.x-q.x,o.y-q.y)>q.r+(o.r||e.CONE_R),`${name}: body inside the corral`);
   const s=L.spawn,cb=e.carBoxAll(),sx=s.x,sy=s.y*e.K;assert(sx+cb.l>=4&&sy+cb.t>=4&&sx+cb.r<=A.W-4&&sy+cb.b<=A.H-4&&zones.every(z=>sx+cb.r<=z.l||sx+cb.l>=z.r||sy+cb.b<=z.t||sy+cb.t>=z.b),`${name}: spawn car box`);
@@ -1782,12 +1837,14 @@ test('round 4: parking lot layout has stalls, an accessible pair, a corral of fo
 test('round 4: lot paint draws stalls and the wheelchair mark, never under a control; the thumbnail shows the lot', () => {
  const {A,L}=r4Layout('parking'),zones=e.keepOuts(A),px=new Set();e.lotMarks(L,(x,y)=>px.add(x+','+y),A.W,A.H,zones);
  assert(px.size>500,'stall lines painted');
- for(const k of px){const [x,y]=k.split(',').map(Number);assert(zones.every(z=>!(x>=z.l&&x<z.r&&y>=z.t&&y<z.b)),'paint under a control');}
+ // Round 5: the planted band is ground texture and may run under a control; markings on the asphalt never do.
+ for(const k of px){const [x,y]=k.split(',').map(Number);if(!e.onAsphalt(L.lot,x+.5,y+.5))continue;assert(zones.every(z=>!(x>=z.l&&x<z.r&&y>=z.t&&y<z.b)),'paint under a control');}
  assert(e.ACCESS_MARK.every(r=>r.length===e.ACCESS_MARK.length),'square wheelchair mark');
  const hc=L.lot.rows.flatMap(q=>q.slots.filter(s=>s.kind==='hc').map(s=>({s,q})))[0],cx=Math.round((hc.s.x0+hc.s.x1)/2),cy=Math.round((hc.q.back+hc.q.dir*e.LOT_STALL_D/2)*e.K);
  let ink=0;for(let y=cy-7;y<=cy+7;y++)for(let x=cx-7;x<=cx+7;x++)if(px.has(x+','+y))ink++;assert(ink>100,`wheelchair square painted (${ink})`);
  const th=e.lotThumb(L,64,36);assert(th.bits.reduce((a,b)=>a+b,0)>60,'lot thumbnail');
- assert.equal(e.titleRect(L,A),null,'no title paint in the lot');
+ // Round 5: the lot's title box is its island.
+ const tr=e.titleRect(L,A),I=L.lot.island;assert(tr&&I&&tr.l>=I.x0&&tr.r<=I.x1&&tr.t>=I.y0*e.K&&tr.b<=I.y1*e.K,'the title box sits on the island');
 });
 test('round 4: the stray cart rolls away when hit, never tips, and the corral stops the car', () => {
  const {A,L}=r4Layout('parking');
@@ -1805,6 +1862,65 @@ test('round 4: the stray cart rolls away when hit, never tips, and the corral st
  // Cart vs cone: the heavy cart shoves a cone aside.
  const cone=e.bodyFrom({x:0,y:0},0),k=e.bodyFrom({x:-e.CART_R-1,y:0,kind:'cart',r:e.CART_R,m:e.CART_MASS,a:0},0);k.vx=40;e.coneCone(k,cone);
  assert(cone.vx>k.vx&&k.vx>30,'mass-weighted cart-cone impulse');
+});
+
+// ==== Round 5: compact parking lot, per-track zoom, brake only ====
+// A screen as the page sees it: arena from computeView at that zoom, zones from the real CSS size and device scale.
+const r5Arena=(cssW,cssH,dpr,short)=>{const v=e.computeView(cssW,cssH,dpr,short),A=e.makeArena(v.W,v.H);Object.assign(A,{uiU:v.scale/dpr,uiW:cssW,uiH:cssH,mobile:cssW<700});return A;};
+const r5Screens=[[1600,800,1],[1920,1080,1],[1366,768,1],[1280,1024,1],[844,390,3],[390,844,3]];
+test('round 5: zoom defaults are 675 on the race tracks and 300 on the parking lot, each with its own slider', () => {
+ const spec=Object.fromEntries(e.TUNING_SPEC.map(s=>[s.key,s]));
+ assert.equal(spec.viewShort.def,675);assert.equal(spec.viewLot.def,300);
+ for(const k of ['viewShort','viewLot'])assert(spec[k].group==='view'&&spec[k].min===300&&spec[k].max===1000,k);
+ for(const id of ['signature','oval','eight']){e.setTrack(id);assert.equal(e.viewFor(),675,id);assert.equal(Math.min(...Object.values(e.computeView(1600,800,1)).slice(1)),675,id+' view');}
+ e.setTrack('parking');assert.equal(e.viewFor(),300);assert.equal(e.computeView(1600,800,1).H,300,'the lot opens at 300');
+ e.setTuning({viewLot:500});assert.equal(e.computeView(1600,800,1).H,500,'the lot zoom is adjustable');assert.equal(e.viewFor('oval'),675,'without moving the tracks');
+ e.resetTuning();e.setTrack('signature');
+});
+test('round 5: the lot is a compact ring round an island, centred, clear of every control at its 300 zoom', () => {
+ for(const [W,H,dpr] of r5Screens){const A=r5Arena(W,H,dpr,300),zones=e.keepOuts(A),name=`${W}x${H}@${dpr}`;
+  e.setTrack('parking');const L=e.layoutCourse(A);e.setTrack('signature');const lot=L.lot;
+  for(const [x0,y0,x1,y1] of e.lotRects(lot))assert(zones.every(z=>x1<=z.l||x0>=z.r||y1*e.K<=z.t||y0*e.K>=z.b),`${name}: asphalt under a control`);
+  assert(lot.rows.length===2&&lot.rows[0].slots.length>=5,`${name}: top and bottom rows (${lot.rows[0].slots.length} stalls)`);
+  assert(lot.r-lot.l<=e.LOT_MAX*e.LOT_STALL_W+2*e.LOT_STALL_D+1e-6,`${name}: never stretched past LOT_MAX stalls`);
+  if(W>=1000){assert(lot.island&&lot.cols.length===2&&lot.cols.every(q=>q.slots.length>=2),`${name}: island and side columns`);
+   assert(e.lotTitleRect(lot),`${name}: a title box on the island`);}
+ }
+ // Zoomed out the lot keeps its size, so it sits in the middle with open ground round it.
+ const A=r5Arena(1600,800,1,675);e.setTrack('parking');const L=e.layoutCourse(A);e.setTrack('signature');
+ assert(L.lot.r-L.lot.l<A.W*.5,'a small lot when zoomed out');assert(Math.abs((L.lot.l+L.lot.r)/2-A.W/2)<A.W*.2,'roughly centred');
+});
+test('round 5: the corral fills one side-on stall, open to the aisle, with its carts nested in line', () => {
+ for(const [W,H,dpr] of r5Screens.slice(0,4)){const A=r5Arena(W,H,dpr,300),name=`${W}x${H}`;e.setTrack('parking');const L=e.layoutCourse(A);e.setTrack('signature');
+  const c=L.lot.corral;assert(c,`${name}: corral`);const q=L.lot.cols.find(q=>q.slots.some(s=>s.kind==='corral')),s=q.slots.find(s=>s.kind==='corral');
+  const x0=Math.min(q.back,q.back+q.dir*e.LOT_STALL_D),x1=Math.max(q.back,q.back+q.dir*e.LOT_STALL_D);
+  for(const p of L.posts)assert(p.x-p.r>=x0-1e-6&&p.x+p.r<=x1+1e-6&&p.y-p.r>=s.y0&&p.y+p.r<=s.y1,`${name}: corral collider outside its stall`);
+  assert.equal(c.back,-q.dir,`${name}: back rail on the lot edge, open end to the aisle`);
+  const carts=L.props.filter(p=>p.type==='cart');assert.equal(carts.length,4);assert(carts.every(p=>Math.abs(p.y-c.y)<1e-6&&p.a===(c.back>0?0:Math.PI)),`${name}: carts in one line, noses to the back`);
+ }
+});
+test('round 5: lot paint has the planted band, the island outline and a 17 px wheelchair sign; the title reads 8-BIT PARKING', () => {
+ const A=r5Arena(1600,800,1,300);e.setTrack('parking');const L=e.layoutCourse(A);e.setTrack('signature');const px=new Set(),zones=e.keepOuts(A);
+ e.lotMarks(L,(x,y)=>px.add(x+','+y),A.W,A.H,zones);const B=e.lotBox(L.lot),I=L.lot.island;
+ assert(e.ACCESS_MARK.length===17&&e.ACCESS_MARK.every(r=>r.length===17),'17 x 17 sign');
+ assert(e.ACCESS_MARK.every((r,j)=>j===0||j===16?!r.includes('#'):r[0]==='.'&&r[16]==='.'),'an ink frame round the figure');
+ // Planted corner (top-left, above the left column): a checker.
+ let ink=0,n=0;for(let y=B.t+2;y<Math.floor(L.lot.my*e.K)-2;y++)for(let x=B.l+2;x<Math.floor(L.lot.cl)-2;x++){n++;if(px.has(x+','+y))ink++;}
+ assert(n>50&&Math.abs(ink/n-.5)<.1,`planted corner dither (${ink}/${n})`);
+ // The aisle is clean asphalt.
+ const ay=Math.round((L.lot.aisles[0].y0+L.lot.aisles[0].y1)/2*e.K);let dirty=0;for(let x=Math.ceil(L.lot.cl)+4;x<Math.floor(L.lot.cr)-4;x++)if(px.has(x+','+ay))dirty++;assert.equal(dirty,0,'aisle paint');
+ const iy=Math.round((I.y0+I.y1)/2*e.K);assert([-1,0,1].some(d=>px.has(Math.floor(I.x0)+d+','+iy)),'island outline');
+ const tr=e.titleRect(L,A),runs=e.titleRuns(A,tr,e.titleOpts(L,{}));assert(runs.length>20,'title painted on the island');
+ for(const [x,y,len] of runs)assert(x>=tr.l&&x+len<=tr.r&&y>=tr.t&&y<tr.b,'title inside its box');
+ assert.equal(e.titleOpts(L,{}).text,'8-BIT PARKING');assert.equal(e.titleOpts({track:{}},{}).text,undefined,'tracks keep 8-BIT DRIFT');
+});
+test('round 5: the brake never reverses, and a car pinned nose-first on a post bumps off and drives away', () => {
+ for(const id of ids){const w=bare(id);run(w,5,input(false,true));assert(Math.abs(forward(w))<1e-9,`${id} brake at rest`);
+  const m=bare(id);run(m,2,input(true));for(let i=0;i<600;i++){e.step(m,input(false,true));assert(forward(m)>=-1e-9,`${id} braking never rolls it backward`);}
+  const p=e.createWorld(id,e.makeArena(1000,700));p.cones=[];const q={x:500,y:500,r:4};p.layout={...p.layout,gate:{posts:[q]},posts:[]};
+  Object.assign(p.car,{x:q.x,y:q.y+p.p.length/2+q.r+1,px:q.x,py:q.y+p.p.length/2+q.r+1,a:-Math.PI/2,pa:-Math.PI/2,vx:0,vy:0,omega:0});
+  let far=0;for(let i=0;i<1200;i++){e.step(p,input(true,false,true));far=Math.max(far,Math.hypot(p.car.x-q.x,p.car.y-q.y));}
+  assert(far>80,`${id} escaped the post (${far.toFixed(0)})`);}
 });
 
 console.log(`${count} checks passed. The deployable page has no external assets or dependencies.`);

@@ -17,6 +17,9 @@ button,input{font:inherit;color:inherit;text-transform:inherit}button{cursor:poi
 button:focus-visible,input:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 .playground{position:fixed;left:0;top:0;width:100%;height:100vh;height:100dvh;overflow:hidden;background:var(--screen);-webkit-user-select:none;user-select:none}
 #game{position:absolute;left:0;top:0;display:block;image-rendering:crisp-edges;image-rendering:pixelated;outline:none;-webkit-touch-callout:none}
+/* Round 5: the painted instructions on their own canvas under the playground canvas (see buildPaint). */
+#paint{position:absolute;left:0;top:0;display:block;image-rendering:crisp-edges;image-rendering:pixelated;pointer-events:none}
+#paint[hidden]{display:none}
 #game:focus-visible{outline:2px solid var(--ink);outline-offset:-4px}
 .sr-only{position:absolute;clip-path:inset(50%);width:1px;height:1px;overflow:hidden;white-space:nowrap}
 /* Tasks 02 + 04: compact HUD, settings, wheel and pedals. layoutUI() places every box from controlZones(view) in logical px;
@@ -123,7 +126,7 @@ kbd{display:inline-block;min-width:13px;padding:0 2px;border:1px solid var(--lin
 .speed .big{font:italic 900 var(--sp,24px)/1 var(--heavy);letter-spacing:-.03em;font-variant-numeric:tabular-nums;color:var(--ink);--sw:max(2px,calc(var(--sp,24px)*.075));background:repeating-linear-gradient(180deg,var(--ink) 0 var(--sw),transparent var(--sw) calc(var(--sw) + max(1px,calc(var(--sp,24px)*.045))));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;padding-right:.08em}
 .speed .unit{display:flex;flex-direction:column;font:italic 900 calc(var(--sp,24px)*.3)/1.05 var(--heavy);letter-spacing:.02em}
 .speed .gear-read[hidden]{display:none}.speed .gear-read{display:flex;align-items:center;gap:calc(var(--sp,24px)*.12)}
-/* Round 2: the Supercar's gear stick, an H-pattern gate drawn in SVG; the knob is dragged (or moved by Q / E and the arrows). */
+/* Round 2: the gear stick (round 6: on every car; an H gate with R under 5 on the manual Supercar, P R N D on the automatics) drawn in SVG; the knob is dragged (or moved by Q / E and the arrows). */
 /* Round 3 (r3-ui): no words. Two small 2.5D keycaps beside the stick (inside the gear zone, left of the plate): E with an up
    arrow at the top, Q with a down arrow at the bottom. layoutUI places them with shiftKeyLayout() (--kw ... --ph, CSS px).
    .hot (gearTelemetry shiftUp) turns the up key inverted (solid, no blinking); .off (no higher / lower gear possible) drops the extruded side. */
@@ -135,6 +138,11 @@ kbd{display:inline-block;min-width:13px;padding:0 2px;border:1px solid var(--lin
 .shift-key b{font-weight:inherit;padding-right:.06em}
 .shift-key.off{border-style:dashed;box-shadow:none;transform:translate(calc(var(--kd,3px)*.5),calc(var(--kd,3px)*.5))}
 .shift-key.hot{background:var(--ink);color:var(--paper)}
+/* Round 6: the shift bar between the keys and the stick, as tall as the keys. It fills in ten segments with the engine load
+   toward the shift-up point (gearTelemetry shift, --shift 0-1) and goes solid when it is time to shift up (.hot). */
+.shift-bar{position:absolute;left:var(--bl,0px);top:var(--pt,0px);width:calc(var(--bw,8px) - var(--kd,3px));height:calc(var(--ph,100%) - var(--kd,3px));border:max(1.5px,calc(var(--kh,24px)*.06)) solid var(--ink);background:var(--paper);pointer-events:none;box-shadow:calc(var(--kd,3px)*.34) calc(var(--kd,3px)*.34) 0 var(--ink),calc(var(--kd,3px)*.67) calc(var(--kd,3px)*.67) 0 var(--ink),var(--kd,3px) var(--kd,3px) 0 var(--ink)}
+.shift-bar i{position:absolute;inset:max(1px,calc(var(--bw,8px)*.1));background:repeating-linear-gradient(to top,var(--ink) 0 calc(10% - 2px),transparent calc(10% - 2px) 10%);clip-path:inset(calc((1 - var(--shift,0))*100%) 0 0 0)}
+.shift-bar.hot i{background:var(--ink)}
 .gear-face{position:absolute;inset:0 0 0 var(--fl,0px);touch-action:none;cursor:grab;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
 .gearstick.held .gear-face{cursor:grabbing}
 .gear-face svg{display:block;width:100%;height:100%;overflow:visible;shape-rendering:geometricPrecision}
@@ -144,7 +152,8 @@ kbd{display:inline-block;min-width:13px;padding:0 2px;border:1px solid var(--lin
 <body>
 <main class="playground" id="playground">
   <h1 class="sr-only">8-Bit Drift</h1>
-  <canvas id="game" width="400" height="240" tabindex="0" aria-label="Driving playground. W accelerates, Space brakes, A and D steer (arrow keys work too). Q and E shift gears on the Supercar. R rights the car after a rollover. Escape pauses. All edges wrap." aria-describedby="driving-help">This playground needs a browser with Canvas 2D support.</canvas>
+  <canvas id="paint" width="1" height="1" aria-hidden="true" hidden></canvas>
+  <canvas id="game" width="400" height="240" tabindex="0" aria-label="Driving playground. W accelerates, Space brakes, A and D steer (arrow keys work too). Q and E move the gear stick. R rights the car after a rollover. Escape pauses. All edges wrap." aria-describedby="driving-help">This playground needs a browser with Canvas 2D support.</canvas>
   <div class="ui-box hud" id="hud" role="group" aria-label="Car and settings">
     <div class="cars" role="group" aria-label="Pick your car">
       <button class="car-choice" data-car="compact" aria-pressed="true" aria-label="Compact: light and nimble" title="Compact: light &amp; nimble"><canvas width="48" height="36" aria-hidden="true"></canvas></button>
@@ -164,9 +173,9 @@ kbd{display:inline-block;min-width:13px;padding:0 2px;border:1px solid var(--lin
   </section>
   <div class="ui-box wheel" id="wheel"><div class="wheel-face" id="wheel-face" role="slider" tabindex="0" aria-label="Steering wheel" aria-orientation="horizontal" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0" aria-valuetext="centred" title="Drag to steer (or hold A / D, or the arrow keys while focused)"><div class="rim" id="rim"><svg viewBox="0 0 100 100" aria-hidden="true"><defs><pattern id="wheel-dither" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 0h1v1H0zm1 1h1v1H1z"/></pattern><pattern id="wheel-stripes" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 1h2v1H0z"/></pattern></defs><circle cx="50" cy="52" r="43" fill="none" stroke="#30342d" stroke-width="12"/><circle cx="50" cy="49" r="43" fill="none" stroke="#30342d" stroke-width="11"/><circle class="chain" cx="50" cy="49" r="43" fill="none" stroke="url(#wheel-dither)" stroke-width="4.6" stroke-dasharray="4.2 2.55" stroke-linecap="round"/><circle cx="50" cy="49" r="43" fill="none" stroke="#30342d" stroke-width="1.6" stroke-dasharray="2.2 4.55" stroke-dashoffset="-1"/><path d="M10 49C24 49 34 48 43 50M90 49C76 49 66 48 57 50M50 58V91" fill="none" stroke="#30342d" stroke-width="7" stroke-linecap="round"/><path d="M13 47H38M62 47H87M48 65V88" fill="none" stroke="url(#wheel-dither)" stroke-width="2"/><circle cx="50" cy="51" r="17" fill="#30342d"/><circle cx="50" cy="48" r="14" fill="#bfc1b1" stroke="#30342d" stroke-width="2"/><path d="M37 44A14 14 0 0 1 63 44" fill="none" stroke="url(#wheel-dither)" stroke-width="4"/><path class="marker" d="M42.5 0.5h15l-2 12h-11z" fill="url(#wheel-stripes)" stroke="#30342d" stroke-width="1.6" stroke-linejoin="round"/><path d="M47 4.5h6l-3 5z" fill="#30342d"/></svg></div></div></div>
   <div class="ui-box pedals" id="pedals" role="group" aria-label="Pedals"><div class="pedal-set"><button class="pedal" id="pedal-brake" type="button" aria-label="Brake (hold)" title="Brake (Space)"><span aria-hidden="true">BRAKE</span></button><button class="pedal" id="pedal-gas" type="button" aria-label="Gas (hold)" title="Gas (W)"><span aria-hidden="true">GAS</span></button></div></div>
-  <p class="sr-only" id="driving-help">W accelerates. Space brakes. A and D steer. Escape pauses. On touch screens, drag the steering wheel and hold the gas or brake pedal. If the car rolls over, press R or use the Right the car button that appears next to the car chooser. The edges are connected. The Supercar has a five-speed gear stick: Q shifts down and E shifts up, or drag the stick's knob through the H gate (on the focused stick, the arrow keys or 1 to 5 shift). The same instructions are painted on the ground.</p>
-  <p class="ui-box speed" id="speed" aria-hidden="true"><span class="big" id="speed-value">0</span><span class="unit"><span>KM</span><span>/H</span></span><span class="gear-read" id="gear-read" hidden><span class="big" id="gear-value">1</span><span class="unit"><span>GEAR</span></span></span></p>
-  <div class="ui-box gearstick" id="gearstick" hidden><div class="gear-keys" aria-hidden="true"><span class="shift-key up" id="shift-up"><svg viewBox="0 0 10 7"><path d="M5 0l5 5H7v2H3V5H0z" fill="currentColor"/></svg><b>E</b></span><span class="shift-key down" id="shift-down"><b>Q</b><svg viewBox="0 0 10 7"><path d="M3 0h4v2h3L5 7 0 2h3z" fill="currentColor"/></svg></span></div><div class="gear-face" id="gear-face" role="slider" tabindex="0" aria-label="Gear stick" aria-orientation="vertical" aria-valuemin="1" aria-valuemax="5" aria-valuenow="1" aria-valuetext="gear 1" aria-keyshortcuts="Q E" title="Drag the knob through the H gate (or Q / E)"><svg viewBox="0 0 110 100" aria-hidden="true"><defs><pattern id="gear-dither" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 0h1v1H0zm1 1h1v1H1z"/></pattern><pattern id="gear-stripes" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 1h2v1H0z"/></pattern></defs><path d="M6 6h102v92H6z" fill="#30342d"/><path d="M2 2h102v92H2z" fill="#bfc1b1" stroke="#30342d" stroke-width="2"/><path d="M22 26V74M55 26V74M88 26V50M22 50H88" fill="none" stroke="#30342d" stroke-width="12" stroke-linecap="round"/><path d="M22 26V74M55 26V74M88 26V50M22 50H88" fill="none" stroke="url(#gear-dither)" stroke-width="4" stroke-linecap="round" transform="translate(1.2 1.2)"/><g fill="#30342d" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-style="italic" font-size="12" text-anchor="middle"><text x="22" y="15.5">1</text><text x="22" y="94">2</text><text x="55" y="15.5">3</text><text x="55" y="94">4</text><text x="88" y="15.5">5</text></g><circle cx="55" cy="50" r="13" fill="url(#gear-dither)" stroke="#30342d" stroke-width="2"/><circle id="gear-shadow" cx="26" cy="29" r="10" fill="url(#gear-dither)"/><line id="gear-shaft" x1="55" y1="50" x2="22" y2="26" stroke="#30342d" stroke-width="6" stroke-linecap="round"/><g id="gear-knob" transform="translate(22 26)"><circle r="11.5" fill="#30342d"/><circle r="8.5" fill="none" stroke="url(#gear-stripes)" stroke-width="3"/><text id="gear-num" y="4.2" fill="#bfc1b1" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-style="italic" font-size="11" text-anchor="middle">1</text></g></svg></div></div>
+  <p class="sr-only" id="driving-help">W accelerates. Space brakes. A and D steer. Escape pauses. On touch screens, drag the steering wheel and hold the gas or brake pedal. If the car rolls over, press R or use the Right the car button that appears next to the car chooser. The edges are connected. Every car has a gear stick. The Supercar is a manual with five gears and reverse under fifth: Q shifts down and E shifts up, and Q in first gear selects reverse when the car is stopped. The other cars are automatics with Park, Reverse, Neutral and Drive; they start in Drive, Q moves the stick down toward Drive and E moves it up toward Park. Reverse and Park only engage when the car is stopped. You can also drag the stick's knob through its gate (on the focused stick, the arrow keys move it, and 1 to 5 pick a gear on the Supercar). The same instructions are painted on the ground.</p>
+  <p class="ui-box speed" id="speed" aria-hidden="true"><span class="big" id="speed-value">0</span><span class="unit"><span>KM</span><span>/H</span></span><span class="gear-read" id="gear-read"><span class="big" id="gear-value">1</span><span class="unit"><span>GEAR</span></span></span></p>
+  <div class="ui-box gearstick" id="gearstick"><div class="gear-keys" aria-hidden="true"><span class="shift-key up" id="shift-up"><svg viewBox="0 0 10 7"><path d="M5 0l5 5H7v2H3V5H0z" fill="currentColor"/></svg><b>E</b></span><span class="shift-key down" id="shift-down"><b>Q</b><svg viewBox="0 0 10 7"><path d="M3 0h4v2h3L5 7 0 2h3z" fill="currentColor"/></svg></span></div><div class="shift-bar" id="shift-bar" aria-hidden="true"><i></i></div><div class="gear-face" id="gear-face" role="slider" tabindex="0" aria-label="Gear stick" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="5" aria-valuenow="1" aria-valuetext="gear 1" aria-keyshortcuts="Q E" title="Drag the knob through the H gate (or Q / E)"><svg viewBox="0 0 110 106" preserveAspectRatio="xMinYMid meet" aria-hidden="true"><defs><pattern id="gear-dither" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 0h1v1H0zm1 1h1v1H1z"/></pattern><pattern id="gear-stripes" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 1h2v1H0z"/></pattern></defs><path d="M6 6h102v100H6z" fill="#30342d"/><path d="M2 2h102v100H2z" fill="#bfc1b1" stroke="#30342d" stroke-width="2"/><g id="gate-manual"><path d="M22 28V76M55 28V76M88 28V76M22 52H88" fill="none" stroke="#30342d" stroke-width="12" stroke-linecap="round"/><path d="M22 28V76M55 28V76M88 28V76M22 52H88" fill="none" stroke="url(#gear-dither)" stroke-width="4" stroke-linecap="round" transform="translate(1.2 1.2)"/><g fill="#30342d" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-style="italic" font-size="12" text-anchor="middle"><text x="22" y="17">1</text><text x="22" y="95">2</text><text x="55" y="17">3</text><text x="55" y="95">4</text><text x="88" y="17">5</text><text x="88" y="95">R</text></g></g><g id="gate-auto" display="none"><path d="M62 22V82M62 22h9M62 42h9M62 62h9M62 82h9" fill="none" stroke="#30342d" stroke-width="12" stroke-linecap="round"/><path d="M62 22V82" fill="none" stroke="url(#gear-dither)" stroke-width="4" stroke-linecap="round" transform="translate(1.2 1.2)"/><g fill="#30342d" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-style="italic" font-size="14" text-anchor="middle"><text x="30" y="27">P</text><text x="30" y="47">R</text><text x="30" y="67">N</text><text x="30" y="87">D</text></g></g><circle id="gear-pivot" cx="55" cy="52" r="13" fill="url(#gear-dither)" stroke="#30342d" stroke-width="2"/><circle id="gear-shadow" cx="26" cy="31" r="10" fill="url(#gear-dither)"/><line id="gear-shaft" x1="55" y1="52" x2="22" y2="28" stroke="#30342d" stroke-width="6" stroke-linecap="round"/><g id="gear-knob" transform="translate(22 28)"><circle r="11.5" fill="#30342d"/><circle r="8.5" fill="none" stroke="url(#gear-stripes)" stroke-width="3"/><text id="gear-num" y="4.2" fill="#bfc1b1" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-style="italic" font-size="11" text-anchor="middle">1</text></g></svg></div></div>
   <button class="entry" id="enter" type="button"><span>PRESS W TO DRIVE</span></button>
   <p id="announcement" class="sr-only" role="status" aria-live="polite"></p>
   <div class="safe-probe" id="safe-probe" aria-hidden="true"></div>
@@ -187,9 +196,9 @@ const PRESETS={
  // grip rises by +33% (compact), +13% (coupe: still slides most) and +56% (van: still grips hardest at its new top speed).
  // Task 11: comHeight = centre-of-mass height (world units, ~40% of the roof); rollThreshold = dynamic load-transfer ratio at
  // which the inner wheels lift (1 = the static tipping point). Tall + grippy (Van) is the most roll-prone, low (Coupe) the least.
- compact:{name:'Compact',artId:'compact',length:31,width:15.6,height:8.1,roof:13.3,wheelbase:21,trackWidth:13,mass:1,accel:105,brake:182,max:207,reverse:61,grip:112,steer:.66,drag:.15,comHeight:5.3,rollThreshold:1.1},
- coupe:{name:'Supercar',artId:'coupe',length:36,width:16.6,height:5.8,roof:9.8,wheelbase:25,trackWidth:14,mass:.95,accel:127,brake:184,max:257,reverse:70,grip:68,steer:.64,drag:.12,comHeight:4.2,rollThreshold:1.2},
- van:{name:'Drone',artId:'van',flying:true,flightHeight:20,length:28,width:18,height:9.4,roof:18,wheelbase:20,trackWidth:15.4,mass:1,accel:125,brake:186,max:236,reverse:71,grip:125,steer:.62,drag:.17,comHeight:2,rollThreshold:10}
+ compact:{name:'Compact',artId:'compact',trans:'auto',length:31,width:15.6,height:8.1,roof:13.3,wheelbase:21,trackWidth:13,mass:1,accel:105,brake:182,max:207,reverse:61,grip:112,steer:.66,drag:.15,comHeight:5.3,rollThreshold:1.1},
+ coupe:{name:'Supercar',artId:'coupe',trans:'manual',length:36,width:16.6,height:5.8,roof:9.8,wheelbase:25,trackWidth:14,mass:.95,accel:127,brake:184,max:257,reverse:70,grip:68,steer:.64,drag:.12,comHeight:4.2,rollThreshold:1.2},
+ van:{name:'Drone',artId:'van',trans:'auto',flying:true,flightHeight:20,length:28,width:18,height:9.4,roof:18,wheelbase:20,trackWidth:15.4,mass:1,accel:125,brake:186,max:236,reverse:71,grip:125,steer:.62,drag:.17,comHeight:2,rollThreshold:10}
 };
 // Art-only shape parameters (not physics). x positions are fractions of half-length, + = front. Shades: 0 ink … 1 paper.
 const CAR_ART={
@@ -226,7 +235,9 @@ const TUNING_SPEC=[
  {key:'wheelCurve',group:'wheel',label:'Centre softness',min:.3,max:5,step:.1,def:1.2},
  {key:'kickback',group:'wheel',label:'Wheel kickback',min:0,max:5,step:.05,def:.5},
  {key:'droneTilt',group:'drone',label:'Drone tilt',min:0,max:2,step:.05,def:1},
- {key:'viewShort',group:'view',label:'Zoom out',unit:'px',min:300,max:1000,step:25,def:575}
+ // Round 5: the race tracks and the parking lot keep their own zoom (viewFor picks the one for the selected track).
+ {key:'viewShort',group:'view',label:'Zoom out (race tracks)',unit:'px',min:300,max:1000,step:25,def:675},
+ {key:'viewLot',group:'view',label:'Zoom out (parking lot)',unit:'px',min:300,max:1000,step:25,def:300}
 ];
 const TUNING_DEFAULTS=Object.freeze(Object.fromEntries(TUNING_SPEC.map(s=>[s.key,s.def])));
 const TUNING={...TUNING_DEFAULTS};
@@ -794,101 +805,150 @@ function buildCourse(A,zones,id=SELECTED_TRACK){
   track:{kind:fallback?'fallback':pl.id,id,half:hw,pts,length,curbs,cross:pl.cross?{x:r2(pl.cross[0]),y:r2(pl.cross[1])}:null,
    straight:{x0:G.a[0],y0:G.a[1],x1:G.b[0],y1:G.b[1],len:Math.hypot(G.b[0]-G.a[0],G.b[1]-G.a[1])},box:{x:pl.x0,y:pl.y0,w:pl.w,h:pl.h,o:pl.o}}};
 }
-// ---- Round 4: the parking lot (a big-box store's lot). No lane and no gate: rows of painted stalls across the arena between
-// drive aisles; a cart corral (rails round a lane of four nested shopping carts, open at one end) lying across three stalls
-// of a middle double row; a stray cart that rolls away when hit (a movable body in w.cones, kind 'cart');
-// traffic cones; and two accessible stalls (painted wheelchair symbol) either side of a hatched access aisle in the top row.
+// ---- Round 5: the parking lot, after the user's reference: one compact lot centred in the arena (never stretched to fill
+// it; the lot has its own default zoom, TUNING.viewLot). A ring aisle runs round a central island and the stalls face it on
+// all four sides: a row along the top and the bottom, and a short column of side-on stalls at each end. The cut corners and
+// a band round the lot are planted (dither). The island carries the "8-BIT PARKING" paint; the accessible pair (stall,
+// hatched access aisle, stall) sits mid top row; the cart corral fills one side-on stall (rails just inside the stall lines,
+// open end to the aisle, four nested carts side-on); a stray cart rolls away when hit (a movable body in w.cones, kind
+// 'cart'); traffic cones stand at the island ends, in a reserved stall and across a coned-off stall.
 // World units (screen y = y*K). The rails and the corralled carts are fixed colliders (layout.posts: circles, like gate posts).
-// Aisles: at least LOT_AISLE_MIN; the plan with the most rows whose aisles reach LOT_AISLE_PREF wins (roomy enough to slide).
-const LOT_STALL_W=26,LOT_STALL_D=42,LOT_AISLE_MIN=64,LOT_AISLE_PREF=120,LOT_AISLE_MAX=135,LOT_END=60;
+// lotFit: the plan with the most stalls per row (LOT_MAX down to the plan's min) whose asphalt clears the edge strip and every
+// control wins, as near the arena centre as it fits; smaller arenas drop the island, then the side columns (LOT_PLANS).
+// LOT_BAND: planted band round the lot (screen px). Each plan: aisle width, island depth (0 = none), side columns or not.
+// LOT_TOP: open ground kept above the lot (screen px) for the U of cones and a stray cart.
+const LOT_TOP=46,lotTopRect=g=>({l:g.cl,t:g.t*K-LOT_BAND-LOT_TOP,r:g.cr,b:g.t*K-LOT_BAND-2});
+const LOT_STALL_W=26,LOT_STALL_D=42,LOT_BAND=6,LOT_MAX=13,LOT_MIN=3,LOT_TITLE='8-BIT PARKING';
+const LOT_PLANS=[{aisle:68,island:40,side:true,min:7},{aisle:60,island:36,side:true,min:6},{aisle:54,island:30,side:true,min:5},{aisle:52,island:0,side:true,min:4},{aisle:52,island:0,side:false,min:3}];
 // CART_S: carts are drawn and collide about 1.3× real size next to the cars, so they read at this pixel scale.
-// The corral: CORRAL_HL half-length (across the screen), CORRAL_HW half-width; one lane of four nested carts inside.
-const CART_S=1.3,CART_R=5.4,CART_MASS=.3,CART_LEN=10*CART_S,CART_NEST=6.2,CORRAL_HW=9,CORRAL_HL=36,RAIL_R=1.6,RAIL_GAP=2.4;
+// The corral: CORRAL_HL half-length (along the stall's depth), CORRAL_HW half-width (across it); one lane of four nested carts.
+const CART_S=1.3,CART_R=5.4,CART_MASS=.3,CART_LEN=10*CART_S,CART_NEST=6.2,CORRAL_HW=9,CORRAL_HL=18,RAIL_R=1.6,RAIL_GAP=2.4;
+// Asphalt of a lot as three world rects [x0, y0, x1, y1]: the top row, the middle band (aisles, island and side columns, full
+// width) and the bottom row. The corners above and below the side columns are planted.
+const lotRects=g=>[[g.cl,g.t,g.cr,g.my],[g.l,g.my,g.r,g.mb],[g.cl,g.mb,g.cr,g.b]];
+function lotGeom(P,n,l,t){
+ const D=LOT_STALL_D,side=P.side?D:0,cl=l+side,cr=cl+n*LOT_STALL_W,my=t+D,mb=my+2*P.aisle+P.island;
+ return {P,n,l,t,cl,cr,r:cr+side,my,mb,b:mb+D};
+}
+function lotFit(A,zones){
+ const D=LOT_STALL_D,SW=LOT_STALL_W,WH=A.H/K,offs=[];
+ // Offsets from the centre, nearest first: x in 3 world units, y in 3 screen px (fine enough to slot between the controls).
+ for(let dy=-WH/3;dy<=WH/3+1e-9;dy+=3/K)for(let dx=-A.W/3;dx<=A.W/3+1e-9;dx+=3)offs.push([dx,dy]);
+ offs.sort((p,q)=>Math.hypot(p[0],p[1]*K)-Math.hypot(q[0],q[1]*K)||p[1]-q[1]||p[0]-q[0]);
+ // Only the asphalt (where you drive and park) has to clear the controls; the planted band may run under them, like the dots.
+ const ok=(g,Z,top)=>lotRects(g).every(([x0,y0,x1,y1])=>rectClear(A,Z,x0,y0*K,x1,y1*K,3))&&(!top||(q=>q.t>=8&&zonesClear(Z,q.l,q.t,q.r,q.b))(lotTopRect(g)));
+ // The real controls with room on top first; then without it; then over the painted instructions; then over every control.
+ for(const [Z,top] of [[zones,true],[zones,false],[zones.filter(z=>z.id!=='instructions'),false],[[],false]])for(const P of LOT_PLANS)for(let n=LOT_MAX;n>=(Z.length?P.min:LOT_MIN);n--){
+  const w=n*SW+(P.side?2*D:0),h=2*D+2*P.aisle+P.island,x0=(A.W-w)/2,y0=(WH-h)/2;
+  for(const [dx,dy] of offs){const g=lotGeom(P,n,x0+dx,y0+dy);if(ok(g,Z,top))return g;}}
+ const P=LOT_PLANS[LOT_PLANS.length-1],n=Math.max(1,Math.min(LOT_MAX,Math.floor((A.W-2*A.E)/SW)));
+ return lotGeom(P,n,(A.W-n*SW)/2,(WH-2*D-2*P.aisle)/2);
+}
 function buildParking(A,zones){
- const E=A.E,l=E,r=A.W-E,t=E/K,b=(A.H-E)/K,h=b-t,D=LOT_STALL_D,SW=LOT_STALL_W,r2=v=>Math.round(v*100)/100;
- // Bands top to bottom: s = single stall row, d = back-to-back double row, a = aisle. The richest plan that fits wins; spare
- // height widens the aisles (up to LOT_AISLE_MAX) and the rest is split above and below.
- const size={s:D,d:2*D,a:LOT_AISLE_MIN},plans=[];
- for(let m=4;m>=1;m--){const mid=[];for(let k=0;k<m;k++)mid.push('a','d');plans.push(['s',...mid,'a','s']);}
- plans.push(['s','a','d','a'],['a','d','a'],['a']);
- const need=p=>p.reduce((s,c)=>s+size[c],0),roomy=p=>LOT_AISLE_MIN+(h-need(p))/p.filter(c=>c==='a').length>=LOT_AISLE_PREF;
- const plan=plans.find(p=>p.length>1&&need(p)<=h&&roomy(p))||plans.find(p=>need(p)<=h)||['a'],na=plan.filter(c=>c==='a').length;
- const aisle=Math.min(LOT_AISLE_MAX,LOT_AISLE_MIN+Math.max(0,h-need(plan))/na);let y=t+Math.max(0,h-need(plan)-na*(aisle-LOT_AISLE_MIN))/2;
- const rows=[],aisles=[],end=Math.min(LOT_END,.12*(r-l));
- // A row: back line at `back`, stalls reaching dir × D from it (dir 1 = down), slots of SW across [x0, x1].
- const row=(back,dir,x0,x1,pair)=>{const n=Math.max(0,Math.floor((x1-x0)/SW)),s=x0+((x1-x0)-n*SW)/2;
-  rows.push({back:r2(back),dir,pair,slots:Array.from({length:n},(_,k)=>({x0:r2(s+k*SW),x1:r2(s+(k+1)*SW),kind:'stall'}))});};
- plan.forEach((c,i)=>{
-  if(c==='a'){aisles.push({y0:y,y1:y+aisle,mid:y+aisle/2});y+=aisle;return;}
-  if(c==='s'){if(i===0)row(y,1,l,r,-1);else row(y+D,-1,l,r,-1);y+=D;return;}
-  const p=rows.length;row(y+D,-1,l+end,r-end,p);row(y+D,1,l+end,r-end,p);y+=2*D;});
- const cx0=(l+r)/2,cy0=(t+b)/2,props=[],posts=[];let corral=null;
- // Corral: lengthwise across three stalls of one half of a double row (nearest the lot's centre first), wherever its rails
- // and sign clear every control. Its long axis runs across the screen so the nested carts show side-on; open end to the right.
- const halves=rows.filter(q=>q.pair>=0).sort((p,q)=>Math.abs(p.back+p.dir*D/2-cy0)-Math.abs(q.back+q.dir*D/2-cy0)||p.back-q.back);
- search:for(const q of halves){const cy=q.back+q.dir*D/2,order=q.slots.map((s,k)=>k).filter(k=>k>0&&k<q.slots.length-1).sort((p,u)=>Math.abs((q.slots[p].x0+q.slots[p].x1)/2-cx0)-Math.abs((q.slots[u].x0+q.slots[u].x1)/2-cx0)||p-u);
-  for(const k of order){const cx=(q.slots[k].x0+q.slots[k].x1)/2,xb=cx-CORRAL_HL,xf=cx+CORRAL_HL;
-   if(!q.slots.slice(k-1,k+2).every(s=>s.kind==='stall')||!rectClear(A,zones,xb-4,(cy-CORRAL_HW)*K-14,xf+4,(cy+CORRAL_HW+4)*K,2))continue;
-   for(const s of q.slots.slice(k-1,k+2))s.kind='corral';corral={x:r2(cx),y:r2(cy),xb:r2(xb),xf:r2(xf)};break search;}}
- if(corral){const {y:cy,xb,xf}=corral,H2=CORRAL_HW,c=3;
+ const g=lotFit(A,zones),{P,n,cl,cr,my,mb}=g,D=LOT_STALL_D,SW=LOT_STALL_W,r2=v=>Math.round(v*100)/100,cx0=(cl+cr)/2;
+ // Top row (back line at the top, stalls reaching down) and bottom row (back line at the bottom).
+ const rows=[{back:r2(g.t),dir:1,slots:[]},{back:r2(g.b),dir:-1,slots:[]}];
+ for(let k=0;k<n;k++)for(const q of rows)q.slots.push({x0:r2(cl+k*SW),x1:r2(cl+(k+1)*SW),kind:'stall'});
+ // Side columns: back line at the lot's outer edge, stalls reaching dir × D toward the island, centred on the middle band
+ // with an aisle's worth of open asphalt left at the ends.
+ const cols=[];
+ if(P.side){const m=Math.max(0,Math.floor((mb-my-P.aisle)/SW)),y0=(my+mb)/2-m*SW/2;
+  for(const [back,dir] of [[g.l,1],[g.r,-1]])cols.push({back:r2(back),dir,slots:Array.from({length:m},(_,k)=>({y0:r2(y0+k*SW),y1:r2(y0+(k+1)*SW),kind:'stall'}))});}
+ // The island: inset 0.9 aisle from the rows' ends, an aisle from each row; dropped when it would be stubby.
+ let island=null;
+ if(P.island){const x0=cl+P.aisle*.9,x1=cr-P.aisle*.9;if(x1-x0>=60)island={x0:r2(x0),x1:r2(x1),y0:r2(my+P.aisle),y1:r2(mb-P.aisle)};}
+ const aisles=[{y0:r2(my),y1:r2(my+P.aisle)},{y0:r2(mb-P.aisle),y1:r2(mb)}];
+ const props=[],posts=[];let corral=null;
+ // Corral: the middle side-on stall of the right column (else the left one), when its rails and sign clear every control.
+ for(const q of [...cols].reverse()){const k=Math.floor(q.slots.length/2),sl=q.slots[k];if(!sl)continue;
+  const s=-q.dir,cy=(sl.y0+sl.y1)/2,xb=q.back-s*2,xo=xb-s*2*CORRAL_HL;
+  if(!zonesClear(zones,Math.min(xb,xo)-4,(cy-CORRAL_HW)*K-14,Math.max(xb,xo)+4,(cy+CORRAL_HW+4)*K,2))continue;
+  sl.kind='corral';corral={x:r2((xb+xo)/2),y:r2(cy),xb:r2(Math.min(xb,xo)),xf:r2(Math.max(xb,xo)),back:s};
+  const H2=CORRAL_HW,c=3;
   // Rails (plan view), each split into pieces of at most 12 units so the pieces depth-sort against the cars; post = upright at that end.
   const rail=(x0,y0,x1,y1,post0,post1)=>{const L=Math.hypot(x1-x0,y1-y0),m=Math.max(1,Math.ceil(L/12));
    for(let k=0;k<m;k++)props.push({type:'rail',x0:r2(x0+(x1-x0)*k/m),y0:r2(y0+(y1-y0)*k/m),x1:r2(x0+(x1-x0)*(k+1)/m),y1:r2(y0+(y1-y0)*(k+1)/m),p0:k===0&&post0||k===Math.floor(m/2)&&m>3,p1:k===m-1&&post1});
    for(let k=0,n=Math.max(1,Math.ceil(L/RAIL_GAP));k<=n;k++)posts.push({x:r2(x0+(x1-x0)*k/n),y:r2(y0+(y1-y0)*k/n),r:RAIL_R});};
-  rail(xb,cy-H2+c,xb,cy+H2-c,false,false);rail(xb+c,cy-H2,xb,cy-H2+c,true,false);rail(xb,cy+H2-c,xb+c,cy+H2,false,true);
-  rail(xb+c,cy-H2,xf,cy-H2,false,true);rail(xb+c,cy+H2,xf,cy+H2,false,true);
+  rail(xb,cy-H2+c,xb,cy+H2-c,false,false);rail(xb-s*c,cy-H2,xb,cy-H2+c,true,false);rail(xb,cy+H2-c,xb-s*c,cy+H2,false,true);
+  rail(xb-s*c,cy-H2,xo,cy-H2,false,true);rail(xb-s*c,cy+H2,xo,cy+H2,false,true);
   // The sign hangs on the front rail near the open end, facing the camera (like "please place carts here").
-  props.push({type:'sign',x:r2(xf-14),y:r2(cy+H2+.5)});
-  // Four nested carts side-on, noses to the back rail.
-  for(const [lane,count] of [[0,4]]){const y=r2(cy+lane*H2/2);
-   for(let k=0;k<count;k++)props.push({type:'cart',x:r2(xb+1.5+CART_LEN/2+k*CART_NEST),y,a:Math.PI});
-   const x0=xb+1.5+CART_LEN/2-3,x1=xb+1.5+CART_LEN/2+(count-1)*CART_NEST+4;for(let xx=x0;xx<=x1+1e-9;xx+=3)posts.push({x:r2(xx),y,r:4.6});}}
- // Accessible stalls: three slots in a row (stall, hatched access aisle, stall), in the top row when no control covers them
- // there (nearest the lot's centre), else in the next row down that has room.
- for(const top of rows){if(top.slots.length<3)continue;const yb=top.back*K,ym=(top.back+top.dir*D)*K,vis=s=>zonesClear(zones,s.x0,Math.min(yb,ym),s.x1,Math.max(yb,ym),4);
-  const ks=top.slots.map((s,k)=>k).filter(k=>k>0&&k<top.slots.length-1).sort((p,q)=>Math.abs((top.slots[p].x0+top.slots[p].x1)/2-cx0)-Math.abs((top.slots[q].x0+top.slots[q].x1)/2-cx0)||p-q);
-  const k=ks.find(k=>top.slots.slice(k-1,k+2).every(s=>s.kind==='stall'&&vis(s)));
-  if(k!==undefined){top.slots[k-1].kind=top.slots[k+1].kind='hc';top.slots[k].kind='access';break;}}
+  props.push({type:'sign',x:r2(xo+s*14),y:r2(cy+H2+.5)});
+  // Four nested carts side-on, noses to the back rail, handles to the aisle.
+  for(let k=0;k<4;k++)props.push({type:'cart',x:r2(xb-s*(1.5+CART_LEN/2+k*CART_NEST)),y:r2(cy),a:s>0?0:Math.PI});
+  for(let d=1.5+CART_LEN/2-3;d<=1.5+CART_LEN/2+3*CART_NEST+4+1e-9;d+=3)posts.push({x:r2(xb-s*d),y:r2(cy),r:4.6});
+  break;}
+ // Accessible stalls: three slots mid top row (stall, hatched access aisle, stall), clear of every control; else the bottom row.
+ for(const q of rows){if(q.slots.length<5)continue;const yb=q.back*K,ym=(q.back+q.dir*D)*K,vis=s=>zonesClear(zones,s.x0,Math.min(yb,ym),s.x1,Math.max(yb,ym),4);
+  const ks=q.slots.map((s,k)=>k).filter(k=>k>0&&k<q.slots.length-1).sort((a,b)=>Math.abs((q.slots[a].x0+q.slots[a].x1)/2-cx0)-Math.abs((q.slots[b].x0+q.slots[b].x1)/2-cx0)||a-b);
+  const k=ks.find(k=>q.slots.slice(k-1,k+2).every(s=>s.kind==='stall'&&vis(s)));
+  if(k!==undefined){q.slots[k-1].kind=q.slots[k+1].kind='hc';q.slots[k].kind='access';break;}}
  // Spawn: the top aisle first, as far left as the whole car fits (any heading) clear of the controls and every prop, facing right.
  const cb=carBoxAll(),reach=Math.hypot(...[cb.l,cb.t].map(Math.abs))+4,clearOfProps=(x,yw,m)=>posts.every(q=>Math.hypot(q.x-x,q.y-yw)>=q.r+m);
  const spawnOk=(x,yw)=>{const ys=yw*K;return pointClear(A,zones,x,ys)&&x+cb.l>=SPAWN_INSIDE&&ys+cb.t>=SPAWN_INSIDE&&x+cb.r<=A.W-SPAWN_INSIDE&&ys+cb.b<=A.H-SPAWN_INSIDE&&zonesClear(zones,x+cb.l,ys+cb.t,x+cb.r,ys+cb.b)&&clearOfProps(x,yw,reach);};
  let spawn=null;
- for(const a of aisles){for(let x=l+20;x<=r-20&&!spawn;x+=6)if(spawnOk(x,a.mid))spawn={x:r2(x),y:r2(a.mid),a:0};if(spawn)break;}
+ for(const a of aisles){const yw=(a.y0+a.y1)/2;for(let x=cl+12;x<=cr-12&&!spawn;x+=6)if(spawnOk(x,yw))spawn={x:r2(x),y:r2(yw),a:0};if(spawn)break;}
+ if(!spawn)for(let yw=my;yw<=mb&&!spawn;yw+=6)for(let x=g.l+12;x<=g.r-12&&!spawn;x+=6)if(spawnOk(x,yw))spawn={x:r2(x),y:r2(yw),a:0};
  if(!spawn)spawn={x:r2(A.W/2),y:r2(A.H/K/2),a:0};
  // Movable bodies: traffic cones, then the stray cart (last, so cone indices match the circuits' rules on resize).
- const cones=[],free=(x,yw,m)=>pointClear(A,zones,x,yw*K,m)&&clearOfProps(x,yw,m+1)&&Math.hypot(x-spawn.x,yw-spawn.y)>=SPAWN_CLEAR+m&&cones.every(o=>Math.hypot(o.x-x,o.y-yw)>=(o.r||CONE_R)+m+3);
+ // edge: false on the ground above the lot, which may run into the edge strip (but stays 8 px from the edge).
+ const cones=[],free=(x,yw,m,edge=true)=>(edge?pointClear(A,zones,x,yw*K,m):yw*K-m>=8&&zonesClear(zones,x-m,yw*K-m,x+m,yw*K+m))&&clearOfProps(x,yw,m+1)&&Math.hypot(x-spawn.x,yw-spawn.y)>=SPAWN_CLEAR+m&&cones.every(o=>Math.hypot(o.x-x,o.y-yw)>=(o.r||CONE_R)+m+3);
  const cand=[];
- // A coned-off stall in the lowest row (three cones across its mouth), cones flanking the corral's open end, and a short
- // line across the far end of each aisle.
- const low=rows[rows.length-1];
- if(low&&low.slots.length){const s=low.slots[Math.min(low.slots.length-1,Math.floor(low.slots.length*.7))],my=low.back+low.dir*(D-5);cand.push([s.x0+5,my],[(s.x0+s.x1)/2,my],[s.x1-5,my]);}
- if(corral)cand.push([corral.xf+9,corral.y-CORRAL_HW-2],[corral.xf+9,corral.y+CORRAL_HW+2]);
- aisles.forEach((a,i)=>{if(i%2===0)for(const f of [-.22,0,.22])cand.push([r-Math.max(26,end/2),a.mid+f*(a.y1-a.y0)]);});
- for(const [x,yw] of cand)if(free(x,yw,CONE_MARGIN))cones.push({x:r2(x),y:r2(yw)});
- // The stray cart: in an aisle away from the spawn, at an angle; the first free spot from a fixed list.
- const spots=[];for(const a of [...aisles].reverse())for(const f of [.62,.4,.8,.25,.5])spots.push([l+(r-l)*f,a.mid+(a.y1-a.y0)*.12]);
+ if(island){const y=(island.y0+island.y1)/2;cand.push([island.x0-8,y],[island.x1+8,y]);}
+ // A coned-off stall in the bottom row (two cones across its mouth) and a reserved stall (one cone) in the top row.
+ const low=rows[1],sl=low.slots[Math.min(n-1,Math.floor(n*.7))],my2=low.back-(D-5);
+ if(sl)cand.push([sl.x0+6,my2],[sl.x1-6,my2]);
+ const res=rows[0].slots.find((s,k)=>k>=Math.floor(n*.2)&&s.kind==='stall');if(res)cand.push([(res.x0+res.x1)/2,rows[0].back+D*.55]);
+ // On the open ground above the lot (when there is room): a U of cones, its bottom by the lot, open away from it.
+ const top=lotTopRect(g),hasTop=top.t>=8&&zonesClear(zones,top.l,top.t,top.r,top.b),ux=Math.min(cr-24,cl+(cr-cl)*.84),uw=22,uy0=(top.t+2)/K,uy1=(top.b-11)/K;
+ const uStart=cand.length;if(hasTop){for(let y=uy1;y>uy0-1e-9;y-=12/K)cand.push([ux-uw,y],[ux+uw,y]);for(let x=ux-uw/2;x<ux+uw-1;x+=uw/2)cand.push([x,uy1]);}
+ cand.forEach(([x,yw],i)=>{if(free(x,yw,CONE_MARGIN,i<uStart))cones.push({x:r2(x),y:r2(yw)});});
+ // A second stray cart on that ground too, at the left, away from the U.
+ const kx=cl+(cr-cl)*.2,ky=(top.t+top.b)/2/K;
+ if(hasTop&&free(kx,ky,CART_R+4,false))cones.push({x:r2(kx),y:r2(ky),kind:'cart',r:CART_R,m:CART_MASS,a:-.4});
+ // The stray cart: in the bottom aisle (else the top one), at an angle; the first free spot from a fixed list.
+ const spots=[];for(const a of [...aisles].reverse())for(const f of [.62,.4,.8,.25,.5])spots.push([cl+(cr-cl)*f,(a.y0+a.y1)/2+(a.y1-a.y0)*.12]);
  for(const [x,yw] of spots)if(free(x,yw,CART_R+4)){cones.push({x:r2(x),y:r2(yw),kind:'cart',r:CART_R,m:CART_MASS,a:.55});break;}
  return {cones,parking:[],spawn,gate:null,posts,props,
-  lot:{l,t,r,b,rows,aisles:aisles.map(a=>({y0:r2(a.y0),y1:r2(a.y1)})),corral},
-  track:{kind:'parking',id:'parking',half:0,pts:[],length:0,curbs:[],cross:null,straight:null,box:{x:l,y:t,w:r-l,h:b-t,o:0}}};
+  lot:{l:r2(g.l),t:r2(g.t),r:r2(g.r),b:r2(g.b),cl:r2(cl),cr:r2(cr),my:r2(my),mb:r2(mb),rows,cols,aisles,island,corral},
+  track:{kind:'parking',id:'parking',half:0,pts:[],length:0,curbs:[],cross:null,straight:null,box:{x:g.l,y:g.t,w:g.r-g.l,h:g.b-g.t,o:0}}};
 }
-// The wheelchair symbol painted in accessible stalls: paper strokes on an ink square, ACCESS_MARK px (screen, not squashed).
-const ACCESS_MARK=['...............','.......###.....','.......###.....','...............','.......##......','.......##......','.......######..','...#...##......','..#....##......','.#.....#######.','.#..........##.','.#...........#.','..#...#......##','...###.......#.','...............'];
-// Lot paint pixels in screen px (plot(x, y)): each row's back line, the stall dividers, the hatched access aisle and the
-// wheelchair squares. A stall that any control zone (grown 4 px) touches is left out whole, so no stray half-stalls show
-// round the controls and the painted instructions stay readable.
+// The lot's painted footprint in screen px (asphalt plus the planted band), and whether a screen point is on its asphalt.
+const lotBox=lot=>({l:Math.floor(lot.l-LOT_BAND),t:Math.floor(lot.t*K-LOT_BAND),r:Math.ceil(lot.r+LOT_BAND),b:Math.ceil(lot.b*K+LOT_BAND)});
+const onAsphalt=(lot,x,y)=>lotRects(lot).some(([x0,y0,x1,y1])=>x>=x0&&x<x1&&y>=y0*K&&y<y1*K);
+// The island as a rounded rect in screen px: inside test for a point (corner radius up to 7 px).
+function inIsland(I,x,y){
+ const l=I.x0,r=I.x1,t=I.y0*K,b=I.y1*K,rr=Math.min(7,(b-t)/2);if(x<l||x>=r||y<t||y>=b)return false;
+ const qx=x<l+rr?l+rr:x>r-rr?r-rr:x,qy=y<t+rr?t+rr:y>b-rr?b-rr:y;return Math.hypot(x-qx,y-qy)<=rr;
+}
+// The wheelchair symbol painted in accessible stalls: an 8-bit pictogram (head, back, arm, seat, leg and a round wheel) in
+// paper on an ink square, ACCESS_MARK px (screen, not squashed).
+const ACCESS_MARK=['.................','.......##........','......####.......','.......##........','.................','.......##........','.......######....','.......##........','....#..##........','...#...######....','..#.........##...','..#.........##...','..#..........##..','...#.....#...###.','....#...#........','.....###.........','.................'];
+// Lot paint pixels in screen px (plot(x, y)): the planted band and corners (a checker dither, a solid edge on the asphalt and
+// round the outside), the stall dividers of every row and column, the hatched access aisle, the wheelchair squares and the
+// island (outline and a dithered drop shadow on the light's side). The planted band is ground texture and runs under the
+// controls (so its border is never cut); no marking on the asphalt is painted under a control (grown 2 px).
 function lotMarks(layout,plot,W,H,zones=[]){
  const lot=layout&&layout.lot;if(!lot)return;
- const put=(x,y)=>{x=Math.round(x);y=Math.round(y);if(x>=0&&y>=0&&x<W&&y<H)plot(x,y);};
- for(const q of lot.rows){const yb=Math.round(q.back*K),ym=Math.round((q.back+q.dir*LOT_STALL_D)*K),lo=Math.min(yb,ym),hi=Math.max(yb,ym);
-  for(const s of q.slots){const a=Math.round(s.x0),c=Math.round(s.x1);if(s.kind==='corral'||!zonesClear(zones,a-2,lo-2,c+2,hi+2,4))continue;
-   for(let x=a;x<=c;x++)put(x,yb);for(const x of [a,c])for(let y=lo;y<=hi;y++)put(x,y);
-   // Short ticks at the stall mouth make the dividers read as painted T-ends.
-   for(const x of [a,c])for(const d of [-1,1])put(x+d,ym);
-   if(s.kind==='access')for(let y=lo+1;y<hi;y++)for(let x=a+1;x<c;x++)if((x+y)%5===0)put(x,y);
+ const inside=(x,y)=>x>=0&&y>=0&&x<W&&y<H,plant=(x,y)=>{if(inside(x,y))plot(x,y);};
+ const put=(x,y)=>{x=Math.round(x);y=Math.round(y);if(inside(x,y)&&zonesClear(zones,x,y,x+1,y+1,2))plot(x,y);};
+ const B=lotBox(lot),D=LOT_STALL_D,I=lot.island,pave=(x,y)=>onAsphalt(lot,x+.5,y+.5);
+ for(let y=B.t;y<B.b;y++)for(let x=B.l;x<B.r;x++){
+  if(pave(x,y)){if(I&&!inIsland(I,x+.5,y+.5)&&inIsland(I,x-1.5,y-1.5)&&(x+y)%2===0)put(x,y);continue;}
+  if(x===B.l||y===B.t||x===B.r-1||y===B.b-1||pave(x-1,y)||pave(x+1,y)||pave(x,y-1)||pave(x,y+1)||(x+y)%2===0)plant(x,y);}
+ for(const q of lot.rows){const yb=Math.round(q.back*K),ym=Math.round((q.back+q.dir*D)*K),lo=Math.min(yb,ym),hi=Math.max(yb,ym);
+  for(const s of q.slots){const a=Math.round(s.x0),c=Math.round(s.x1);
+   for(const x of [a,c])for(let y=lo;y<=hi;y++)put(x,y);
+   if(s.kind==='access')for(let y=lo+1;y<hi;y++)for(let x=a+1;x<c;x++)if((x-y)%4===0)put(x,y);
    if(s.kind==='hc'){const m=ACCESS_MARK,n=m.length,x0=Math.round((a+c)/2-n/2),y0=Math.round((lo+hi)/2-n/2);
     for(let j=0;j<n;j++)for(let i=0;i<n;i++)if(m[j][i]!=='#')put(x0+i,y0+j);}}}
+ for(const q of lot.cols||[]){const xb=Math.round(q.back),xm=Math.round(q.back+q.dir*D),lo=Math.min(xb,xm),hi=Math.max(xb,xm);
+  for(const s of q.slots)for(const y of [Math.round(s.y0*K),Math.round(s.y1*K)])for(let x=lo;x<=hi;x++)put(x,y);}
+ // The island's outline: its own pixels next to the outside.
+ if(I){const c=(u,v)=>inIsland(I,u+.5,v+.5);
+  for(let y=Math.floor(I.y0*K);y<=Math.ceil(I.y1*K);y++)for(let x=Math.floor(I.x0);x<=Math.ceil(I.x1);x++)if(c(x,y)&&(!c(x-1,y)||!c(x+1,y)||!c(x,y-1)||!c(x,y+1)))put(x,y);}
 }
+// The island's title box in screen px (the "8-BIT PARKING" paint), or null when the lot has no island.
+function lotTitleRect(lot){const I=lot&&lot.island;return I?{l:Math.ceil(I.x0)+5,t:Math.ceil(I.y0*K)+3,r:Math.floor(I.x1)-5,b:Math.floor(I.y1*K)-2}:null;}
 // Even-odd test against the closed centreline (world units): inside a loop's infield. On the eight each loop is its own region.
 function insideLoop(pts,x,y){let c=false;for(let i=0,j=pts.length-1;i<pts.length;j=i++){const [xi,yi]=pts[i],[xj,yj]=pts[j];if((yi>y)!==(yj>y)&&x<(xj-xi)*(y-yi)/(yj-yi)+xi)c=!c;}return c;}
 // Title paint spot (screen px rect {l, t, r, b}, or null): a TITLE_ASPECT : 1 box that no part of the lane (± TITLE_PAD), the
@@ -995,7 +1055,8 @@ function drawGround(gc,A,layout){
  gc.fillStyle=paper;gc.fillRect(0,0,W,H);gc.fillStyle=ink;
  for(let y=15;y<H;y+=20)for(let x=15;x<W;x+=20)if(((x*17+y*13)%7)<4)dot(x,y);
  trackMarks(layout,(x,y,k)=>{const s=k==='edge'||k==='curb'?1:2;gc.fillRect(x,y,s,s);},W,H);
- if(layout&&layout.lot)lotMarks(layout,(x,y)=>dot(x,y),W,H,keepOuts(A));
+ // Round 5: the lot's footprint is clean asphalt (no ground dots) under its paint.
+ if(layout&&layout.lot){const b=lotBox(layout.lot);gc.fillStyle=paper;gc.fillRect(b.l,b.t,b.r-b.l,b.b-b.t);gc.fillStyle=ink;lotMarks(layout,(x,y)=>dot(x,y),W,H,keepOuts(A));}
  // The gate itself (arch, legs and its shadow) is drawn per frame from cached sprites (task 07); the ground stays plain under it.
  for(const [x,y] of [[8,8],[W-9,8],[8,H-9],[W-9,H-9]]){gc.fillRect(x-2,y,5,1);gc.fillRect(x,y-2,1,5);}
 }
@@ -1005,44 +1066,84 @@ function createWorld(id='compact',arena=DEFAULT_ARENA) {
  // Each cone keeps its home (hx, hy) so resetCones() and a world reset restore the course.
  const cones=layout.cones.map(bodyFrom);
  // trackBreak: set by the simulation (edge transfer, roll start); the renderer consumes it and starts a new skid segment.
- return {id,p,arena,layout,car,cones,time:0,wraps:0,hits:0,trackBreak:false,manual:false,gear:1,shiftTime:0};
+ return {id,p,arena,layout,car,cones,time:0,wraps:0,hits:0,trackBreak:false,manual:false,gear:p.trans==='manual'?1:'D',shiftTime:0};
 }
 // A movable body from a layout entry: a cone, or (round 4) a shopping cart (kind 'cart', its own radius r, mass m, home heading).
 function bodyFrom(h,i){const a=Number.isFinite(h.a)?h.a:(i*.7)%TAU,o={x:h.x,y:h.y,hx:h.x,hy:h.y,ha:a,px:h.x,py:h.y,vx:0,vy:0,a,pa:a,omega:0,tipped:false};if(h.kind)Object.assign(o,{kind:h.kind,r:h.r,m:h.m});return o;}
 const bodyR=o=>o.r||CONE_R,bodyM=o=>o.m||CONE_MASS;
 function resetCones(w){w.cones.forEach((o,i)=>{const a=Number.isFinite(o.ha)?o.ha:(i*.7)%TAU;Object.assign(o,{x:o.hx,y:o.hy,px:o.hx,py:o.hy,vx:0,vy:0,omega:0,a,pa:a,tipped:false});});}
 function limitVelocity(o,max){const s=Math.hypot(o.vx,o.vy);if(s>max){o.vx*=max/s;o.vy*=max/s;}}
-// Automatic clutch and safe downshifts keep the five-speed stick approachable.
-const REVERSE_HOLD=.6;
+// Round 6: every car has a gear stick. The Supercar is a manual (preset trans 'manual', and only while w.manual is set: an H
+// gate with 1-5 and R under 5); the others are automatics (P R N D). Automatic clutch and safe downshifts keep the five-speed
+// stick approachable. Reverse only engages when the car is not rolling forward faster than REV_SHIFT px/s, a forward gear
+// (or D) only when it is not rolling back faster than that, and Park only near a standstill.
 const GEARS=[0,.36,.54,.72,.88,1.08],GEAR_TORQUE=[0,1.2,1.1,1,.9,.82],SPEED_TO_KMH=.6;
-function shiftGear(w,next){
- if(!w.manual||w.id!=='coupe'||!Number.isInteger(next)||next<1||next>5||next===w.gear)return false;
- if(next<w.gear&&Math.hypot(w.car.vx,w.car.vy)>w.p.max*GEARS[next]*.98)return false;
- w.gear=next;w.shiftTime=.12;return true;
+const AUTO_GEARS=['P','R','N','D'],REV_SHIFT=8,SHIFT_AT=.83,SHIFT_FROM=.35;
+const isManual=w=>!!w.manual&&w.p.trans==='manual',forwardSpeed=c=>c.vx*Math.cos(c.a)+c.vy*Math.sin(c.a);
+const MANUAL_GEARS=['R',1,2,3,4,5];
+// Whether the car may shift into next now (pure): the gear exists on this car, and the speed rules above allow it.
+function shiftOk(w,next){
+ if(next===w.gear)return false;
+ const speed=Math.hypot(w.car.vx,w.car.vy),fwd=forwardSpeed(w.car);
+ if(isManual(w)){
+  if(next==='R')return fwd<=REV_SHIFT;
+  if(!Number.isInteger(next)||next<1||next>5)return false;
+  if(w.gear==='R')return fwd>=-REV_SHIFT;
+  return !(next<w.gear&&speed>w.p.max*GEARS[next]*.98);
+ }
+ if(w.p.trans==='manual'||!AUTO_GEARS.includes(next))return false;
+ return !((next==='P'&&speed>REV_SHIFT)||(next==='R'&&fwd>REV_SHIFT)||(next==='D'&&fwd<-REV_SHIFT));
 }
-function gearTelemetry(w){const speed=Math.hypot(w.car.vx,w.car.vy),g=w.gear||1,load=clamp(speed/(w.p.max*GEARS[g]),0,1);return {speed:Math.round(speed*SPEED_TO_KMH),gear:g,rpm:Math.round(1000+load*7000),load,shiftUp:load>.83&&g<5};}
+function shiftGear(w,next){if(!shiftOk(w,next))return false;w.gear=next;if(isManual(w))w.shiftTime=.12;return true;}
+// The gear one step from the current one for E (dir +1) or Q (dir -1), or 0 at the end. Manual: R 1 2 3 4 5 (E shifts up, Q
+// from first selects R). Automatic: the knob moves the way the key's arrow points, so E goes up toward P and Q down toward D.
+function gearStep(w,dir){
+ const manual=isManual(w),seq=manual?MANUAL_GEARS:AUTO_GEARS,i=seq.indexOf(w.gear),j=i+(manual?dir:-dir);
+ return i<0||j<0||j>=seq.length?0:seq[j];
+}
+// Spoken / readable names: 'Gear 3', 'Reverse', 'Park', 'Neutral', 'Drive'.
+const gearName=g=>({R:'Reverse',P:'Park',N:'Neutral',D:'Drive'})[g]||'Gear '+g;
+// Engine load 0-1 for the gear readout and the shift bar. Manual: speed over the gear's limit. D: the automatic box's own
+// gear, the lowest one not yet past the shift point, so its bar climbs and drops as it shifts. R: speed over the reverse
+// limit. P and N: idle. shift = the shift bar: load from SHIFT_FROM up to the shift-up point (full = shift now), so it
+// visibly drops after every upshift.
+function gearTelemetry(w){
+ const p=w.p,speed=Math.hypot(w.car.vx,w.car.vy),g=w.gear||1,num=Number.isInteger(g);let load=0;
+ if(g==='R')load=speed/p.reverse;
+ else if(num&&p.trans==='manual')load=speed/(p.max*GEARS[g]);
+ else if(num||g==='D'){let a=1;while(a<5&&speed>p.max*GEARS[a]*SHIFT_AT)a++;load=speed/(p.max*GEARS[a]);}
+ load=clamp(load,0,1);
+ return {speed:Math.round(speed*SPEED_TO_KMH),gear:g,rpm:Math.round(1000+load*7000),load,shift:clamp((load-SHIFT_FROM)/(SHIFT_AT-SHIFT_FROM),0,1),shiftUp:num&&p.trans==='manual'&&load>SHIFT_AT&&g<5};
+}
 function drive(w,input,dt){
  const c=w.car,p=w.p,cs=Math.cos(c.a),sn=Math.sin(c.a);
- const manual=w.manual&&w.id==='coupe',gear=w.gear||1,cap=manual?p.max*GEARS[gear]:p.max;w.shiftTime=Math.max(0,(w.shiftTime||0)-dt);
+ const manual=isManual(w),gear=w.gear||1,fwdGear=manual&&Number.isInteger(gear),rev=gear==='R',park=gear==='P',idle=park||gear==='N';
+ const cap=fwdGear?p.max*GEARS[gear]:p.max;w.shiftTime=Math.max(0,(w.shiftTime||0)-dt);
  let forward=c.vx*cs+c.vy*sn,lateral=-c.vx*sn+c.vy*cs;
  const {steering,throttle,brake}=normalizeInput(input),gas=throttle>0,back=brake>0;
- // Brake wins over throttle and only slows the car (finite deceleration, no reverse).
- // Brake only slows a moving car. Held at a standstill for REVERSE_HOLD seconds it then backs the car out (so it can never be pinned).
- c.brakeHold=back&&forward<.5?(c.brakeHold||0)+dt:0;const reversing=back&&c.brakeHold>REVERSE_HOLD;c.braking=back&&!reversing&&forward>.01;
+ // Brake wins over throttle and only brakes: finite deceleration to a stop, whichever way the car rolls, and never a reverse
+ // (round 5: the brake no longer backs a stopped car out).
+ c.braking=back&&Math.abs(forward)>.01;
  let accel=0;
- if(c.braking){accel=-Math.sign(forward)*Math.min(p.brake*(back?brake:throttle),Math.abs(forward)/dt);}
- else if(gas&&!back)accel=p.accel*throttle*(manual?(w.shiftTime>0?0:GEAR_TORQUE[gear]*(.3+.7*clamp(Math.abs(forward)/(p.max*.15),0,1))):1);else if(reversing)accel=-p.accel*.64*brake;
+ if(c.braking){accel=-Math.sign(forward)*Math.min(p.brake*brake,Math.abs(forward)/dt);}
+ // Round 6: P holds the car like a brake; P and N give no drive; R drives backwards up to the reverse limit.
+ else if(park&&Math.abs(forward)>.01)accel=-Math.sign(forward)*Math.min(p.brake,Math.abs(forward)/dt);
+ else if(gas&&!back&&!idle)accel=(rev?-1:1)*p.accel*throttle*(manual?(w.shiftTime>0?0:rev?1:GEAR_TORQUE[gear]*(.3+.7*clamp(Math.abs(forward)/(p.max*.15),0,1))):1);
  const rolling=3.8+p.drag*Math.abs(forward)+.001*Math.abs(forward)*Math.abs(forward);
  if(Math.abs(forward)>.01)accel-=Math.sign(forward)*Math.min(rolling,Math.abs(forward)/dt);
- if(manual&&forward>=cap&&accel>0)accel=0;
- forward=clamp(forward+accel*dt,-p.reverse,manual?Math.max(cap,forward):p.max);
+ if(fwdGear&&forward>=cap&&accel>0)accel=0;
+ const was=forward;forward=clamp(forward+accel*dt,-p.reverse,fwdGear?Math.max(cap,forward):p.max);
+ // Brake (or Park) plus rolling drag stop the car dead; they never push it the other way.
+ if((back||park)&&was*forward<=0)forward=0;
  if(!gas&&!back&&Math.abs(forward)<.03)forward=0;
  // Round 2 handling (Settings > Tuning, read live): steerAngle scales the full-lock front-wheel angle, steerFade is the share
  // of lock lost at top speed, steerSpeed how fast the front wheels follow the input, turnRate how fast the body's rotation
  // follows the wheels (sharper turn-in), grip the tyres' lateral limit (higher = less drift).
  const T=TUNING,steeringLimit=p.steer*T.steerAngle*(1-T.steerFade*Math.min(1,Math.abs(forward)/p.max));
  c.steer+=(steering*steeringLimit-c.steer)*(1-Math.exp(-T.steerSpeed*dt));
- const desiredYaw=forward/p.wheelbase*Math.tan(c.steer);
+ // Round 5: while a stall bump (see step) rolls the car back off a post, the steering swings it the way it points, so
+ // bump-and-go works round the post instead of the back and forward legs cancelling out.
+ c.bump=Math.max(0,(c.bump||0)-dt);const desiredYaw=(c.bump>0?Math.abs(forward):forward)/p.wheelbase*Math.tan(c.steer);
  c.omega+=clamp((desiredYaw-c.omega)*8.5*T.turnRate,-8*T.turnRate,8*T.turnRate)*dt;
  c.omega=clamp(c.omega,-OMEGA_MAX,OMEGA_MAX);
  const grip=p.grip*T.grip*(c.braking?.7:1);
@@ -1255,8 +1356,12 @@ function rollover(w,dt,dvx,dvy){
  }
  if(st==='recovering'){c.timer-=dt;if(c.timer<=0){c.state='driving';c.timer=0;}}
 }
+// Round 5: the brake never reverses, so a car driven nose-first into a fixed post (gate leg, corral rail) could be pinned
+// there for good. Stalled against one (still pushing on the gas, under STALL_SPEED) for STALL_TIME seconds, it bumps back
+// off it at STALL_BUMP (world units/s, a knock, not reverse driving), so steering can then take it round.
+const STALL_SPEED=4,STALL_TIME=.5,STALL_BUMP=45;
 function step(w,input,dt=STEP){
- const c=w.car,A=w.arena,svx=c.vx,svy=c.vy;c.px=c.x;c.py=c.y;c.pa=c.a;
+ const c=w.car,A=w.arena,svx=c.vx,svy=c.vy;c.px=c.x;c.py=c.y;c.pa=c.a;let pressed=false;
  for(const o of w.cones){o.px=o.x;o.py=o.y;o.pa=o.a;}
  const n=substeps(w,dt),h=dt/n,posts=gatePosts(w);
  for(let sub=0;sub<n;sub++){
@@ -1272,11 +1377,14 @@ function step(w,input,dt=STEP){
    for(const o of w.cones)carCone(w,o);
    for(let a=0;a<w.cones.length;a++)for(let b=a+1;b<w.cones.length;b++)coneCone(w.cones[a],w.cones[b],A);
    // Posts go last, so they win: nothing ends a substep inside a post.
-   for(const q of posts){carPost(w,q);for(const o of w.cones)conePost(o,q);}
+   for(const q of posts){if(carPost(w,q)>0)pressed=true;for(const o of w.cones)conePost(o,q);}
   }
   rollover(w,h,c.vx-vx0,c.vy-vy0);
   transferEdges(w);
  }
+ const pushing=(c.state||'driving')==='driving'&&normalizeInput(input).throttle>0&&!(normalizeInput(input).brake>0);
+ c.stall=pressed&&pushing&&Math.hypot(c.vx,c.vy)<STALL_SPEED?(c.stall||0)+dt:0;
+ if(c.stall>=STALL_TIME){c.vx=-Math.cos(c.a)*STALL_BUMP;c.vy=-Math.sin(c.a)*STALL_BUMP;c.stall=0;c.bump=.45;}
  if(w.p.flying)droneTilt(w,c.vx-svx,c.vy-svy,dt);
  w.time+=dt;
 }
@@ -1395,7 +1503,9 @@ function wheelPoints(w){const c=w.car,p=w.p,cs=Math.cos(c.a),sn=Math.sin(c.a),x=
 // Task 01 / contract §1: pick an integer device-pixel scale so the short side shows about `short` logical px.
 // Round 2: zoomed out (default 400, was 300) and tunable (Settings > Tuning > Zoom out = TUNING.viewShort).
 const VIEW_SHORT=TUNING_DEFAULTS.viewShort;
-function computeView(cssW,cssH,dpr,short=TUNING.viewShort){
+// Round 5: the zoom (short side, logical px) for a track: TUNING.viewLot on the parking lot, TUNING.viewShort on the race tracks.
+const viewFor=(id=SELECTED_TRACK)=>id==='parking'?TUNING.viewLot:TUNING.viewShort;
+function computeView(cssW,cssH,dpr,short=viewFor()){
  dpr=dpr>0&&Number.isFinite(dpr)?dpr:1;short=+short>0&&Number.isFinite(+short)?+short:VIEW_SHORT;
  const devW=Math.max(0,+cssW||0)*dpr,devH=Math.max(0,+cssH||0)*dpr;
  const scale=Math.max(.05,Math.min(devW,devH)/short);
@@ -1457,7 +1567,7 @@ function uiMetrics(S){
  const b=clamp(Math.round(S*.14),24,44),cw=Math.round(b*1.25);
  const D=clamp(Math.round(S*.58),64,240),pw=clamp(Math.round(S*.15),28,60),pg=clamp(Math.round(S*.05),8,18);
  return {b,cw,hudW:3*cw+UI_GAP+b,recW:Math.round(2.6*b),D,pw,pg,ph:Math.round(pw*1.65),pedalsW:2*pw+pg,pedalIn:clamp(Math.round(S*.07),6,32),
-  spW:Math.round(4.2*b),iw:clamp(Math.round(S*.6),120,260),ih:clamp(Math.round(S*.3),50,140),gw:clamp(Math.round(S*.33),72,150),gh:clamp(Math.round(S*.3),66,136)};
+  spW:Math.round(4.2*b),iw:clamp(Math.round(S*.6),120,260),ih:clamp(Math.round(S*.3),50,140),gw:clamp(Math.round(S*.37),80,168),gh:clamp(Math.round(S*.3),66,136)};
 }
 // Round 2 (r2-paint): the instructions are painted on the road like the user's reference shots: heavy, wide, italic capitals
 // made of horizontal stripes (round 3: 2 px ink, 1 px paper), so they read as half-worn paint under the tracks, shadows and cars. A
@@ -1558,7 +1668,7 @@ function paintLayout(zw,zh,o={}){
  const clear=L=>L.items.every((a,i)=>L.items.every((b,j)=>j<=i||a.x>=b.x+b.w+b.d+2||b.x>=a.x+a.w+a.d+2||a.y>=b.y+b.h+b.d+1||b.y>=a.y+a.h+a.d+1));
  // Biggest keys first, labels about a third of the key (striped from PAINT_SOLID_BELOW rows; small keys get solid labels).
  // The reference arrangement ('side') wins at any key size; 'under' only when 'side' does not fit at all.
- for(const arr of ['side'])for(let k=64;k>=12;k--){const lh=stripeH(clamp(k*.36,8,20)),L=board(k,arr,lh);if(fits(L)&&clear(L))return L;}
+ for(const arr of ['side'])for(let k=64;k>=12;k--){const lh=stripeH(clamp(k*.46,8,20)),L=board(k,arr,lh);if(fits(L)&&clear(L))return L;}
  for(let k=64;k>=8;k--){const L=board(k,'bare');if(fits(L))return L;}
  return {items:[],w:0,h:0,mode:'none'};
 }
@@ -1597,9 +1707,11 @@ function drawPaint(gc,A,zone,o={}){
 // lane, the control zones and the instructions do not touch (titleSpot from the course when it exists, else titleFallbackSpot).
 const PAINT_PX_CSS=1.2,TITLE_TEXT='8-BIT DRIFT',TITLE_MAX=44,TITLE_MIN=11,TITLE_GAP=8,TITLE_CELL=4;
 const paintPx=u=>Math.max(1,Math.round(PAINT_PX_CSS/(u>0&&Number.isFinite(u)?u:1)));
-// The biggest title (stripeH height ≤ TITLE_MAX paint px; ≥ TITLE_MIN) that fits a w × h paint-px box, or null.
-function titleFit(w,h,mask=glyphMask){
- for(let th=stripeH(Math.min(TITLE_MAX,h));th>=TITLE_MIN;th=stripeH(th-1)){const m=shearMask(mask(TITLE_TEXT,th));if(m.w<=w&&m.h<=h)return m;}
+// The biggest title (stripeH height ≤ TITLE_MAX paint px; ≥ min) that fits a w × h paint-px box, or null.
+// Round 5: text and min are arguments (the parking lot paints LOT_TITLE on its island, down to LOT_TITLE_MIN rows).
+const LOT_TITLE_MIN=8;
+function titleFit(w,h,mask=glyphMask,text=TITLE_TEXT,min=TITLE_MIN){
+ for(let th=stripeH(Math.min(TITLE_MAX,h));th>=min;th=stripeH(th-1)){const m=shearMask(mask(text,th));if(m.w<=w&&m.h<=h)return m;}
  return null;
 }
 // Free-space search for the title, in screen px: a rect with aspect ar (w / h) at least TITLE_GAP px clear of the lane
@@ -1632,25 +1744,31 @@ function titleFallbackSpot(layout,A,zones=keepOuts(A),ar=6,maxH=80,minH=24){
   if(best)return best;}
  return null;
 }
-// INK runs of the title centred in rect (screen px), on the px paint grid; [] when it does not fit.
+// INK runs of the title centred in rect (screen px), on the px paint grid; [] when it does not fit. o.text / o.min: see titleFit.
 function titleRuns(A,rect,o={}){
  if(!rect)return [];
  const px=Math.max(1,Math.round(o.px||1)),l=Math.max(0,Math.ceil(rect.l)),r=Math.min(A.W,Math.floor(rect.r)),b=Math.min(A.H,Math.floor(rect.b));let t=Math.max(0,Math.ceil(rect.t));t+=t&1;
- const zw=Math.floor((r-l)/px),zh=Math.floor((b-t)/px);if(zw<4||zh<TITLE_MIN)return [];
- const m=titleFit(zw,zh,o.mask||glyphMask);if(!m)return [];
+ const zw=Math.floor((r-l)/px),zh=Math.floor((b-t)/px);const min=o.min||TITLE_MIN;if(zw<4||zh<min)return [];
+ const m=titleFit(zw,zh,o.mask||glyphMask,o.text||TITLE_TEXT,min);if(!m)return [];
  return scaleRuns(maskRuns(m,Math.floor((zw-m.w)/2),2*Math.floor((zh-m.h)/4),[],m.h<PAINT_SOLID_BELOW?1:PAINT_STRIPE),l,t,zw,zh,px);
 }
 // Where the title goes: the course's titleSpot when it is defined (r3-course), else the fallback, sized for this mask/px.
 function titleRect(layout,A,o={}){
- // The course's spot when it holds a title; otherwise (no spot, or too small) the paint's own search. The parking lot has no title.
- if(layout&&layout.lot)return null;
+ // The course's spot when it holds a title; otherwise (no spot, or too small) the paint's own search.
+ // Round 5: the parking lot's title goes on its island; when the island is missing or too short for it, on open ground
+ // beside the lot (the fallback search with the whole lot blocked like a control).
+ if(layout&&layout.lot){const s=lotTitleRect(layout.lot);if(s&&titleRuns(A,s,o).length)return s;
+  const px=Math.max(1,Math.round(o.px||1)),m=shearMask((o.mask||glyphMask)(o.text||TITLE_TEXT,TITLE_MAX)),b=lotBox(layout.lot);
+  return titleFallbackSpot(layout,A,[...(o.zones||keepOuts(A)),{id:'lot',...b}],(m.w+2)/(m.h+2),(TITLE_MAX+4)*px,((o.min||TITLE_MIN)+2)*px);}
  if(typeof titleSpot==='function'){const s=titleSpot(layout,A);if(s&&titleRuns(A,s,o).length)return s;}
  const px=Math.max(1,Math.round(o.px||1)),m=shearMask((o.mask||glyphMask)(TITLE_TEXT,TITLE_MAX));
  return titleFallbackSpot(layout,A,o.zones||keepOuts(A),(m.w+2)/(m.h+2),(TITLE_MAX+4)*px,(TITLE_MIN+2)*px);
 }
 // Paints the title into the ground layer with INK only; returns the number of runs drawn.
+// The lot paints LOT_TITLE ("8-BIT PARKING") instead of TITLE_TEXT.
+const titleOpts=(layout,o)=>layout&&layout.lot?{...o,text:LOT_TITLE,min:LOT_TITLE_MIN}:o;
 function drawTitle(gc,A,layout,o={}){
- const runs=titleRuns(A,titleRect(layout,A,o),o);gc.fillStyle=ink;
+ o=titleOpts(layout,o);const runs=titleRuns(A,titleRect(layout,A,o),o);gc.fillStyle=ink;
  for(const [x,y,n] of runs)gc.fillRect(x,y,n,1);
  return runs.length;
 }
@@ -1696,7 +1814,7 @@ function controlZones(view,safe){
  const u=view.u||view.uiU||1,cw=view.cssW||view.uiW||view.W*u,ch=view.cssH||view.uiH||view.H*u;
  const z=baseControlZones({W:cw/1.4,H:ch/1.4},Object.fromEntries(Object.entries(safe||{}).map(([k,v])=>[k,v*u/1.4])));
  const mobile=view.mobile||cw<700;
- if(mobile){const p=z.find(q=>q.id==='pedals'),g=z.find(q=>q.id==='gear'),h=(g.b-g.t)*.7,kw=shiftKeyW(h*1.4),w=(g.r-g.l)*.7+(kw+shiftKeyGap(kw))/1.4;Object.assign(g,{l:p.r-w,r:p.r,t:p.t-h-8,b:p.t-8});const i=z.find(q=>q.id==='instructions');i.r=i.l;i.b=i.t;}
+ if(mobile){const p=z.find(q=>q.id==='pedals'),g=z.find(q=>q.id==='gear'),h=(g.b-g.t)*.7,kw=shiftKeyW(h*1.4),w=(g.r-g.l)*.7+(kw+2*shiftKeyGap(kw)+shiftBarW(kw))/1.4;Object.assign(g,{l:p.r-w,r:p.r,t:p.t-h-8,b:p.t-8});const i=z.find(q=>q.id==='instructions');i.r=i.l;i.b=i.t;}
  return z.map(q=>({...q,l:q.l*1.4/u,r:q.r*1.4/u,t:q.t*1.4/u,b:q.b*1.4/u}));
 }
 // ---- Round 3 (r3-ui): pure helpers for the speed readout, the shift keycaps and the track thumbnails. ----
@@ -1713,18 +1831,18 @@ function speedFit(w,h,manual){
  return {size:Math.max(10,Math.floor(size)),stack};
 }
 // Shift keycaps beside the gear stick (CSS px). Column width from the zone height; the stick's face keeps the rest.
-const shiftKeyW=h=>Math.round(clamp((+h||0)*.3,14,46)),shiftKeyGap=kw=>Math.max(2,Math.round(kw*.15));
+// Round 6: [keys kw][gap][shift bar bw][gap][face]. The bar starts at bl and runs the keys' full height (pt to pt + ph).
+const shiftKeyW=h=>Math.round(clamp((+h||0)*.3,14,46)),shiftKeyGap=kw=>Math.max(2,Math.round(kw*.15)),shiftBarW=kw=>Math.max(6,Math.round(kw*.36));
 function shiftKeyLayout(w,h){
- const kw=shiftKeyW(h),gap=shiftKeyGap(kw),fl=kw+gap,fw=Math.max(1,w-fl),s=Math.min(fw/110,h/100),ph=100*s,pt=(h-ph)/2;
+ const kw=shiftKeyW(h),gap=shiftKeyGap(kw),bw=shiftBarW(kw),bl=kw+gap,fl=bl+bw+gap,fw=Math.max(1,w-fl),s=Math.min(fw/STICK_VB.w,h/STICK_VB.h),ph=STICK_VB.h*s,pt=(h-ph)/2;
  const kd=Math.max(2,Math.round(kw*.1)),kh=Math.max(8,Math.min(kw-kd,Math.floor((ph-gap)/2)-kd));
- return {kw,gap,fl,fw,pt,ph,kd,kh};
+ return {kw,gap,bl,bw,fl,fw,pt,ph,kd,kh};
 }
 // What the shift keycaps show. up.hot = the game recommends shifting up (gearTelemetry shiftUp); down.hot follows a matching
-// shiftDown flag if the telemetry ever has one. ok = that shift is possible now (same rule as shiftGear: no downshift that
-// would over-rev).
+// shiftDown flag if the telemetry ever has one. ok = the key's shift (gearStep) is possible now (the same rule as shiftGear).
 function gearCues(w){
- const t=gearTelemetry(w),g=w.gear||1,manual=!!w.manual&&w.id==='coupe',speed=Math.hypot(w.car.vx,w.car.vy);
- return {up:{hot:manual&&!!t.shiftUp,ok:manual&&g<5},down:{hot:manual&&!!t.shiftDown,ok:manual&&g>1&&speed<=w.p.max*GEARS[g-1]*.98}};
+ const t=gearTelemetry(w),manual=isManual(w),up=gearStep(w,1),down=gearStep(w,-1);
+ return {up:{hot:manual&&!!t.shiftUp,ok:!!up&&shiftOk(w,up)},down:{hot:manual&&!!t.shiftDown,ok:!!down&&shiftOk(w,down)}};
 }
 // Track thumbnail size: the arena's aspect, long side 64 px, short side at least 28 px.
 function trackThumbSize(W,H){const L=64,a=Math.min(W,H)/Math.max(W,H)||1,s=Math.max(28,Math.round(L*a));return W>=H?{w:L,h:s}:{w:s,h:L};}
@@ -1742,16 +1860,16 @@ function trackThumb(pts,w,h,o={}){
     const px=x+.5,py=y+.5,k=dd?clamp(((px-ax)*dx+(py-ay)*dy)/dd,0,1):0;if(Math.hypot(px-ax-k*dx,py-ay-k*dy)<=r)bits[y*w+x]=1;}}
  return {w,h,bits};
 }
-// Round 4: 1-bit thumbnail of the parking lot (same w × h frame as trackThumb): each stall row as a comb (back line and a
-// divider every other stall), and the corral as a solid block.
+// Round 5: 1-bit thumbnail of the parking lot (same w × h frame as trackThumb), sampled from the lot's footprint: the planted
+// band and corners as a checker, every stall divider, the island and the corral solid.
 function lotThumb(L,w,h,pad=2){
  const bits=new Uint8Array(w*h),lot=L&&L.lot;if(!lot)return {w,h,bits};
- const s=Math.min((w-2*pad)/(lot.r-lot.l),(h-2*pad)/((lot.b-lot.t)*K)),X=x=>(x-lot.l)*s+(w-(lot.r-lot.l)*s)/2,Y=y=>(y-lot.t)*K*s+(h-(lot.b-lot.t)*K*s)/2;
- const put=(x,y)=>{x=Math.round(x);y=Math.round(y);if(x>=0&&y>=0&&x<w&&y<h)bits[y*w+x]=1;};
- for(const q of lot.rows){if(!q.slots.length)continue;const yb=Y(q.back),ym=Y(q.back+q.dir*LOT_STALL_D*.75);
-  for(let x=X(q.slots[0].x0);x<=X(q.slots[q.slots.length-1].x1);x+=.5)put(x,yb);
-  q.slots.forEach((sl,k)=>{if(k%2===0)for(let y=Math.min(yb,ym);y<=Math.max(yb,ym);y+=.5)put(X(sl.x0),y);});}
- const c=lot.corral;if(c)for(let y=Y(c.y-CORRAL_HW);y<=Y(c.y+CORRAL_HW);y+=.5)for(let x=X(c.xb);x<=X(c.xf);x+=.5)put(x,y);
+ const B=lotBox(lot),s=Math.min((w-2*pad)/(B.r-B.l),(h-2*pad)/(B.b-B.t)),ox=(w-(B.r-B.l)*s)/2,oy=(h-(B.b-B.t)*s)/2,half=.5/s,D=LOT_STALL_D,c=lot.corral;
+ for(let j=0;j<h;j++)for(let i=0;i<w;i++){const x=B.l+(i+.5-ox)/s,y=B.t+(j+.5-oy)/s;if(x<B.l||x>=B.r||y<B.t||y>=B.b)continue;
+  let on=!onAsphalt(lot,x,y)?(i+j)%2===0:lot.island&&inIsland(lot.island,x,y)||c&&x>=c.xb&&x<=c.xf&&Math.abs(y/K-c.y)<=CORRAL_HW;
+  if(!on)for(const q of lot.rows){const y0=Math.min(q.back,q.back+q.dir*D)*K,y1=Math.max(q.back,q.back+q.dir*D)*K;if(y>=y0&&y<y1&&q.slots.some(sl=>Math.abs(sl.x0-x)<half||Math.abs(sl.x1-x)<half)){on=true;break;}}
+  if(!on)for(const q of lot.cols||[]){const x0=Math.min(q.back,q.back+q.dir*D),x1=Math.max(q.back,q.back+q.dir*D);if(x>=x0&&x<x1&&q.slots.some(sl=>Math.abs(sl.y0*K-y)<half||Math.abs(sl.y1*K-y)<half)){on=true;break;}}
+  if(on)bits[j*w+i]=1;}
  return {w,h,bits};
 }
 // Steering wheel maths. Angles are radians, 0 = 12 o'clock, clockwise (screen right) positive.
@@ -1774,13 +1892,15 @@ function wheelDrag(s,x,y){
  return {...s,ref:a,angle:clamp(s.angle+turnDelta(s.ref,a),-lim,lim)};
 }
 const wheelValue=s=>wheelInput(s.angle);
-// ---- Round 2: the Supercar's gear stick, an H-pattern gate. Pure: positions are in the stick's SVG units (viewBox 110 × 100).
-// Columns 1/2, 3/4 and 5 (top = odd gears) meet the neutral channel at y = mid. The knob moves sideways only along the
-// neutral channel and up/down only inside a column; a slot engages when the knob is within ENGAGE of its end.
-const GEAR_GATE={cols:[22,55,88],top:26,mid:50,bot:74,catch:9,engage:6};
-const gearSlot=g=>({x:GEAR_GATE.cols[Math.floor((g-1)/2)],y:g%2?GEAR_GATE.top:GEAR_GATE.bot});
+// ---- Round 2: the Supercar's gear stick, an H-pattern gate. Pure: positions are in the stick's SVG units (STICK_VB).
+// Columns 1/2, 3/4 and 5/R (top = odd gears; round 6: R sits under 5) meet the neutral channel at y = mid. The knob moves
+// sideways only along the neutral channel and up/down only inside a column; a slot engages when the knob is within ENGAGE
+// of its end. Round 6: the face is 106 units tall (was 100) so the bottom labels clear the plate's edge.
+const STICK_VB={w:110,h:106};
+const GEAR_GATE={cols:[22,55,88],top:28,mid:52,bot:76,catch:9,engage:6};
+const gearSlot=g=>g==='R'?{x:GEAR_GATE.cols[2],y:GEAR_GATE.bot}:{x:GEAR_GATE.cols[Math.floor((g-1)/2)],y:g%2?GEAR_GATE.top:GEAR_GATE.bot};
 const gateCol=x=>GEAR_GATE.cols.reduce((a,c)=>Math.abs(c-x)<Math.abs(a-x)?c:a);
-const colEnd=c=>c===GEAR_GATE.cols[2]?GEAR_GATE.mid:GEAR_GATE.bot;
+const colEnd=()=>GEAR_GATE.bot;
 // Moves the knob from p toward the target t (both {x,y}) without leaving the gate: inside a column it slides only along it
 // (it drops into the neutral channel when the target is sideways and the knob is within `catch` of it); on the neutral
 // channel it slides sideways and enters a column once the target pulls up/down and the knob is within `catch` of it.
@@ -1799,7 +1919,7 @@ function stickMove(p,t){
  return {x,y};
 }
 // The gear whose slot the knob sits in (within ENGAGE of the slot end), or 0 in the gate between slots.
-function stickSlot(p){for(let g=1;g<=5;g++){const s=gearSlot(g);if(Math.abs(p.x-s.x)<1e-6&&Math.abs(p.y-s.y)<=GEAR_GATE.engage)return g;}return 0;}
+function stickSlot(p){for(const g of MANUAL_GEARS){const s=gearSlot(g);if(Math.abs(p.x-s.x)<1e-6&&Math.abs(p.y-s.y)<=GEAR_GATE.engage)return g;}return 0;}
 // The knob's path through the gate from p to gear g's slot (for Q / E, the arrow keys and the spring-back), as waypoints.
 function stickPath(p,g){
  const s=gearSlot(g),G=GEAR_GATE,pts=[{x:p.x,y:p.y}];
@@ -1807,6 +1927,15 @@ function stickPath(p,g){
  if(Math.abs(p.y-G.mid)>1e-6)pts.push({x:p.x,y:G.mid});
  pts.push({x:s.x,y:G.mid},s);return pts;
 }
+// Round 6: the automatics' straight gate, P R N D from the top, one column at x with slots step apart.
+const AUTO_GATE={x:62,top:22,step:20,pivot:52,engage:6};
+const autoSlot=g=>({x:AUTO_GATE.x,y:AUTO_GATE.top+AUTO_GATE.step*AUTO_GEARS.indexOf(g)});
+const autoMove=(p,t)=>({x:AUTO_GATE.x,y:clamp(t.y,AUTO_GATE.top,AUTO_GATE.top+AUTO_GATE.step*(AUTO_GEARS.length-1))});
+function autoSlotAt(p){for(const g of AUTO_GEARS){const s=autoSlot(g);if(Math.abs(p.x-s.x)<1e-6&&Math.abs(p.y-s.y)<=AUTO_GATE.engage)return g;}return 0;}
+const autoPath=(p,g)=>[{x:p.x,y:p.y},autoSlot(g)];
+// The gate the page drives for a car: slot position, constrained move, engaged slot and animation path, plus the pivot.
+const stickGate=manual=>manual?{slot:gearSlot,move:stickMove,at:stickSlot,path:stickPath,pivot:{x:GEAR_GATE.cols[1],y:GEAR_GATE.mid}}
+ :{slot:autoSlot,move:autoMove,at:autoSlotAt,path:autoPath,pivot:{x:AUTO_GATE.x,y:AUTO_GATE.pivot}};
 // The point a fraction f (0–1) of the way along a waypoint path.
 function pathPoint(pts,f){
  const segs=pts.slice(1).map((q,i)=>Math.hypot(q.x-pts[i].x,q.y-pts[i].y)),total=segs.reduce((a,b)=>a+b,0);
@@ -2100,26 +2229,27 @@ function wheelKickback(c,time){
 }
 if(typeof document==='undefined'){if(typeof module!=='undefined'){
  // Node exports, one line per owner (round 2): edit only your own line(s); add new names on your own line.
- module.exports={GEARS,shiftGear,gearTelemetry,WIDTH,HEIGHT,K,Z,WORLD_H,STEP,TAU,PRESETS,CAR_ART,FRAMES,SHADOW_INK,LIGHT,DEFAULT_ARENA,edgeClear,CROSS_GAP,carBoxAll,SPAWN_INSIDE,CONE_COUNT,CONE_R,CONTROL_ZONES,keepOuts,layoutCourse,drawGround,resetCones,TRANSFER_MARGIN,CONE_BOX,transferBody,transferEdges,sceneItems,carDrawable,gateDrawables,drawOrder,SKID,createTrackRecorder,breakTracks,recordTracks,coneSprite,coneShadowSprite,CONE_H,archShape,inArch,gateArt,GATE_SPLIT,GATE_FRONT,plotLine,frameIndex,carModel,carShadowPolys,frameBounds,spriteBox,raster,carSprite,carShadow,buildCarAtlases,makeArena,normalizeInput,keysToInput,carScreenBounds,resizeWorld,wrap,delta,angleDelta,createWorld,drive,step,carCone,coneCone,position,wheelPoints,SPEED_CAP,OMEGA_MAX,CONE_MAX,FASTEST,SUB_MOVE,gatePosts,carPost,conePost,substeps,limitVelocity,ROLL_STEPS,ROLL_G,LOAD_W,LOAD_ZETA,IMPACT_GAIN,TIP_COMMIT,TIP_DROP,TIP_MIN,TIP_SOFT,ROLL_SPIN,ROLL_DECEL,ROLL_SETTLE,ROLL_FRICTION,REST_SPEED,RECOVER_TIME,RECOVER_GAP,CAR_STATES,uprightState,rollKappa,tipAngle,tumble,rollover,rollFrame,rolledModel,rollShadowPolys,rollSpritePoints,rollFrameBounds,rollSpriteBox,carRollSprite,carRollShadow,carHidden,canRecover,recover,recoverSpot,boxDistance};
+ module.exports={GEARS,AUTO_GEARS,MANUAL_GEARS,REV_SHIFT,SHIFT_AT,isManual,shiftOk,gearStep,gearName,shiftGear,gearTelemetry,WIDTH,HEIGHT,K,Z,WORLD_H,STEP,TAU,PRESETS,CAR_ART,FRAMES,SHADOW_INK,LIGHT,DEFAULT_ARENA,edgeClear,CROSS_GAP,carBoxAll,SPAWN_INSIDE,CONE_COUNT,CONE_R,CONTROL_ZONES,keepOuts,layoutCourse,drawGround,resetCones,TRANSFER_MARGIN,CONE_BOX,transferBody,transferEdges,sceneItems,carDrawable,gateDrawables,drawOrder,SKID,createTrackRecorder,breakTracks,recordTracks,coneSprite,coneShadowSprite,CONE_H,archShape,inArch,gateArt,GATE_SPLIT,GATE_FRONT,plotLine,frameIndex,carModel,carShadowPolys,frameBounds,spriteBox,raster,carSprite,carShadow,buildCarAtlases,makeArena,normalizeInput,keysToInput,carScreenBounds,resizeWorld,wrap,delta,angleDelta,createWorld,drive,step,carCone,coneCone,position,wheelPoints,SPEED_CAP,OMEGA_MAX,CONE_MAX,FASTEST,SUB_MOVE,gatePosts,carPost,conePost,substeps,limitVelocity,ROLL_STEPS,ROLL_G,LOAD_W,LOAD_ZETA,IMPACT_GAIN,TIP_COMMIT,TIP_DROP,TIP_MIN,TIP_SOFT,ROLL_SPIN,ROLL_DECEL,ROLL_SETTLE,ROLL_FRICTION,REST_SPEED,RECOVER_TIME,RECOVER_GAP,CAR_STATES,uprightState,rollKappa,tipAngle,tumble,rollover,rollFrame,rolledModel,rollShadowPolys,rollSpritePoints,rollFrameBounds,rollSpriteBox,carRollSprite,carRollShadow,carHidden,canRecover,recover,recoverSpot,boxDistance};
  Object.assign(module.exports,{setTrack,TUNING,TUNING_SPEC,TUNING_DEFAULTS,setTuning,resetTuning}); // shared tuning interface
  Object.assign(module.exports,{VIEW_SHORT,computeView,createControls,UI_MARGIN,UI_GAP,uiMetrics,controlZones,WHEEL_DEAD,turnDelta,pointerAngle,wheelDrag,wheelValue,wheelKickback,createModes,recoverAvailable,tryRecover,isRecoverKey,recoverFromKey}); // ui (r2-ui)
  Object.assign(module.exports,{PAINT_SLANT,PAINT_STRIPE,PAINT_SOLID_BELOW,PAINT_KEY_SOLID_BELOW,PAINT_COPY,GLYPHS,glyphMask,shearMask,maskRuns,keycapRuns,wrapPhrases,paintLayout,paintRuns,drawPaint}); // ground paint (r2-paint)
  Object.assign(module.exports,{buildCourse,fitTrack,roundedPath,circuitVerts,laneHalf,laneSelfClear,gateSpot,trackMarks,LANE_PAD,LANE_GAP,GATE_LEAD,TRACK_STEP,CONE_OFF,inGate,TRACKS,TRACK_SHAPES,TRACK_HALF,TRACK_FILL,shapeUnit,trackSelfClear,insideLoop,titleSpot,trackRadiusOk,TRACK_MIN_R}); // sim + course extra exports (r2-sim)
- Object.assign(module.exports,{wheelLimit,wheelInput,wheelAngle,GEAR_GATE,gearSlot,stickMove,stickSlot,stickPath,pathPoint,TUNING_STORE,loadTuning,saveTuning,tuningGroups,uiPx,SPEED_EM,speedFit,shiftKeyW,shiftKeyGap,shiftKeyLayout,gearCues,trackThumbSize,trackThumb}); // ui extra exports (r2-ui, r3-ui)
+ Object.assign(module.exports,{wheelLimit,wheelInput,wheelAngle,GEAR_GATE,STICK_VB,gearSlot,stickMove,stickSlot,stickPath,AUTO_GATE,autoSlot,autoMove,autoSlotAt,autoPath,stickGate,pathPoint,shiftBarW,TUNING_STORE,loadTuning,saveTuning,tuningGroups,uiPx,SPEED_EM,speedFit,shiftKeyW,shiftKeyGap,shiftKeyLayout,gearCues,trackThumbSize,trackThumb}); // ui extra exports (r2-ui, r3-ui)
  Object.assign(module.exports,{stripeH,scaleRuns,PAINT_PX_CSS,TITLE_TEXT,TITLE_MAX,TITLE_MIN,TITLE_GAP,TITLE_CELL,paintPx,titleFit,titleFallbackSpot,titleRuns,titleRect,drawTitle}); // ground paint extra exports (r2-paint)
  Object.assign(module.exports,{EDGE_PX,CURB_W,CURB_R,CURB_STRIPE,trackCurbs,curbFlags,laneField,buildParking,lotMarks,lotThumb,ACCESS_MARK,LOT_STALL_W,LOT_STALL_D,CART_R,CART_MASS,CART_BOX,CART_FRAMES,cartSprite,cartShadowSprite,propArt,propAnchor,propDrawables,bodyFrom,bodyR,bodyM,CORRAL_HW,CORRAL_HL}); // round 4: lane paint and parking lot
+ Object.assign(module.exports,{LOT_BAND,LOT_MAX,LOT_PLANS,LOT_TITLE,LOT_TITLE_MIN,lotRects,lotGeom,lotFit,lotBox,onAsphalt,inIsland,lotTitleRect,titleOpts,viewFor}); // round 5: parking redesign, per-track zoom
  Object.assign(module.exports,{TILT_MAX,TILT_PITCH,TILT_STEPS,TILT_STEP,droneTiltPoint,tiltIndex,droneTilt,droneParts,droneSprite,droneShadow}); // drone tilt
 }return;}
 
 // ---- Browser only below. Rendering reads world.arena (W×H); WIDTH/HEIGHT/WORLD_H stay only as the Node test default. ----
-const root=document.getElementById('playground'),canvas=document.getElementById('game'),ctx=canvas.getContext('2d',{alpha:false});
+const root=document.getElementById('playground'),canvas=document.getElementById('game'),ctx=canvas.getContext('2d'),paintCanvas=document.getElementById('paint');
 if(!ctx){document.getElementById('enter').textContent='Canvas 2D is unavailable';return;}
 ctx.imageSmoothingEnabled=false;
 const $=id=>document.getElementById(id);
 const ui={enter:$('enter'),fps:$('fps'),status:$('status'),live:$('live'),skids:$('skids'),announce:$('announcement'),settingsBtn:$('settings-btn'),panel:$('settings'),close:$('settings-close'),
  wheel:$('wheel'),wheelFace:$('wheel-face'),rim:$('rim'),gas:$('pedal-gas'),brake:$('pedal-brake'),probe:$('safe-probe'),recover:$('recover'),
  speed:$('speed'),speedValue:$('speed-value'),gearRead:$('gear-read'),gearValue:$('gear-value'),stick:$('gearstick'),stickFace:$('gear-face'),
- knob:$('gear-knob'),shaft:$('gear-shaft'),knobShadow:$('gear-shadow'),knobNum:$('gear-num'),tuneList:$('tune-list'),tuneReset:$('tune-reset'),
+ knob:$('gear-knob'),shaft:$('gear-shaft'),pivot:$('gear-pivot'),gateManual:$('gate-manual'),gateAuto:$('gate-auto'),shiftBar:$('shift-bar'),knobShadow:$('gear-shadow'),knobNum:$('gear-num'),tuneList:$('tune-list'),tuneReset:$('tune-reset'),
  shiftUp:$('shift-up'),shiftDown:$('shift-down'),trackRow:$('track-row')};
 // The instructions zone has no DOM element any more: it is painted on the ground (buildGround).
 const zoneEls={hud:$('hud'),wheel:$('wheel'),pedals:$('pedals'),recover:$('recover'),speed:$('speed'),gear:$('gearstick')};
@@ -2207,15 +2337,44 @@ function canvasTextMask(text,h){
 }
 // The instructions are painted on the ground layer (under tracks, shadows and cars) in the reserved zone: keycaps on a
 // keyboard, a painted line on touch screens, Q / E on the Supercar. Rebuilt when the car or the pointer type changes.
-function buildGround(A){ground=makeCanvas(A.W,A.H);const gc=ground.getContext('2d',{alpha:false});drawGround(gc,A,world.layout);
+function buildGround(A){ground=makeCanvas(A.W,A.H);const gc=ground.getContext('2d');drawGround(gc,A,world.layout);
  // Round 3 (r3-paint): striped two-tone paint, one paint px = paintPx(u) ground px. Phones reserve no instructions zone
  // (it is empty), so they paint no instructions; the title is painted on every screen where a spot off the lane fits.
- const o={touch:isTouch(),shift:!!world.manual,mask:canvasTextMask,px:paintPx(view?view.u:1)},zone=zoneOf('instructions');
- if(zone)drawPaint(gc,A,zone,o);
+ const o={touch:isTouch(),shift:true,mask:canvasTextMask,px:paintPx(view?view.u:1)},zone=zoneOf('instructions');
  drawTitle(gc,A,world.layout,o);
+ // Round 5: buildPaint draws the keycaps on their own canvas underneath; the ground is cut away only round the painted keys.
+ paintKey='';const hole=buildPaint();if(hole)gc.clearRect(hole.l,hole.t,hole.r-hole.l,hole.b-hole.t);
+}
+// Round 5: the painted instructions get their own canvas under the playground canvas, on a paint pixel of about PAINT_CSS
+// CSS px (a whole number of device px) whatever the zoom, so the keycaps look the same at 300 as at 1000 instead of turning
+// into a few coarse ground pixels. The ground is transparent just over the painted keys (the hole, ground px), so cars,
+// shadows and skid marks still pass over them, and lot or track paint round them is never clipped.
+const PAINT_CSS=1.5;let paintKey='';
+function paintGeom(){
+ const z=zoneOf('instructions');if(!view||!z||!world||z.r-z.l<2||z.b-z.t<2)return null;
+ const dpr=view.dpr||1,P=Math.max(1,Math.round(PAINT_CSS*dpr)),u=view.u,A=world.arena,s=P/dpr/u; // s: ground px per paint px
+ const l=Math.ceil(Math.max(0,z.l)),t=Math.ceil(Math.max(0,z.t)),r=Math.floor(Math.min(A.W,z.r)),b=Math.floor(Math.min(A.H,z.b));
+ const w=Math.floor((r-l)/s),h=Math.floor((b-t)/s),touch=isTouch(),shift=true;
+ return w<4||h<4?null:{l,t,w,h,P,dpr,u,s,touch,shift,key:[l,t,w,h,P,u,touch,shift].join('|')};
+}
+function buildPaint(){
+ const g=paintGeom(),c=paintCanvas;paintKey=g?g.key:'';if(!g){c.hidden=true;return null;}
+ const runs=paintRuns({W:g.w,H:g.h},{l:0,t:0,r:g.w,b:g.h},{touch:g.touch,shift:g.shift,mask:canvasTextMask,px:1});
+ if(!runs.length){c.hidden=true;return null;}
+ // The painted keys' bounds (paint px, 2 px of paper round them), then the hole in whole ground px that covers them.
+ let x0=Infinity,y0=Infinity,x1=-Infinity,y1=-Infinity;for(const [x,y,n] of runs){x0=Math.min(x0,x);x1=Math.max(x1,x+n);y0=Math.min(y0,y);y1=Math.max(y1,y+1);}
+ x0=Math.max(0,x0-2);y0=Math.max(0,y0-2);x1=Math.min(g.w,x1+2);y1=Math.min(g.h,y1+2);
+ const hole={l:Math.floor(g.l+x0*g.s),t:Math.floor(g.t+y0*g.s),r:Math.ceil(g.l+x1*g.s),b:Math.ceil(g.t+y1*g.s)};
+ // The canvas covers the hole exactly (to the paint px); runs keep their place on the zone's paint grid.
+ const ox=Math.floor((hole.l-g.l)/g.s),oy=Math.floor((hole.t-g.t)/g.s),cw=Math.ceil((hole.r-g.l)/g.s)-ox,ch=Math.ceil((hole.b-g.t)/g.s)-oy;
+ c.width=cw;c.height=ch;c.hidden=false;
+ Object.assign(c.style,{left:((g.l+ox*g.s)*g.u)+'px',top:((g.t+oy*g.s)*g.u)+'px',width:(cw*g.P/g.dpr)+'px',height:(ch*g.P/g.dpr)+'px'});
+ const pc=c.getContext('2d');pc.fillStyle=paper;pc.fillRect(0,0,cw,ch);pc.fillStyle=ink;
+ for(const [x,y,n] of runs)pc.fillRect(x-ox,y-oy,n,1);
+ return hole;
 }
 function resetTrackLayer(A){tracks=makeCanvas(A.W,A.H);trackCtx=tracks.getContext('2d');trackCtx.fillStyle=ink;breakTracks(trackRec);trackPixels=0;}
-let world=createWorld(),enabled=true,mode='paused',raf=0,lastTime=0,accumulator=0,fpsStart=0,frameCount=0,lastUI=0,trackPixels=0,drawList=[],view=null;
+let world=fitTransmission(createWorld()),enabled=true,mode='paused',raf=0,lastTime=0,accumulator=0,fpsStart=0,frameCount=0,lastUI=0,trackPixels=0,drawList=[],view=null;
 // Skid-mark recorder (task 09): its own break state; the track canvas is the only retained memory (one arena-sized layer).
 const trackRec=createTrackRecorder();
 // Input (task 03). The first fresh drive key, or a touch control being grabbed (task 04), starts or resumes driving.
@@ -2248,7 +2407,7 @@ function drawItem(o){
 // Contract §6 order: ground, tracks, every shadow, then the depth-sorted drawables (cones, car, gate legs; the arch top last).
 // Task 05: every object is drawn once, at its real position; no wrapped copies of the car, its shadow or cones.
 function draw(alpha=1){
- ctx.drawImage(ground,0,0);if(enabled)ctx.drawImage(tracks,0,0);
+ ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(ground,0,0);if(enabled)ctx.drawImage(tracks,0,0);
  drawList=sceneItems(world,alpha);
  for(const o of drawList)drawShadow(o);
  drawList.sort(drawOrder);
@@ -2276,7 +2435,8 @@ function animate(time){
 }
 // Game state (contract §4): 'running' | 'paused' | 'menu', held by createModes(). Leaving 'running' releases every input
 // (done by createModes) and breaks tracks. The settings panel is open exactly while the mode is 'menu'.
-const entryText=()=>isTouch()?'TAP GAS OR PRESS W TO DRIVE':'PRESS W TO DRIVE';
+// Round 6: an automatic in P or N needs D first, so the prompt says so.
+const entryText=()=>!isManual(world)&&(world.gear==='P'||world.gear==='N')?(isTouch()?'MOVE THE STICK TO D, THEN GAS':'SHIFT TO D WITH Q, THEN PRESS W'):isTouch()?'TAP GAS OR PRESS W TO DRIVE':'PRESS W TO DRIVE';
 // Round 3: the prompt text sits in a span (the striped letters are a background clipped to the text).
 const setEntry=text=>{ui.enter.replaceChildren(Object.assign(document.createElement('span'),{textContent:text}));};
 function onModeChange(next){
@@ -2289,10 +2449,13 @@ function onModeChange(next){
  ui.enter.hidden=next!=='paused';setEntry('PAUSED · '+entryText());ui.fps.textContent='—';draw();updateUI();renderControls();syncRecover();
 }
 const setMode=next=>modes.set(next),pause=()=>setMode('paused'),resume=()=>modes.engage();
-function reset(id=world.id){world=createWorld(id,world.arena);world.manual=id==='coupe';world.trackBreak=true;controls.releaseAll();endStick(false);clearTracks();accumulator=0;lastTime=0;
+// Round 6: the page drives each car's own transmission: manual (Supercar) from first gear, automatics from Drive
+// (so W drives straight away; P, R and N are there when wanted).
+function fitTransmission(w){w.manual=w.p.trans==='manual';w.gear=w.manual?1:'D';return w;}
+function reset(id=world.id){world=fitTransmission(createWorld(id,world.arena));world.trackBreak=true;controls.releaseAll();endStick(false);clearTracks();accumulator=0;lastTime=0;
  // Round 2: the ground paint can differ per car (the Supercar adds Q / E), so it is rebuilt on every car change or reset.
  buildGround(world.arena);groundKey=groundKeyFor();
- draw();updateUI();renderControls();syncRecover();ui.announce.textContent=PRESETS[id].name+' ready. Scene reset.';}
+ draw();updateUI();renderControls();syncRecover();if(!ui.enter.hidden)setEntry(entryText());ui.announce.textContent=PRESETS[id].name+' ready. Scene reset.';}
 // ---- Stage 3: "Right the car" (task 11 UI). The page reaches Agent 3's pure canRecover(w) / recover(w) only through this
 // adapter, so tests can swap in a fake api.
 const recoveryApi={can:w=>typeof canRecover==='function'?canRecover(w)===true:false,run:w=>{if(typeof recover==='function')recover(w);}};
@@ -2381,7 +2544,7 @@ function buildTuning(){
  }
  ui.tuneList.replaceChildren(frag);syncTuning();
 }
-function applyTuning(keys,relayout){saveTuning(tuneStore);syncTuning();if(relayout&&keys.includes('viewShort'))scheduleView();shown='';renderControls();}
+function applyTuning(keys,relayout){saveTuning(tuneStore);syncTuning();if(relayout&&(keys.includes('viewShort')||keys.includes('viewLot')))scheduleView();shown='';renderControls();}
 ui.tuneList.addEventListener('input',e=>{const key=e.target.dataset&&e.target.dataset.key;if(!key)return;setTuning({[key]:+e.target.value});applyTuning([key],false);});
 ui.tuneList.addEventListener('change',e=>{const key=e.target.dataset&&e.target.dataset.key;if(key)applyTuning([key],true);});
 ui.tuneReset.addEventListener('click',()=>{resetTuning();applyTuning(TUNING_SPEC.map(s=>s.key),true);say('Tuning reset to the defaults.');});
@@ -2405,7 +2568,8 @@ function syncTracks(){
   for(let y=0;y<m.h;y++)for(let x=0;x<m.w;x++)if(m.bits[y*m.w+x])cx.fillRect(x,y,1,1);
  }
 }
-function pickTrack(id){if(!setTrack(id))return;reset();syncTracks();const t=TRACKS.find(q=>q.id===id);say((t?t.name:id)+' selected. Scene reset.');}
+// Round 5: each track opens at its own zoom (viewFor), so the view is laid out for it before the scene resets.
+function pickTrack(id){if(!setTrack(id))return;applyView();reset();syncTracks();const t=TRACKS.find(q=>q.id===id);say((t?t.name:id)+' selected. Scene reset.');}
 syncTracks();
 // A primary press on the playground resumes; a pointer release never pauses.
 canvas.addEventListener('pointerdown',event=>{if(event===dismissEvent)return;if(event.isPrimary&&event.button===0)resume();});
@@ -2413,14 +2577,20 @@ canvas.addEventListener('pointerdown',event=>{if(event===dismissEvent)return;if(
 // ---- Steering wheel and pedals (task 04). Each control is owned by one pointer id with pointer capture; a release,
 // cancel or lost capture of that pointer frees only that control. Visuals always come from controls.visual(). ----
 let drag=null,shown='',speedShown='';
-// Round 2: floating speed text (and the gear on the Supercar); the DOM is written only when the text changes.
+// Round 2: floating speed text and the gear (round 6: every car; P R N D on the automatics); the DOM is written only when
+// something shown changes.
 function renderSpeed(){
- const t=gearTelemetry(world),manual=!!world.manual,cue=gearCues(world),key=t.speed+'|'+manual+'|'+t.gear+'|'+t.shiftUp+'|'+cue.down.ok+'|'+cue.down.hot;
+ const t=gearTelemetry(world),manual=isManual(world),cue=gearCues(world),bar=Math.round(t.shift*10)/10;
+ // Round 6: an automatic in P or N with the gas held lights the key toward D as a hint.
+ const hint=!manual&&(world.gear==='P'||world.gear==='N')&&controls.visual().throttle>0;
+ const key=[t.speed,manual,t.gear,t.shiftUp,cue.up.ok,cue.down.ok,cue.down.hot,bar,hint].join('|');
  if(key===speedShown)return;speedShown=key;
- ui.speedValue.textContent=String(t.speed);if(ui.gearRead.hidden===manual){ui.gearRead.hidden=!manual;sizeSpeed();}ui.gearValue.textContent=String(t.gear);
- // Round 3: the shift keycaps (no words): the up key pulses while shifting up is recommended; an impossible shift goes flat.
- for(const [el,c] of [[ui.shiftUp,cue.up],[ui.shiftDown,cue.down]]){el.classList.toggle('hot',c.hot);el.classList.toggle('off',!c.ok);}
+ ui.speedValue.textContent=String(t.speed);ui.gearValue.textContent=String(t.gear);
+ // Round 3: the shift keycaps (no words): the up key is inverted while shifting up is recommended; an impossible shift goes flat.
+ for(const [el,c] of [[ui.shiftUp,cue.up],[ui.shiftDown,{...cue.down,hot:cue.down.hot||hint}]]){el.classList.toggle('hot',c.hot);el.classList.toggle('off',!c.ok);}
  ui.speed.dataset.shift=String(manual&&t.shiftUp);
+ // Round 6: the shift bar climbs toward the shift-up point and drops after each shift (the automatic box shifts by itself).
+ ui.shiftBar.style.setProperty('--shift',bar.toFixed(1));ui.shiftBar.classList.toggle('hot',t.shiftUp);
 }
 function renderControls(){
  renderSpeed();renderStick();
@@ -2439,8 +2609,8 @@ function renderControls(){
  for(const [el,value] of [[ui.gas,v.throttle],[ui.brake,v.brake]]){el.style.setProperty('--press',value.toFixed(2));el.classList.toggle('on',value>0);}
  root.dataset.visual=key;
 }
-// ---- Round 2: the gear stick (Supercar only). The knob is dragged through the H gate by one pointer (with capture); it
-// engages a gear when it reaches that slot (shiftGear). A refused shift (too fast to go down) or a release between slots
+// ---- Round 2: the gear stick (round 6: every car; the gate comes from stickGate). The knob is dragged through the gate by
+// one pointer (with capture); it engages a gear when it reaches that slot (shiftGear). A refused shift (too fast to go down) or a release between slots
 // springs the knob back to the engaged gear along the gate. Q / E, the arrow keys and 1-5 on the focused stick animate it.
 let stick=null,knob=gearSlot(1),knobAnim=null,knobShown='';
 function placeKnob(p){
@@ -2450,18 +2620,24 @@ function placeKnob(p){
  ui.knobShadow.setAttribute('cx',(p.x+4).toFixed(2));ui.knobShadow.setAttribute('cy',(p.y+3).toFixed(2));
  ui.knobNum.textContent=String(world.gear||1);
 }
+let gateShown=null;
 function renderStick(){
- const manual=!!world.manual;if(ui.stick.hidden===manual)ui.stick.hidden=!manual;
- const g=world.gear||1;ui.stickFace.setAttribute('aria-valuenow',String(g));ui.stickFace.setAttribute('aria-valuetext','gear '+g);
+ const manual=isManual(world),G=stickGate(manual),seq=manual?MANUAL_GEARS:AUTO_GEARS;
+ if(gateShown!==manual){ // the car changed transmission: swap the gate drawing and move the pivot
+  gateShown=manual;knobShown='';ui.gateManual.setAttribute('display',manual?'inline':'none');ui.gateAuto.setAttribute('display',manual?'none':'inline');
+  ui.pivot.setAttribute('cx',G.pivot.x);ui.pivot.setAttribute('cy',G.pivot.y);ui.shaft.setAttribute('x1',G.pivot.x);ui.shaft.setAttribute('y1',G.pivot.y);
+  ui.stickFace.setAttribute('aria-valuemax',String(seq.length-1));ui.stickFace.title=manual?'Drag the knob through the H gate (or Q / E)':'Drag the knob through P R N D (or Q / E)';
+ }
+ const g=world.gear||1;ui.stickFace.setAttribute('aria-valuenow',String(Math.max(0,seq.indexOf(g))));ui.stickFace.setAttribute('aria-valuetext',gearName(g).toLowerCase());
  ui.stick.classList.toggle('held',!!stick);
- if(!stick&&!knobAnim)placeKnob(gearSlot(g));
+ if(!stick&&!knobAnim)placeKnob(G.slot(g));
 }
 // Animates the knob along the gate to gear g's slot (about 0.16 s; instant with reduced motion).
 const reducedMotion=window.matchMedia?window.matchMedia('(prefers-reduced-motion: reduce)'):null;
 function animateKnob(g){
- const pts=stickPath(knob,g),len=pts.slice(1).reduce((s,q,i)=>s+Math.hypot(q.x-pts[i].x,q.y-pts[i].y),0);
+ const G=stickGate(isManual(world)),pts=G.path(knob,g),len=pts.slice(1).reduce((s,q,i)=>s+Math.hypot(q.x-pts[i].x,q.y-pts[i].y),0);
  if(knobAnim)cancelAnimationFrame(knobAnim.raf);knobAnim=null;
- if(len<.5||(reducedMotion&&reducedMotion.matches)){placeKnob(gearSlot(g));return;}
+ if(len<.5||(reducedMotion&&reducedMotion.matches)){placeKnob(G.slot(g));return;}
  const start=performance.now(),dur=Math.min(260,90+len*1.4);
  const tick=now=>{const f=Math.min(1,(now-start)/dur);placeKnob(pathPoint(pts,1-(1-f)*(1-f)));
   if(f<1)knobAnim.raf=requestAnimationFrame(tick);else{knobAnim=null;renderStick();}};
@@ -2469,19 +2645,20 @@ function animateKnob(g){
 }
 // One shift request from any source; returns true when the gear changed. A refusal is announced.
 function requestGear(g,source){
- if(mode==='menu'||!world.manual||g<1||g>5||g===world.gear)return false;
- if(shiftGear(world,g)){resume();if(source!=='drag')animateKnob(g);renderControls();say('Gear '+g+'.');return true;}
- say('Too fast for gear '+g+'.');return false;
+ if(mode==='menu'||!g||g===world.gear)return false;
+ if(shiftGear(world,g)){resume();if(source!=='drag')animateKnob(g);renderControls();say(gearName(g)+'.');return true;}
+ const stop=typeof g==='string'||world.gear==='R'; // R, P and D (or leaving R) wait for a stop; a downshift waits for less speed
+ say((stop?'Stop the car before shifting to ':'Too fast for ')+gearName(g).toLowerCase()+'.');return false;
 }
-// SVG viewBox units (110 × 100, centred and scaled to fit the face) from client coordinates.
-function stickPoint(e){const r=ui.stickFace.getBoundingClientRect(),s=Math.min(r.width/110,r.height/100)||1;return {x:(e.clientX-r.left-(r.width-110*s)/2)/s,y:(e.clientY-r.top-(r.height-100*s)/2)/s};}
+// SVG viewBox units (STICK_VB, scaled to fit the face, left-aligned beside the shift bar, centred vertically) from client coordinates.
+function stickPoint(e){const r=ui.stickFace.getBoundingClientRect(),V=STICK_VB,s=Math.min(r.width/V.w,r.height/V.h)||1;return {x:(e.clientX-r.left)/s,y:(e.clientY-r.top-(r.height-V.h*s)/2)/s};}
 function endStick(spring=true){
  if(!stick)return;const id=stick.id;stick=null;
  try{if(ui.stickFace.hasPointerCapture&&ui.stickFace.hasPointerCapture(id))ui.stickFace.releasePointerCapture(id);}catch(_){/* already released */}
- if(spring)animateKnob(world.gear||1);else placeKnob(gearSlot(world.gear||1));renderStick();
+ if(spring)animateKnob(world.gear||1);else placeKnob(stickGate(isManual(world)).slot(world.gear||1));renderStick();
 }
 ui.stickFace.addEventListener('pointerdown',e=>{
- if(!primaryPress(e)||!world.manual)return;e.preventDefault();leaveMenu();
+ if(!primaryPress(e))return;e.preventDefault();leaveMenu();
  if(stick)return; // another finger already holds the stick
  if(knobAnim){cancelAnimationFrame(knobAnim.raf);knobAnim=null;}
  // Relative drag: the knob follows the finger's movement from wherever it touched (a finger covers the small knob).
@@ -2489,18 +2666,19 @@ ui.stickFace.addEventListener('pointerdown',e=>{
 });
 ui.stickFace.addEventListener('pointermove',e=>{
  if(!stick||e.pointerId!==stick.id)return;
- const p=stickPoint(e),next=stickMove(knob,{x:stick.knob.x+p.x-stick.from.x,y:stick.knob.y+p.y-stick.from.y});placeKnob(next);
- const g=stickSlot(next);if(g&&g!==world.gear&&!requestGear(g,'drag'))endStick(true); // refused: spring back to the engaged gear
+ const G=stickGate(isManual(world)),p=stickPoint(e),next=G.move(knob,{x:stick.knob.x+p.x-stick.from.x,y:stick.knob.y+p.y-stick.from.y});placeKnob(next);
+ const g=G.at(next);if(g&&g!==world.gear&&!requestGear(g,'drag'))endStick(true); // refused: spring back to the engaged gear
 });
 for(const type of ['pointerup','pointercancel','lostpointercapture'])ui.stickFace.addEventListener(type,e=>{if(stick&&e.pointerId===stick.id)endStick(true);});
 ui.stickFace.addEventListener('contextmenu',e=>e.preventDefault());
-// Keyboard on the focused stick: arrows step one gear, 1-5 pick a gear directly, Home / End go to 1 / 5.
+// Keyboard on the focused stick: arrows step one gear like E (up / right) and Q (down / left); on the Supercar 1-5 pick a
+// gear directly and Home / End go to 1 / 5; on an automatic Home / End go to P / D.
 ui.stickFace.addEventListener('keydown',e=>{
- if(e.ctrlKey||e.metaKey||e.altKey||e.isComposing)return;const g=world.gear||1;
- const next={ArrowUp:g+1,ArrowRight:g+1,ArrowDown:g-1,ArrowLeft:g-1,Home:1,End:5}[e.key]||(/^[1-5]$/.test(e.key)?+e.key:0);
- if(!next)return;e.preventDefault();if(!e.repeat||e.key.startsWith('Arrow'))requestGear(clamp(next,1,5),'key');
+ if(e.ctrlKey||e.metaKey||e.altKey||e.isComposing)return;const manual=isManual(world),dir={ArrowUp:1,ArrowRight:1,ArrowDown:-1,ArrowLeft:-1}[e.key];
+ const next=dir?gearStep(world,dir):({Home:manual?1:'P',End:manual?5:'D'})[e.key]||(manual&&/^[1-5]$/.test(e.key)?+e.key:0);
+ if(!dir&&!next)return;e.preventDefault();if(next&&(!e.repeat||dir))requestGear(next,'key');
 });
-window.addEventListener('keydown',event=>{if(event.repeat||event.ctrlKey||event.metaKey||event.altKey||mode==='menu'||!world.manual)return;const target=event.target;if(target&&target.closest&&target.closest('input,textarea,select'))return;const key=event.key.toLowerCase();if(key==='q'||key==='e'){event.preventDefault();requestGear((world.gear||1)+(key==='e'?1:-1),'key');}});
+window.addEventListener('keydown',event=>{if(event.repeat||event.ctrlKey||event.metaKey||event.altKey||mode==='menu')return;const target=event.target;if(target&&target.closest&&target.closest('input,textarea,select'))return;const key=event.key.toLowerCase();if(key==='q'||key==='e'){event.preventDefault();requestGear(gearStep(world,key==='e'?1:-1),'key');}});
 const primaryPress=e=>!(e.pointerType==='mouse'&&e.button!==0);
 const capture=(el,id)=>{try{el.setPointerCapture(id);}catch(_){/* synthetic or already-ended pointer */}};
 // Grabbing a control while the menu is open closes it first; the grab itself is the intentional action that resumes.
@@ -2578,7 +2756,7 @@ function layoutUI(){
  // The speed text fills its row: about 70% of the row height, narrower when the zone is short of room ("188 KM/H 5 GEAR").
  sizeSpeed();
  // Round 3: the shift keycaps take a column at the left of the gear zone; the stick's face keeps the rest.
- const gz=zoneOf('gear');if(gz){const s=shiftKeyLayout((gz.r-gz.l)*u,(gz.b-gz.t)*u);for(const n of ['kw','kd','kh','fl','pt','ph'])ui.stick.style.setProperty('--'+n,s[n].toFixed(2)+'px');}
+ const gz=zoneOf('gear');if(gz){const s=shiftKeyLayout((gz.r-gz.l)*u,(gz.b-gz.t)*u);for(const n of ['kw','kd','kh','bl','bw','fl','pt','ph'])ui.stick.style.setProperty('--'+n,s[n].toFixed(2)+'px');}
  // The settings panel drops from the HUD, right-aligned with it, and scrolls if the screen is very short.
  // Short landscape screens (<= 500 CSS px tall) get the two-column layout, up to 540 CSS px wide (stage 3).
  const hud=zoneOf('hud'),avail=hud.r-UI_MARGIN-view.safe.left,wide=view.cssW>view.cssH&&view.cssH<=500;
@@ -2588,7 +2766,7 @@ function layoutUI(){
  root.dataset.zones=JSON.stringify(uiZones);root.dataset.safe=JSON.stringify(view.safe);
 }
 function sizeSpeed(){
- const z=zoneOf('speed');if(!z||!view)return;const f=speedFit((z.r-z.l)*view.u,(z.b-z.t)*view.u,!!world.manual);
+ const z=zoneOf('speed');if(!z||!view)return;const f=speedFit((z.r-z.l)*view.u,(z.b-z.t)*view.u,true);
  root.style.setProperty('--sp',f.size+'px');ui.speed.classList.toggle('stack',f.stack);
 }
 let groundKey='';
@@ -2597,12 +2775,12 @@ function applyView(){
  viewPending=0;
  const rect=root.getBoundingClientRect(),cssW=rect.width||window.innerWidth,cssH=rect.height||window.innerHeight,dpr=window.devicePixelRatio||1;
  if(!(cssW>0&&cssH>0))return;
- const next=computeView(cssW,cssH,dpr,TUNING.viewShort),u=next.scale/dpr,safe=readSafe(u),first=!view,arenaChanged=first||next.W!==view.W||next.H!==view.H||!ground;
+ const next=computeView(cssW,cssH,dpr,viewFor()),u=next.scale/dpr,safe=readSafe(u),first=!view,arenaChanged=first||next.W!==view.W||next.H!==view.H||!ground;
  view={...next,dpr,cssW,cssH,u,safe,mobile:isTouch()||cssW<700};uiZones=controlZones(view,safe);
  const A=makeArena(next.W,next.H);A.safe=safe;A.uiU=u;A.uiW=cssW;A.uiH=cssH;A.mobile=isTouch()||cssW<700; // course keep-outs follow the real controls and notch insets
  if(arenaChanged){
   canvas.width=next.W;canvas.height=next.H;ctx.imageSmoothingEnabled=false;
-  if(first){world=createWorld(world.id,A);world.manual=world.id==='coupe';} // first layout: place the course for the real screen
+  if(first){world=fitTransmission(createWorld(world.id,A));} // first layout: place the course for the real screen
   else if(world.arena.W!==A.W||world.arena.H!==A.H)resizeWorld(world,A); // keeps speed, heading and state; sets trackBreak
   resetTrackLayer(world.arena); // arena size changed: tracks are cleared (contract §1)
  }
@@ -2612,7 +2790,9 @@ function applyView(){
  if(arenaChanged||gk!==groundKey){buildGround(world.arena);groundKey=gk;}
  // Scale-only changes (zoom, moving between screens) keep W×H and therefore keep the tracks.
  canvas.style.width=(next.W*next.scale/dpr)+'px';canvas.style.height=(next.H*next.scale/dpr)+'px';
- watchPixelRatio(dpr);layoutUI();if(mode==='menu')syncTracks();
+ watchPixelRatio(dpr);layoutUI();
+ // Round 5: a new paint grid (device scale, zoom) needs a new hole in the ground as well.
+ const pg=paintGeom();if((pg?pg.key:'')!==paintKey)buildGround(world.arena);if(mode==='menu')syncTracks();
  draw();updateUI();renderControls();syncRecover();
 }
 let viewPending=0;
