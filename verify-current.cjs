@@ -326,6 +326,25 @@ test('temple: a flying Drone shadow falls on the open water, but not on water th
  assert(/ctx\.drawImage\(t\[o\.part\],o\.x-t\.ax,o\.y-t\.ay\);if\(o\.part==='pond'\)drawWaterShadow\(/.test(script),'after the pond');assert(/function drawWaterShadow\(car\)\{[^]*?world\.p\.flying/.test(script),'flying only');
  assert(/globalCompositeOperation='source-in';g\.drawImage\(t\.waterShade/.test(script),'shadow footprint filled with the shaded water');
 });
+test('temple: large surfaces use no fine checker dither, so the pond and its shadows stay clean when the view is scaled',()=>{
+ // A checker pixel differs from all four neighbours; a 1-px dither is made of them. Uneven scaling (phones, shrunk
+ // screenshots) turns broad fields of them into moire blotches, so the pond, the shrine and the Drone's water shade avoid them.
+ const w=templeWorld(),art=e.templeArt(w.layout.temple);
+ for(const k of ['pond','pavilion','stairs','waterShade']){const img=art[k],W=img.width,H=img.height,op=(x,y)=>img.data[(y*W+x)*4+3],ink=(x,y)=>img.data[(y*W+x)*4]<100;let n=0,c=0;
+  for(let y=1;y<H-1;y++)for(let x=1;x<W-1;x++){if(!op(x,y))continue;n++;const v=ink(x,y);if([[1,0],[-1,0],[0,1],[0,-1]].every(([dx,dy])=>op(x+dx,y+dy)&&ink(x+dx,y+dy)!==v))c++;}
+  assert(n>0&&c/n<.03,k+': '+(100*c/n).toFixed(1)+'% checker pixels');}
+});
+test('temple: a brick path in running bond runs from the stairs gate west to the arena edge',()=>{
+ const A=templeArena(),L=e.buildCourse({...A,E:e.edgeClear(A)},[],'temple'),T=L.temple,G=e.TEMPLE_GEO,o=e.templeOuter(T),inkAt=new Set();let fill='';
+ const gc={set fillStyle(v){fill=v;},get fillStyle(){return fill;},fillRect(x,y){if(/30342d/i.test(fill))inkAt.add(x+','+y);}};e.templeGround(gc,L);
+ const yk=Math.round((T.y-G.walk.v*T.s)*e.K),yb=Math.round((T.y+G.walk.v*T.s)*e.K);
+ for(const x of [0,1,Math.round((T.x-o.u)/2),Math.round(T.x-o.u)-2])assert(inkAt.has(x+','+yk)&&inkAt.has(x+','+yb),'kerbs at x '+x);
+ // Brick courses run along the path, and the vertical joints are staggered by half a brick between neighbouring courses.
+ const rows=Math.round(2*G.walk.v/e.TEMPLE_BRICK.course),ry=k=>Math.round((T.y+(-G.walk.v+k*2*G.walk.v/rows)*T.s)*e.K),mid=k=>Math.round((ry(k)+ry(k+1))/2);
+ for(let k=1;k<rows;k++)assert(inkAt.has('5,'+ry(k)),'course line '+k);
+ const joints=k=>{const out=[];for(let x=0;x<T.x-o.u;x++)if(inkAt.has(x+','+mid(k)))out.push(x);return out;},a=joints(0),b=joints(1);
+ assert(a.length>10&&b.length>10,'joints in each course');assert(a.every(x=>!b.includes(x)),'running bond: no joint lines up with the next course');
+});
 test('temple: the settings thumbnail and the ground paint show the pond, stairs, shrine and walk',()=>{
  const A=templeArena(),sz=e.trackThumbSize(A.W,A.H),L=e.buildCourse({...A,E:e.edgeClear(A)},[],'temple'),m=e.templeThumb(L,sz.w,sz.h),n=m.bits.reduce((a,b)=>a+b,0);
  assert(n>200&&n<m.w*m.h,'drawn '+n);for(let y=0;y<m.h;y++)for(let x=0;x<m.w;x++)if(m.bits[y*m.w+x])assert(x>=1&&y>=1&&x<m.w-1&&y<m.h-1,'padded');

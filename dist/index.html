@@ -1205,17 +1205,20 @@ function carPit(w,g){const c=w.car,q=pitOverlap(w.p,c,g);if(!q)return false;c.x+
 function conePit(o,g){const c=Math.cos(g.angle),s=Math.sin(g.angle),dx=o.x-g.x,dy=o.y-g.y,u=dx*c+dy*s,v=-dx*s+dy*c,r=bodyR(o),x=clamp(u,0,g.w),y=clamp(v,0,g.d);let nx=u-x,ny=v-y,d=Math.hypot(nx,ny),push;
  if(d>=r)return;if(d<1e-8){const faces=[[u,-1,0],[g.w-u,1,0],[v,0,-1],[g.d-v,0,1]].sort((a,b)=>a[0]-b[0]);nx=faces[0][1];ny=faces[0][2];push=r+faces[0][0];}else{nx/=d;ny/=d;push=r-d;}
  const X=nx*c-ny*s,Y=nx*s+ny*c;o.x+=X*(push+.01);o.y+=Y*(push+.01);const speed=o.vx*X+o.vy*Y;if(speed<0){o.vx-=(1+CONE_POST_E)*speed*X;o.vy-=(1+CONE_POST_E)*speed*Y;}}
-// The temple's ground paint (screen px, ink on paper): a swept stone apron round the pond with a dotted kerb, and a paved
-// walk west from the stairs' gate, with staggered joints and dotted gutters either side.
+// The temple's ground paint (screen px, ink on paper): a swept stone apron round the pond with a dotted kerb, and a long
+// brick path laid in running bond (courses along it, staggered joints) from the stairs' gate west to the arena's edge, with
+// solid kerbs and dotted gutters either side. Solid lines only, so it stays crisp at any scale.
+const TEMPLE_BRICK={course:6,len:14};
 function templeGround(gc,layout){
  const T=layout&&layout.temple;if(!T)return;const G=TEMPLE_GEO,s=T.s,o=templeOuter(T),X=u=>Math.round(T.x+u*s),Y=v=>Math.round((T.y+v*s)*K),dot=(x,y)=>gc.fillRect(x,y,1,1);
  const clear=(l,t,r,b)=>{gc.fillStyle=paper;gc.fillRect(l,t,r-l+1,b-t+1);gc.fillStyle=ink;};
  const Ua=o.u/s+G.apron,Va=o.v/s+G.apron,l=X(-Ua),r=X(Ua),t=Y(-Va),b=Y(Va);
  clear(l,t,r,b);for(let x=l;x<=r;x+=2){dot(x,t);dot(x,b);}for(let y=t;y<=b;y+=2){dot(l,y);dot(r,y);}
- const W0=G.walk,gut=W0.v+6,ue=-o.u/s,us=ue-W0.len,wt=Y(-W0.v),wb=Y(W0.v),x0=X(us),x1=X(ue);clear(x0,Y(-gut)-1,l+1,Y(gut)+1);
- for(let x=x0;x<=x1;x++){dot(x,wt);dot(x,wb);if(x%2===0){dot(x,Y(-gut));dot(x,Y(gut));}}for(let y=wt;y<=wb;y++)dot(x0,y);
- for(let k=0,u=us;u<ue-1e-6;k++,u+=12){const xa=X(u),xb=Math.min(x1,X(u+12));if(k)for(let y=wt+1;y<wb;y+=2)dot(xa,y);
-  for(const v of k%2?[-W0.v/2,W0.v/2]:[0])for(let x=xa;x<xb;x++)dot(x,Y(v));}
+ const W0=G.walk,B=TEMPLE_BRICK,gut=W0.v+6,ue=-o.u/s,us=-T.x/s,wt=Y(-W0.v),wb=Y(W0.v),x0=Math.max(0,X(us)),x1=X(ue);clear(x0,Y(-gut)-1,l+1,Y(gut)+1);
+ for(let x=x0;x<=x1;x++){dot(x,wt);dot(x,wb);if(x%2===0){dot(x,Y(-gut));dot(x,Y(gut));}}
+ const rows=Math.max(1,Math.round(2*W0.v/B.course)),rv=k=>-W0.v+k*2*W0.v/rows;
+ for(let k=1;k<rows;k++){const y=Y(rv(k));for(let x=x0;x<=x1;x++)dot(x,y);}
+ for(let k=0;k<rows;k++){const ya=Y(rv(k)),yb=Y(rv(k+1));for(let u=ue-(k%2?B.len/2:B.len);u>us;u-=B.len){const x=X(u);if(x<x0)break;for(let y=ya+1;y<yb;y++)dot(x,y);}}
 }
 function drawGround(gc,A,layout){
  const W=A.W,H=A.H,dot=(x,y)=>gc.fillRect(x,y,1,1);
@@ -2577,9 +2580,11 @@ function pitDrawables(w){const g=pitStopGeometry(w.arena,w.layout);if(!g)return 
 // The temple's layers, raw rasters sharing one anchor (ax, ay) at the pond centre's ground point, each sorted at its own front
 // ground line: pond (coping, water, the shadows on the water, back and side fences; at the back fence), stairs (at their
 // south wall), pavilion (pillar, struts, shrine and roofs; at the veranda's front), front (the front fence) and shadow (the
-// fence's shadow on the ground). Two inks only: stone is paper with dotted joints, the water the middle dither with
-// paper glints (a darker dither in shadow), lacquered wood the dark dither with paper lattice, roof tiles the middle dither
-// with ink channels, gilt and plaster paper with ink outlines; faces toward the light (up-left) a step lighter.
+// fence's shadow on the ground). Two inks only. Large surfaces use solid ink or paper with sparse lines, never a fine
+// dither: a 1-px checker over a big area breaks into moire blotches whenever the view is scaled by an uneven factor (phones,
+// shrunk screenshots). The water is paper with ink ripple dashes, and water in shadow the inverse (ink with paper dashes);
+// lacquered wood and shaded roof slopes are ink with paper lines, lit slopes and stone paper with ink lines; fine dithers are
+// kept to small trims.
 const TEMPLE_LAYERS=['pond','stairs','pavilion','front','shadow'];
 function templeArt(T){
  const G=TEMPLE_GEO,s=T.s,size=Math.ceil(520*s)+40,ax=Math.ceil(240*s)+20,ay=Math.ceil(200*s)+20,L={};
@@ -2612,14 +2617,15 @@ function templeArt(T){
 
  // Pond: the stone coping, the back wall's inner face, the water with glints, the shadows cast on the water, the front coping.
  flat(pond,-U-Rm,U+Rm,-V-Rm,V+Rm,Pd.coping,1);
- for(let u=-U+20;u<U;u+=40){line(pond,[u,-V-Rm,Pd.coping],[u,-V,Pd.coping],.5);}
- face(pond,-U,U,-V,Pd.water,Pd.coping,.75);
+ for(let u=-U+20;u<U;u+=40){line(pond,[u,-V-Rm,Pd.coping],[u,-V,Pd.coping],0);}
+ face(pond,-U,U,-V,Pd.water,Pd.coping,1);
  const w0=P(-U,-V,Pd.water),w1=P(U,V,Pd.water),wl=Math.ceil(w0[0]),wr=Math.floor(w1[0]),wt=Math.ceil(w0[1]),wb=Math.floor(w1[1]);
- flat(pond,-U,U,-V,V,Pd.water,.5,false);
- for(let y=wt+2;y<wb;y+=5)for(let x=wl+1;x<wr;x++)if((x*7+Math.floor(y/5)*29)%31<3)pond.pixel(x,y,1);
+ // Ripple dashes 3 px long every 4th row, staggered: the same pattern in lit water (ink on paper) and in shade (paper on ink).
+ const ripple=(x,y)=>(y-wt)%4===2&&(x+5*Math.floor((y-wt)/4))%12<3,water=(x,y,shade)=>pond.pixel(x,y,ripple(x,y)===!shade?0:1);
+ for(let y=wt;y<=wb;y++)for(let x=wl;x<=wr;x++)water(x,y,false);
  // Shadows on the water (light from the up-left): onto the water plane, in a darker dither than the water itself.
  const W=(u,v,z)=>{const p=P(u,v,Pd.water);return [p[0]+LIGHT.x*(z-Pd.water)*s,p[1]+LIGHT.y*(z-Pd.water)*s];};
- const shaded=new Uint8Array(size*size),onWater=(x,y)=>{if(x>=wl&&x<=wr&&y>=wt&&y<=wb){pond.pixel(x,y,.25);shaded[y*size+x]=1;}};
+ const shaded=new Uint8Array(size*size),onWater=(x,y)=>{if(x>=wl&&x<=wr&&y>=wt&&y<=wb){water(x,y,true);shaded[y*size+x]=1;}};
  const cast=pts=>pond.poly(hull(pts.map(q=>W(...q))),0,false,onWater);
  const R=G.roof,Gb=G.gable,fl=G.floor,st=G.stairs,pl=G.pillar;
  cast(box3(-pl.r,pl.r,-pl.r,pl.r,Pd.water,pl.z));cast(box3(-fl.u,fl.u,-fl.u,fl.u,pl.z,R.z));
@@ -2627,8 +2633,8 @@ function templeArt(T){
  cast([[-U,-st.wall,Pd.water],[-U,st.wall,Pd.water],[-U,-st.wall,8],[-U,st.wall,8],[st.u1,-st.wall,Pd.water],[st.u1,st.wall,Pd.water],[st.u1,-st.wall,fl.z+8],[st.u1,st.wall,fl.z+8]]);
  for(const [u0,u1,v0,v1] of [[-uf,uf,-vf-1,-vf+1],[-uf-1,-uf+1,-vf,vf]])cast(box3(u0,u1,v0,v1,Pd.coping,F.post));
  for(const u of [-U-Rm,U])flat(pond,u,u+Rm,-V-Rm,V+Rm,Pd.coping,1);
- flat(pond,-U-Rm,U+Rm,V,V+Rm,Pd.coping,1);face(pond,-U-Rm,U+Rm,V+Rm,0,Pd.coping,.75);
- for(let u=-U+20;u<U;u+=40)line(pond,[u,V,Pd.coping],[u,V+Rm,Pd.coping],.5);
+ flat(pond,-U-Rm,U+Rm,V,V+Rm,Pd.coping,1);face(pond,-U-Rm,U+Rm,V+Rm,0,Pd.coping,1);
+ for(let u=-U+20;u<U;u+=40)line(pond,[u,V,Pd.coping],[u,V+Rm,Pd.coping],0);
  // Back and side fences.
  fence(pond,-uf,uf,-vf,{l:1,r:1});sideFence(pond,-uf,-vf,-F.gap);sideFence(pond,-uf,F.gap,vf);sideFence(pond,uf,-vf,vf);
 
@@ -2640,19 +2646,19 @@ function templeArt(T){
  for(const [du,dv] of [[-1,-1],[1,-1],[0,-1]])strut(pv,[du*pl.r*.7,dv*pl.r*.7,pl.z*.2],[du*reach,dv*reach,pl.z]);
  for(let k=0;k<3;k++){const a=k*TAU/3+.3;line(pv,[Math.cos(a)*pl.r*1.6,Math.sin(a)*pl.r*1.6,Pd.water],[Math.cos(a+1.4)*pl.r*1.6,Math.sin(a+1.4)*pl.r*1.6,Pd.water],1);}
  const col=(u0,u1,shade)=>poly(pv,[[u0,0,Pd.water],[u1,0,Pd.water],[u1,0,pl.z],[u0,0,pl.z]],shade,false);
- col(-pl.r,pl.r,.75);col(-pl.r,-pl.r*.35,1);col(pl.r*.4,pl.r,.5);
- for(const u of [-pl.r,pl.r])line(pv,[u,0,Pd.water],[u,0,pl.z]);for(const z of [Pd.water+1,pl.z-4])line(pv,[-pl.r,0,z],[pl.r,0,z],.5);
+ col(-pl.r,pl.r,1);col(pl.r*.45,pl.r,0);
+ for(const u of [-pl.r,pl.r])line(pv,[u,0,Pd.water],[u,0,pl.z]);for(const z of [Pd.water+1,pl.z-4])line(pv,[-pl.r,0,z],[pl.r,0,z],0);
  for(const [du,dv] of [[-1,0],[1,0],[-1,1],[1,1],[0,1]])strut(pv,[du*pl.r*.7,dv*pl.r*.7,pl.z*.2],[du*reach,dv*reach,pl.z]);
 
  // The shrine: floor, back columns, the lattice room, front columns, and the veranda railing (open where the stairs arrive).
- flat(pv,-fl.u,fl.u,-fl.u,fl.u,fl.z,.75);face(pv,-fl.u,fl.u,fl.u,pl.z,fl.z,.25);
- const C=G.column,post=(u,v,z0,z1)=>{face(pv,u-C.r,u+C.r,v+C.r,z0,z1,.25,false);face(pv,u-C.r,u-C.r*.2,v+C.r,z0,z1,.5,false);line(pv,[u-C.r,v+C.r,z0],[u-C.r,v+C.r,z1]);line(pv,[u+C.r,v+C.r,z0],[u+C.r,v+C.r,z1]);};
+ flat(pv,-fl.u,fl.u,-fl.u,fl.u,fl.z,1);face(pv,-fl.u,fl.u,fl.u,pl.z,fl.z,0);
+ const C=G.column,post=(u,v,z0,z1)=>{face(pv,u-C.r,u+C.r,v+C.r,z0,z1,0,false);face(pv,u-C.r,u-C.r*.2,v+C.r,z0,z1,1,false);line(pv,[u-C.r,v+C.r,z0],[u-C.r,v+C.r,z1]);line(pv,[u+C.r,v+C.r,z0],[u+C.r,v+C.r,z1]);};
  for(const u of [-C.u,C.u])post(u,-C.u,fl.z,R.z);
- const rm=G.room;face(pv,-rm.u,rm.u,rm.u,fl.z,rm.z,.25);
+ const rm=G.room;face(pv,-rm.u,rm.u,rm.u,fl.z,rm.z,0);
  for(let u=-rm.u+5;u<rm.u-2;u+=6)line(pv,[u,rm.u+.2,fl.z+3],[u,rm.u+.2,rm.z-8],1);line(pv,[-rm.u+2,rm.u+.2,rm.z-5],[rm.u-2,rm.u+.2,rm.z-5],1);
  for(const u of [-C.u,C.u])post(u,C.u,fl.z,R.z);
- const fz=fl.z,rail=(u0,u1)=>{face(pv,u0,u1,fl.u,fz+7,fz+9,.25);line(pv,[u0,fl.u+.1,fz+4],[u1,fl.u+.1,fz+4]);for(let u=u0;u<=u1+1e-6;u+=(u1-u0)/Math.max(1,Math.round((u1-u0)/6)))face(pv,u-.8,u+.8,fl.u+.1,fz,fz+7,0,false);};
- rail(-fl.u,fl.u);for(const u of [-fl.u,fl.u])flat(pv,u-1,u+1,-fl.u,fl.u,fz+9,.25);
+ const fz=fl.z,rail=(u0,u1)=>{face(pv,u0,u1,fl.u,fz+7,fz+9,1);line(pv,[u0,fl.u+.1,fz+4],[u1,fl.u+.1,fz+4]);for(let u=u0;u<=u1+1e-6;u+=(u1-u0)/Math.max(1,Math.round((u1-u0)/6)))face(pv,u-.8,u+.8,fl.u+.1,fz,fz+7,0,false);};
+ rail(-fl.u,fl.u);for(const u of [-fl.u,fl.u])flat(pv,u-1,u+1,-fl.u,fl.u,fz+9,1);
 
  // Lower roof: a hip roof whose slopes curve up from the curled eaves (z grows as t^1.5) to the base of the gable roof.
  // Each slope is a grid of quads from its eave edge e(a) to its top edge r(a), a in -1..1.
@@ -2664,19 +2670,19 @@ function templeArt(T){
  const M=16,N=8,slope=(f,shade,channels)=>{
   for(let i=0;i<M;i++)for(let j=0;j<N;j++){const a0=-1+2*i/M,a1=-1+2*(i+1)/M,t0=j/N,t1=(j+1)/N;poly(pv,[at(f,a0,t0),at(f,a1,t0),at(f,a1,t1),at(f,a0,t1)],shade,false);}
   if(channels!==null)for(let i=1;i<M;i++){const a=-1+2*i/M;for(let j=0;j<N;j++)line(pv,at(f,a,j/N),at(f,a,(j+1)/N),channels);}
-  for(const t of [.35,.7])for(let i=0;i<M;i++)line(pv,at(f,-1+2*i/M,t),at(f,-1+2*(i+1)/M,t),shade<.5?.5:1);
+  for(const t of [.35,.7])for(let i=0;i<M;i++)line(pv,at(f,-1+2*i/M,t),at(f,-1+2*(i+1)/M,t),shade<.5?1:0);
   for(let i=0;i<M;i++)line(pv,at(f,-1+2*i/M,0),at(f,-1+2*(i+1)/M,0));};
  const rib=(f,a)=>{for(let j=0;j<N;j++){const p=P(...at(f,a,j/N)),q=P(...at(f,a,(j+1)/N));pv.line(p,q,1);pv.line([p[0]-Math.sign(a),p[1]],[q[0]-Math.sign(a),q[1]],0);}};
- slope(slopes.back,.25,null);
+ slope(slopes.back,0,null);
  for(const k of [-1,1])horn(pv,[k*R.u,-R.v,curl(1)],k,-.7,1.7);
- slope(slopes.west,.75,.5);slope(slopes.east,.25,.5);
+ slope(slopes.west,1,0);slope(slopes.east,0,1);
 
  // Gable roof on top: its two slopes, the plastered front gable with a dark medallion, and paper bargeboards.
  const g0=R.tz-2,gw=Gb.u,gs=(k,shade,channels)=>{const n=8;for(let i=0;i<n;i++){const v0=-Gb.v+2*Gb.v*i/n,v1=-Gb.v+2*Gb.v*(i+1)/n;
    poly(pv,[[k*gw,v0,g0],[k*gw,v1,g0],[0,v1,Gb.z],[0,v0,Gb.z]],shade,false);if(channels!==null)line(pv,[k*gw,v1,g0],[0,v1,Gb.z],channels);}
   line(pv,[k*gw,-Gb.v,g0],[k*gw,Gb.v,g0]);};
- gs(-1,.75,.5);gs(1,.25,.5);
- slope(slopes.front,.5,0);
+ gs(-1,1,0);gs(1,0,1);
+ slope(slopes.front,1,0);
  for(const a of [-1,1])rib(slopes.front,a);
  for(let i=0;i<M;i++){const a0=-1+2*i/M,a1=-1+2*(i+1)/M,p=at(slopes.front,a0,0),q=at(slopes.front,a1,0);poly(pv,[p,q,[q[0],q[1],q[2]-3],[p[0],p[1],p[2]-3]],Math.abs(a0+a1)>1.7?1:0);}
  for(const k of [-1,1])horn(pv,[k*R.u,R.v,curl(1)],k,.7,1.95);
@@ -2694,21 +2700,21 @@ function templeArt(T){
  const u0=-U-Rm,u1=st.u1,zt=fl.z,run=u1-u0,d=run/st.n,rise=zt/st.n,parapet=(v0,v1)=>poly(sr,[[u0,v0,8],[u1,v0,zt+8],[u1,v1,zt+8],[u0,v1,8]],1);
  const ends=v=>{for(const [u,z] of [[u0+3.5,0],[u1-3.5,zt]]){face(sr,u-3,u+3,v+3,z,z+14,1);ball(sr,u,v+3.1,z+14,3);}};
  parapet(-st.wall,-st.v);ends(-(st.wall+st.v)/2);
- for(let k=0;k<st.n;k++){const a=u0+k*d,z=(k+1)*rise;flat(sr,a,a+d,-st.v,st.v,z,k%2?.75:1,false);}
+ for(let k=0;k<st.n;k++){const a=u0+k*d,z=(k+1)*rise;flat(sr,a,a+d,-st.v,st.v,z,1,false);line(sr,[a,-st.v,z],[a,st.v,z]);}
  line(sr,[u0,-st.v,rise],[u1,-st.v,zt]);
  parapet(st.v,st.wall);
- poly(sr,[[u0,st.wall,0],[-U,st.wall,0],[-U,st.wall,Pd.water],[u1,st.wall,Pd.water],[u1,st.wall,zt+8],[u0,st.wall,8]],.75);
- for(let k=1;k<5;k++){const f=k/5,a=u0+run*f;line(sr,[a,st.wall+.1,Pd.water+1],[a,st.wall+.1,8+zt*f-1],.5);}
+ poly(sr,[[u0,st.wall,0],[-U,st.wall,0],[-U,st.wall,Pd.water],[u1,st.wall,Pd.water],[u1,st.wall,zt+8],[u0,st.wall,8]],1);
+ for(let k=1;k<5;k++){const f=k/5,a=u0+run*f;line(sr,[a,st.wall+.1,Pd.water+1],[a,st.wall+.1,8+zt*f-1],0);}
  ends((st.wall+st.v)/2);
 
  // Front fence, and the ball-topped posts either side of the stairs' gate in the west fence.
  fence(front,-uf,uf,vf,{l:1,r:1});
  for(const v of [-F.gap,F.gap]){face(pond,-uf-3.5,-uf+3.5,v+3.5,0,F.post+2,1);ball(pond,-uf,v+3.6,F.post+2,3.2);}
 
- // waterShade: the open water (not under the coping, not already in the temple's shadow) in the shade dither. draw() shows
+ // waterShade: the open water (not under the coping, not already in the temple's shadow) in its shaded look. draw() shows
  // it through a flying Drone's shadow, so the shadow falls on the pond but adds nothing where the temple already shades it.
  const ws=raster(size,ax,ay),wsb=Math.min(wb,Math.floor(P(0,V,Pd.coping)[1])-1);
- for(let y=wt;y<=wsb;y++)for(let x=wl;x<=wr;x++)if(!shaded[y*size+x])ws.pixel(x,y,.25);
+ for(let y=wt;y<=wsb;y++)for(let x=wl;x<=wr;x++)if(!shaded[y*size+x])ws.pixel(x,y,ripple(x,y)?1:0);
  const out={ax,ay,waterShade:ws.finish(true)};for(const k of TEMPLE_LAYERS)out[k]=L[k].finish(true);return out;
 }
 function templeDrawables(w){const T=w.layout&&w.layout.temple;if(!T)return [];const G=TEMPLE_GEO,P=G.pond,x=Math.round(T.x),y=Math.round(T.y*K),at=v=>Math.round((T.y+v*T.s)*K);
@@ -2826,7 +2832,7 @@ if(typeof document==='undefined'){if(typeof module!=='undefined'){
  module.exports={BURN_SPEED,GEARS,AUTO_GEARS,MANUAL_GEARS,PADDLE_GEARS,PADDLE_SEQ,isPaddle,REV_SHIFT,SHIFT_AT,isManual,shiftOk,gearStep,gearName,shiftGear,gearTelemetry,WIDTH,HEIGHT,K,Z,WORLD_H,STEP,SIM_SPEED,TAU,PRESETS,CAR_ART,FRAMES,SHADOW_INK,LIGHT,DEFAULT_ARENA,edgeClear,CROSS_GAP,carBoxAll,SPAWN_INSIDE,CONE_COUNT,CONE_R,CONTROL_ZONES,keepOuts,layoutCourse,drawGround,resetCones,TRANSFER_MARGIN,CONE_BOX,transferBody,transferEdges,sceneItems,carDrawable,mobileCarArtScale,scaleArtBox,portraitCarArt,carArtBox,gateDrawables,drawOrder,SKID,createTrackRecorder,breakTracks,recordTracks,coneSprite,coneShadowSprite,CONE_H,archShape,inArch,gateArt,GATE_SPLIT,GATE_FRONT,plotLine,frameIndex,carModel,carShadowPolys,frameBounds,spriteBox,raster,carSprite,carShadow,buildCarAtlases,makeArena,normalizeInput,keysToInput,carScreenBounds,resizeWorld,wrap,delta,angleDelta,createWorld,drive,step,carCone,coneCone,position,wheelPoints,SPEED_CAP,OMEGA_MAX,CONE_MAX,FASTEST,SUB_MOVE,gatePosts,carPost,conePost,substeps,limitVelocity,ROLL_STEPS,ROLL_G,LOAD_W,LOAD_ZETA,IMPACT_GAIN,TIP_COMMIT,TIP_DROP,TIP_MIN,TIP_SOFT,ROLL_SPIN,ROLL_DECEL,ROLL_SETTLE,ROLL_FRICTION,REST_SPEED,RECOVER_TIME,RECOVER_GAP,CAR_STATES,uprightState,rollKappa,tipAngle,tumble,rollover,rollFrame,rolledModel,rollShadowPolys,rollSpritePoints,rollFrameBounds,rollSpriteBox,carRollSprite,carRollShadow,carHidden,canRecover,recover,recoverSpot,boxDistance};
  Object.assign(module.exports,{raceRoute,raceProject,raceCross,raceNew,raceMove,raceTime,raceRank,raceBetter,raceFingerprint,raceRecords,raceSave,RACE_VERSION});
  Object.assign(module.exports,{setTrack,TUNING,TUNING_SPEC,TUNING_DEFAULTS,setTuning,resetTuning}); // shared tuning interface
- Object.assign(module.exports,{canvasRendering,LIGHT,TEMPLE_GEO,TEMPLE_LAYERS,TEMPLE_SCALE,TEMPLE_TITLE,templeOuter,templeThumb,templeTitleRect,buildTemple,templeRect,templeClearance,templeTopY,templeParts,templeBlocks,templeArt,templeDrawables,templeHides,templeGround,visibleBounds,cameraGeometry,mobileCameraGeometry,titleRotation,renderMetrics,titleRasterSpec,groundDots,pitStopGeometry,pitPoint,gasPumpPoint,pitPosts,pitOverlap,carPit,conePit,drawPitBay,pitArt,pitDrawables,VIEW_SHORT,computeView,createControls,UI_MARGIN,UI_GAP,uiMetrics,controlZones,WHEEL_DEAD,turnDelta,pointerAngle,wheelDrag,wheelValue,wheelKickback,createModes,recoverAvailable,tryRecover,isRecoverKey,recoverFromKey}); // ui (r2-ui)
+ Object.assign(module.exports,{canvasRendering,TEMPLE_BRICK,LIGHT,TEMPLE_GEO,TEMPLE_LAYERS,TEMPLE_SCALE,TEMPLE_TITLE,templeOuter,templeThumb,templeTitleRect,buildTemple,templeRect,templeClearance,templeTopY,templeParts,templeBlocks,templeArt,templeDrawables,templeHides,templeGround,visibleBounds,cameraGeometry,mobileCameraGeometry,titleRotation,renderMetrics,titleRasterSpec,groundDots,pitStopGeometry,pitPoint,gasPumpPoint,pitPosts,pitOverlap,carPit,conePit,drawPitBay,pitArt,pitDrawables,VIEW_SHORT,computeView,createControls,UI_MARGIN,UI_GAP,uiMetrics,controlZones,WHEEL_DEAD,turnDelta,pointerAngle,wheelDrag,wheelValue,wheelKickback,createModes,recoverAvailable,tryRecover,isRecoverKey,recoverFromKey}); // ui (r2-ui)
  Object.assign(module.exports,{PAINT_SLANT,PAINT_STRIPE,PAINT_SOLID_BELOW,PAINT_KEY_SOLID_BELOW,PAINT_COPY,GLYPHS,glyphMask,shearMask,maskRuns,keycapRuns,wrapPhrases,paintLayout,paintRuns,drawPaint}); // ground paint (r2-paint)
  Object.assign(module.exports,{buildCourse,fitTrack,roundedPath,circuitVerts,laneHalf,laneSelfClear,gateSpot,trackMarks,LANE_PAD,LANE_GAP,GATE_LEAD,TRACK_STEP,CONE_OFF,inGate,TRACKS,TRACK_SHAPES,TRACK_HALF,TRACK_FILL,shapeUnit,trackSelfClear,insideLoop,titleSpot,trackRadiusOk,TRACK_MIN_R}); // sim + course extra exports (r2-sim)
  Object.assign(module.exports,{wheelLimit,wheelInput,wheelAngle,GEAR_GATE,STICK_VB,gearSlot,stickMove,mobileStickMove,stickSlot,simpleAutoInput,stickPath,AUTO_GATE,autoSlot,autoMove,autoSlotAt,autoPath,stickGate,pathPoint,shiftBarW,TUNING_STORE,loadTuning,saveTuning,tuningGroups,uiPx,SPEED_EM,speedFit,shiftKeyW,shiftKeyGap,shiftKeyLayout,gearCues,trackThumbSize,trackThumb}); // ui extra exports (r2-ui, r3-ui)

@@ -77,7 +77,7 @@ Ranked time is `elapsedSeconds + 0.02 × (100 − quality)²`; lower wins. Perso
 
 ## The Temple map
 
-**Temple** is a free-drive map, like the parking lot: no road, race gate, cones or pit garage, and no lap timer. It has only the One Pillar Pagoda (Chùa Một Cột), shown with its own painted title, **8-BIT TEMPLE**. The shrine is shaped like a lotus rising from a square pond. It stands on a single stone pillar, which carries the floor on curved wooden struts. It has a lattice room, a veranda railing, a curved tiled roof with upturned corners, and a small gable on top crowned by a gilt pearl between two dragons. A stone-coped pond with a balustrade fence surrounds it. A short flight of ten broad stairs climbs from a gate in the west fence to the veranda, and a paved walk leads to that gate.
+**Temple** is a free-drive map, like the parking lot: no road, race gate, cones or pit garage, and no lap timer. It has only the One Pillar Pagoda (Chùa Một Cột), shown with its own painted title, **8-BIT TEMPLE**. The shrine is shaped like a lotus rising from a square pond. It stands on a single stone pillar, which carries the floor on curved wooden struts. It has a lattice room, a veranda railing, a curved tiled roof with upturned corners, and a small gable on top crowned by a gilt pearl between two dragons. A stone-coped pond with a balustrade fence surrounds it. A short flight of ten broad stairs climbs from a gate in the west fence to the veranda, and a long brick path, laid in running bond, leads to that gate from the west edge of the map.
 
 ![The Temple map, rendered from the game's drawing code](docs/images/temple-map.png)
 
@@ -85,7 +85,7 @@ Ranked time is `elapsedSeconds + 0.02 × (100 − quality)²`; lower wins. Perso
 
 - Every vehicle, the Drone included, starts on the painted **8-BIT TEMPLE** title, facing west along it.
 - The pond and its fence are solid for cars, from every side. The Drone can climb over the fence and fly over the water. It can't fly through the stairs or the shrine, which is taller than it can fly.
-- Light falls from the upper left, as everywhere in the game. The shrine, pillar, stairs and fence cast darker shadows on the water. A flying Drone's shadow falls on the open water too, but adds nothing where the water is already in the temple's shadow (`drawWaterShadow`, `waterShade`). Cars behind the pond or the shrine are hidden by them.
+- Light falls from the upper left, as everywhere in the game. The water is paper with ink ripple dashes; in shadow it turns to ink with paper ripples. The shrine, pillar, stairs and fence cast these shadows on the water. A flying Drone's shadow falls on the open water too, but adds nothing where the water is already in the temple's shadow (`drawWaterShadow`, `waterShade`). Cars behind the pond or the shrine are hidden by them.
 - The stairs come in from the side, because this camera looks down steeply: stairs from the front would hide the pillar. For the same reason, the roof overhangs less at the front than at the sides.
 - Sizes are in `TEMPLE_GEO`, and the map is built by `buildTemple`. The temple is drawn at 1.45× on the fixed 1350 × 675 world, centred together with its title.
 - On a phone held upright, the whole map is drawn turned 90°. The title is turned back upright and moved east of the pond, above the controls, to fit; the buildings stay turned, like the pit garage on the road courses.
@@ -106,6 +106,7 @@ Read this before drawing anything new. Everything on screen is drawn in code, in
 
 - **Two inks only.** Ink `#30342d` (`INK = [48,52,45]`) and paper `#bfc1b1` (`PAPER = [191,193,177]`). Every sprite pixel is one or the other, fully opaque. Tests check this.
 - **Shades are ordered dithers** in `raster()`: `0` solid ink, `.25`, `.5` and `.75` (2×2 Bayer, more paper as the number rises), `1` solid paper.
+- **Keep fine dithers to small parts.** A large field of 1-pixel checker breaks into moiré blotches whenever the view is scaled unevenly (phones, shrunk screenshots). Large surfaces use solid ink or paper with sparse lines instead, like the temple's water, roof and walls; a test enforces this for the temple.
 - **Shadows** use their own denser 4×4 dither (`shadowPixel`, 55% ink, `SHADOW_INK`), never a shade value.
 - **Outlines**: one-pixel ink outlines on filled shapes (`poly(points, shade, true)`). Dotted lines (`line(a, b, .5)`) are used for stone joints and guide markings.
 - **Ground**: paper with a sparse grid of single ink dots (`groundDots`). Road edges are 1 px, the centre guide is 2 px dashes.
