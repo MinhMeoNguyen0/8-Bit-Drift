@@ -126,9 +126,9 @@ test('r3-ui: track thumbnails are 1-bit, padded, cover the whole lane line and d
  assert.deepEqual({...e.trackThumbSize(1500,750)},{w:64,h:32});assert.deepEqual({...e.trackThumbSize(390,844)},{w:30,h:64});assert.deepEqual({...e.trackThumbSize(4000,400)},{w:64,h:28});
  assert(new Set(e.TRACKS.map(t=>t.id)).size===e.TRACKS.length&&e.TRACKS.every(t=>typeof t.name==='string'&&t.name));
  for(const [cssW,cssH,dpr,mobile] of r3Screens){const v=e.computeView(cssW,cssH,dpr,750),W=v.W,H=v.H,A=e.makeArena(W,H),seen=new Set();Object.assign(A,{mobile,uiU:v.scale/dpr,uiW:cssW,uiH:cssH});
-  for(const {id} of e.TRACKS){const L=e.buildCourse({...A,E:e.edgeClear(A)},[],id),pts=L.track.pts.map(p=>[p[0],p[1]*e.K]),sz=e.trackThumbSize(W,H),m=L.lot?e.lotThumb(L,sz.w,sz.h):e.trackThumb(pts,sz.w,sz.h);
+  for(const {id} of e.TRACKS){const L=e.buildCourse({...A,E:e.edgeClear(A)},[],id),pts=L.track.pts.map(p=>[p[0],p[1]*e.K]),sz=e.trackThumbSize(W,H),m=L.lot?e.lotThumb(L,sz.w,sz.h):L.temple?e.templeThumb(L,sz.w,sz.h):e.trackThumb(pts,sz.w,sz.h);
    assert.equal(m.bits.length,m.w*m.h);let ink=0;for(let y=0;y<m.h;y++)for(let x=0;x<m.w;x++){const v=m.bits[y*m.w+x];assert(v===0||v===1);if(v){ink++;assert(x>=2&&y>=2&&x<m.w-2&&y<m.h-2,id+' padded');}}
-   assert(ink>40,id+' has a visible line');assert.deepEqual(m,L.lot?e.lotThumb(L,sz.w,sz.h):e.trackThumb(pts,sz.w,sz.h),'deterministic');
+   assert(ink>40,id+' has a visible line');assert.deepEqual(m,L.lot?e.lotThumb(L,sz.w,sz.h):L.temple?e.templeThumb(L,sz.w,sz.h):e.trackThumb(pts,sz.w,sz.h),'deterministic');
    // every lane point lands on (or next to) an ink pixel: the line is continuous
    let l=1e9,t=1e9,r=-1e9,b=-1e9;for(const [x,y] of pts){l=Math.min(l,x);t=Math.min(t,y);r=Math.max(r,x);b=Math.max(b,y);}const s=Math.min((m.w-6.2)/(r-l),(m.h-6.2)/(b-t)),ox=(m.w-(r-l)*s)/2-l*s,oy=(m.h-(b-t)*s)/2-t*s;
    for(const [x,y] of pts){const px=Math.floor(x*s+ox),py=Math.floor(y*s+oy);let hit=false;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++)hit=hit||!!m.bits[(py+dy)*m.w+px+dx];assert(hit,id+' line continuous');}
@@ -236,8 +236,8 @@ test('r3-course: cones sit off every part of the lane, off the zones, and only o
   for(const c of L.cones){assert(P.every(p=>Math.hypot(p[0]-c.x,p[1]-c.y)>=h+e.CONE_R),'cone on the lane '+where);
    assert(z.every(q=>!(c.x>q.l&&c.x<q.r&&c.y*e.K>q.t&&c.y*e.K<q.b)),'cone in a zone '+where);
    if(id==='eight')assert(!e.insideLoop(P,c.x,c.y),'cone inside a loop '+where);}});});
-test('r3-course: layouts are deterministic and setTrack accepts exactly the four course ids',()=>{
- assert.deepEqual([...e.TRACKS.map(t=>t.id)],['signature','oval','eight','parking']);assert.equal(e.setTrack('club'),false);
+test('r3-course: layouts are deterministic and setTrack accepts exactly the five course ids',()=>{
+ assert.deepEqual([...e.TRACKS.map(t=>t.id)],['signature','oval','eight','temple','parking']);assert.equal(e.setTrack('club'),false);
  for(const id of ['signature','oval','eight']){const A={...r3Arena(844,390,3,750),E:40},z=e.keepOuts(A);assert.equal(JSON.stringify(e.buildCourse(A,z,id)),JSON.stringify(e.buildCourse(A,z,id)));}
  // The settings thumbnails call buildCourse on the arena without zones: each id still gets its own shape.
  for(const id of ['signature','oval','eight']){const A=r3Arena(390,844,3,750);assert.equal(e.buildCourse({...A,E:e.edgeClear(A)},[],id).track.kind,id);}});
@@ -251,4 +251,68 @@ test('r3-course: titleSpot gives a 150x30+ rect, in a loop\'s infield on desktop
   for(const o of [...L.cones,...L.gate.posts])assert(!(o.x>t.l-3&&o.x<t.r+3&&o.y*e.K>t.t-3&&o.y*e.K<t.b+3),'cone/post '+where);
   const s=L.spawn;assert(!(s.x>t.l-8&&s.x<t.r+8&&s.y*e.K>t.t-8&&s.y*e.K<t.b+8),'spawn '+where);
   if(!A.mobile)assert(e.insideLoop(L.track.pts,(t.l+t.r)/2,(t.t+t.b)/2/e.K),'infield '+where);});});
+// ==== Temple map: free drive round the One Pillar Pagoda in its fenced pond ====
+const templeArena=(o={})=>Object.assign(e.makeArena(1350,675),{fixedMobile:true},o);
+function templeWorld(id='compact',A=templeArena()){e.setTrack('temple');const w=e.createWorld(id,A);return w;}
+const templeAt=(T,u,v)=>({x:T.x+u*T.s,y:T.y+v*T.s});
+const inTemple=w=>w.layout.temple.blocks.some(b=>e.pitOverlap(w.p,w.car,b));
+test('temple: a free-drive map (no road, gate, cones or pit) with the pagoda centred, the title below it and the car on the west walk',()=>{
+ for(const A of [templeArena(),templeArena({mobile:true,uiW:390,uiH:844}),templeArena({mobile:true,uiW:844,uiH:390})]){const w=templeWorld('compact',A),L=w.layout,T=L.temple;
+  assert.equal(L.track.kind,'temple');assert.equal(L.track.pts.length,0);assert.equal(L.gate,null);assert.equal(L.cones.length,0);
+  assert.equal(e.raceRoute(L),null,'no lap');assert.equal(e.pitStopGeometry(A,L),null,'no pit');
+  assert(Math.abs(T.x-A.W/2)<1,'centred across');assert.equal(T.s,e.TEMPLE_SCALE);
+  const q=e.templeRect(T),top=e.templeTopY(T),title=e.templeTitleRect(T,A);
+  assert(q.l>0&&q.r<A.W&&top>8,'grounds and roof on the map');assert(title.b<=A.H-8&&title.l>=0&&title.r<=A.W&&title.t>=0,'title on the map');
+  // The title is painted under the pond; a portrait phone turns it upright about its centre, so there it sits east of the pond.
+  if(A.mobile&&A.uiH>A.uiW){const cx=(title.l+title.r)/2,h=title.b-title.t,w=title.r-title.l;assert(cx-h/2>q.r&&cx+h/2<A.W,'portrait: east of the pond');assert(Math.abs((title.t+title.b)/2-A.H/2)<1&&w>=200,'portrait: centred down the map, readable width');}
+  else assert(q.b*e.K<title.t,'title below the pond');
+  assert(L.spawn.x<q.l+e.TEMPLE_GEO.walk.len*T.s&&L.spawn.x>q.l&&Math.abs(L.spawn.y-T.y)<1&&L.spawn.a===0,'on the walk, facing the stairs');
+  assert(!inTemple(w),'starts clear');}
+ // Every other map has no temple.
+ for(const id of ['signature','oval','eight','parking']){e.setTrack(id);assert.equal(e.layoutCourse(templeArena()).temple||null,null,id);}
+ // The title reads 8-BIT TEMPLE there, and the others keep theirs.
+ assert.equal(e.TEMPLE_TITLE,'8-BIT TEMPLE');const L=templeWorld().layout;assert.equal(e.titleOpts(L,{}).text,'8-BIT TEMPLE');
+ e.setTrack('eight');assert.equal(e.titleOpts(e.layoutCourse(templeArena()),{}).text,undefined);
+ const A=templeArena(),r=e.titleRect(L,A,{text:'8-BIT TEMPLE',min:e.LOT_TITLE_MIN});assert.deepEqual({...r},{...e.templeTitleRect(L.temple,A)},'painted under the pond');
+});
+test('temple: every ground car stops at the fence and the stairs, from every side, and never enters the pond',()=>{
+ const G=e.TEMPLE_GEO,o=G.pond.u+G.pond.rim,ov=G.pond.v+G.pond.rim;
+ for(const id of ['compact','coupe','f1'])for(const [u,v,a] of [[0,ov+60,-Math.PI/2],[120,-ov-60,Math.PI/2],[o+60,40,Math.PI],[-o-60,0,0],[-o-60,-80,0]]){
+  const w=templeWorld(id),T=w.layout.temple,p=templeAt(T,u,v);Object.assign(w.car,{x:p.x,y:p.y,px:p.x,py:p.y,a,pa:a});
+  for(let i=0;i<300;i++){e.step(w,{throttle:1,brake:0,steering:0});assert(!inTemple(w),id+' never inside the grounds from '+u+','+v);}
+  const d=Math.hypot(w.car.x-p.x,w.car.y-p.y);assert(d>20,id+' drove up to it');}
+});
+test('temple: the Drone clears the fence when it climbs and crosses the water, but never the stairs or the shrine',()=>{
+ const G=e.TEMPLE_GEO,fly=(z,u,v,a=-Math.PI/2)=>{const w=templeWorld('van'),T=w.layout.temple,p=templeAt(T,u,v);Object.assign(w.car,{x:p.x,y:p.y,px:p.x,py:p.y,a,pa:a,z,pz:z});return w;};
+ const [pond,stairs,shrine]=templeWorld('van').layout.temple.blocks;assert(pond.height<e.FLY.ceiling&&stairs.height>e.FLY.ceiling&&shrine.height>e.FLY.ceiling);
+ let w=fly(pond.height+8,120,G.pond.v+60),T=w.layout.temple;for(let i=0;i<360;i++)e.step(w,{throttle:0,brake:0,steering:0,sticks:{pitch:.6}});
+ assert(w.car.y<T.y+(G.pond.v-60)*T.s,'flew over the fence, well onto the pond');
+ w=fly(e.FLY.floor+2,120,G.pond.v+60);for(let i=0;i<360;i++){e.step(w,{throttle:0,brake:0,steering:0,sticks:{pitch:.6}});assert(!e.pitOverlap(w.p,w.car,pond),'low: kept out by the fence');}
+ w=fly(e.FLY.ceiling,0,G.pond.v-10);for(let i=0;i<600;i++){e.step(w,{throttle:0,brake:0,steering:0,sticks:{pitch:1}});assert(!e.pitOverlap(w.p,w.car,shrine),'never into the shrine');}
+ w=fly(e.FLY.ceiling,-120,G.pond.v-10);for(let i=0;i<600;i++){e.step(w,{throttle:0,brake:0,steering:0,sticks:{pitch:1}});assert(!e.pitOverlap(w.p,w.car,stairs),'never through the stairs');}
+});
+test('temple: recovery never puts the car on the temple or in the pond',()=>{
+ const w=templeWorld('compact'),T=w.layout.temple;for(const [u,v] of [[0,0],[150,90],[-200,-120],[-150,0]]){const p=templeAt(T,u,v);
+  for(const a of [0,-Math.PI/2,1]){const spot=e.recoverSpot(w,a,p.x,p.y*e.K);assert(spot,'a spot near '+u+','+v);assert(!T.blocks.some(b=>e.pitOverlap(w.p,{x:spot.x,y:spot.y,a},b)),'off the temple');}}
+});
+test('temple: two-tone layers that fit their raster, sorted back fence, stairs, shrine, front fence; the shrine hides what is behind it',()=>{
+ const w=templeWorld('compact'),T=w.layout.temple,G=e.TEMPLE_GEO,art=e.templeArt(T),colors=new Set();
+ assert.equal(JSON.stringify(e.TEMPLE_LAYERS),'["pond","stairs","pavilion","front","shadow"]');
+ for(const k of e.TEMPLE_LAYERS){const img=art[k];let on=0;for(let i=0;i<img.data.length;i+=4)if(img.data[i+3]){on++;colors.add(img.data[i]+','+img.data[i+1]+','+img.data[i+2]);
+   const x=(i/4)%img.width,y=Math.floor(i/4/img.width);assert(x>0&&y>0&&x<img.width-1&&y<img.height-1,k+' inside its raster');}assert(on>200,k+' has pixels');}
+ assert.equal(colors.size,2,'ink and paper only');
+ let first=-1;for(let y=0;y<art.pavilion.height&&first<0;y++)for(let x=0;x<art.pavilion.width;x++)if(art.pavilion.data[(y*art.pavilion.width+x)*4+3]){first=y;break;}
+ assert(first-art.ay+Math.round(T.y*e.K)>=e.templeTopY(T)-1,'templeTopY bounds the roof '+first);
+ const d=Object.fromEntries(e.templeDrawables(w).map(o=>[o.part,o]));assert(d.pond.key<d.stairs.key&&d.stairs.key<d.pavilion.key&&d.pavilion.key<=d.front.key);
+ const at=(world,u,v)=>{const p=templeAt(T,u,v);Object.assign(world.car,{x:p.x,y:p.y,px:p.x,py:p.y});return e.carDrawable(world).key;};
+ assert(at(w,0,-G.pond.v-60)<d.pond.key,'a car behind the pond draws before it');assert(at(w,0,G.pond.v+60)>d.front.key,'in front, after the front fence');
+ const dr=templeWorld('van');dr.car.z=dr.car.pz=e.FLY.ceiling;assert(at(dr,0,-20)<d.pavilion.key,'a high Drone behind the shrine stays behind it');assert.equal(at(dr,150,-20),e.GATE_FRONT+1);
+ assert.equal(e.sceneItems(w).filter(o=>o.type==='temple').length,4);
+});
+test('temple: the settings thumbnail and the ground paint show the pond, stairs, shrine and walk',()=>{
+ const A=templeArena(),sz=e.trackThumbSize(A.W,A.H),L=e.buildCourse({...A,E:e.edgeClear(A)},[],'temple'),m=e.templeThumb(L,sz.w,sz.h),n=m.bits.reduce((a,b)=>a+b,0);
+ assert(n>200&&n<m.w*m.h,'drawn '+n);for(let y=0;y<m.h;y++)for(let x=0;x<m.w;x++)if(m.bits[y*m.w+x])assert(x>=1&&y>=1&&x<m.w-1&&y<m.h-1,'padded');
+ const T=L.temple,G=e.TEMPLE_GEO,o=e.templeOuter(T);let ink=0,fill='';const gc={set fillStyle(v){fill=v;},get fillStyle(){return fill;},fillRect(x,y){if(/30342d/i.test(fill)&&x<T.x-o.u&&x>T.x-o.u-G.walk.len*T.s&&Math.abs(y-T.y*e.K)<G.walk.v*T.s)ink++;}};
+ e.templeGround(gc,L);assert(ink>100,'walk joints painted '+ink);
+});
 e.setTrack('signature');console.log(n+' current-feature checks passed.');

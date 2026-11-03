@@ -69,7 +69,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--ink);outline-of
 button.row:hover{background:var(--ink);color:var(--paper)}button.row:active{transform:translate(2px,2px);box-shadow:none}
 
 .track-pick{display:flex;flex-direction:column;gap:4px;min-width:0}
-.track-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.track-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
 .track-choice{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:3px;min-width:0;padding:4px 3px 3px;border:2px solid var(--ink);background:var(--paper);box-shadow:2px 2px 0 var(--ink);font-size:max(8px,.68em);line-height:1.05;letter-spacing:0;text-align:center}
 .track-choice canvas{display:block;width:100%;max-width:84px;height:auto;max-height:clamp(26px,9vh,60px);object-fit:contain;image-rendering:pixelated;pointer-events:none}
 .track-choice span{overflow-wrap:anywhere}
@@ -646,7 +646,7 @@ function fallbackTrack(A,hw){
 }
 // layoutCourse costs tens of ms, so results are cached per arena size and zone set (contract §11). Each call returns a fresh copy.
 // the UI reads ids and names from here only.
-const TRACKS=[{id:'signature',name:'Daily Challenge'},{id:'oval',name:'Easy oval'},{id:'eight',name:'Figure eight'},{id:'parking',name:'Parking lot'}];
+const TRACKS=[{id:'signature',name:'Daily Challenge'},{id:'oval',name:'Easy oval'},{id:'eight',name:'Figure eight'},{id:'temple',name:'Temple'},{id:'parking',name:'Parking lot'}];
 let SELECTED_TRACK='eight';
 function setTrack(id){if(!TRACKS.some(t=>t.id===id))return false;SELECTED_TRACK=id;layoutCache.clear();return true;}
 const layoutCache=new Map();
@@ -840,9 +840,55 @@ function fitShape(A,zones,grid,id,hw){
  }
  return best;
 }
+// The Temple map: free drive round the One Pillar Pagoda (Chùa Một Cột), a small wooden shrine shaped like a lotus rising out
+// of a square pond, standing on a single stone pillar. The pond has a stone coping and a balustrade fence; a straight flight
+// of stairs climbs east from a gap in the west fence to the shrine's veranda, seen side-on so it never hides the pillar. The shrine has a lattice room, corner columns, a
+// curved hip roof with upturned corners and a gable roof on top crowned by gilt ornaments. No road, gate, cones or pit.
+// Local u (right), v (south, toward the viewer) and z (up) are world units at scale 1; the placed temple scales them by s
+// round the pond centre (x, y). TEMPLE_GEO is the one source for the art, the colliders and the ground paint.
+const TEMPLE_GEO={
+ pond:{u:220,v:150,rim:6,water:-5,coping:2},fence:{z:12,post:16,step:44,gap:26},
+ stairs:{v:16,wall:22,u1:-52,n:10},walk:{v:30,len:90},apron:14,
+ pillar:{r:17,z:80},floor:{u:52,z:86},room:{u:36,z:120},column:{u:49,r:3.2},
+ roof:{u:80,v:60,z:130,curl:21,tu:26,tv:21,tz:164},gable:{u:31,v:21,z:190,top:240}
+};
+// Scale for an arena (the fixed course is 1350 x 675 screen px) and the pond's half-size in world units at that scale.
+const TEMPLE_SCALE=1.45,TEMPLE_TITLE='8-BIT TEMPLE';
+const templeOuter=T=>{const P=TEMPLE_GEO.pond,s=T.s;return {u:(P.u+P.rim)*s,v:(P.v+P.rim)*s};};
+// The grounds' plan rect (world units): pond, fence, and the walk to the west.
+function templeRect(T){const o=templeOuter(T);return {l:T.x-o.u-TEMPLE_GEO.walk.len*T.s,r:T.x+o.u,t:T.y-o.v,b:T.y+o.v};}
+// Distance (world units) from a point to the grounds (0 inside).
+function templeClearance(T,x,y){const q=templeRect(T);return Math.hypot(Math.max(q.l-x,0,x-q.r),Math.max(q.t-y,0,y-q.b));}
+// Screen y (px) bounding the shrine's highest pixels (the back eaves' curled corners; gable.top is in height units at v 0).
+const templeTopY=T=>T.y*K-Z*TEMPLE_GEO.gable.top*T.s;
+// The fixed parts at centre (x, y) and scale s. blocks: axis-aligned boxes in the pit's {x, y, angle, w, d, height} form:
+// the pond inside its fence (a Drone above the fence flies over the water), the stairs, and the shrine (taller than any flight).
+function templeParts(x,y,s){
+ const G=TEMPLE_GEO,P=G.pond,r2=v=>Math.round(v*100)/100,box=(u0,v0,u1,v1,h)=>({x:r2(x+u0*s),y:r2(y+v0*s),angle:0,w:r2((u1-u0)*s),d:r2((v1-v0)*s),height:h*s});
+ const U=P.u+P.rim,V=P.v+P.rim,st=G.stairs;
+ return {x:r2(x),y:r2(y),s,blocks:[box(-U,-V,U,V,G.fence.post),box(-U,-st.wall,st.u1,st.wall,G.floor.z+16),box(-G.floor.u-2,-G.floor.u-2,G.floor.u+2,G.floor.u+2,1e3)]};
+}
+// The title's paint rect (screen px): centred under the pond. A portrait phone draws the title turned upright about the
+// rect's centre, so there the rect sits east of the pond (above the phone's controls), centred down the arena, with its long
+// side within the narrow view.
+const TEMPLE_TITLE_GAP=18,TEMPLE_TITLE_H=64;
+function templeTitleRect(T,A){const s=T.s,o=templeOuter(T),h=Math.round(TEMPLE_TITLE_H*s);
+ if(A&&A.mobile&&A.uiH>A.uiW){const cx=Math.round(Math.min(T.x+o.u+70*s,A.W-h/2-90)),cy=Math.round(A.H/2),w=Math.min(2*(A.W-cx)-8,A.H-80,340);return {l:cx-Math.round(w/2),t:cy-Math.round(h/2),r:cx+Math.round(w/2),b:cy+Math.round(h/2)};}
+ const w=Math.min(A.W-40,460*s),t=Math.ceil((T.y+o.v)*K+TEMPLE_TITLE_GAP*s);return {l:Math.round(T.x-w/2),t,r:Math.round(T.x+w/2),b:Math.min(A.H-8,t+h)};}
+// The map: the temple centred in the arena (from the ornament's top to the title's foot); the car starts on the west walk,
+// facing the stairs.
+function buildTemple(A){
+ const G=TEMPLE_GEO,WH=A.H/K,s=Math.max(.3,Math.min(A.W/1350,A.H/675)*TEMPLE_SCALE),r2=v=>Math.round(v*100)/100,P=G.pond;
+ const top=-Z*G.gable.top*s,bottom=(P.v+P.rim)*s*K+(TEMPLE_TITLE_GAP+TEMPLE_TITLE_H)*s,y=(A.H/2-(top+bottom)/2)/K,x=A.W/2;
+ const T=templeParts(x,y,s),o=templeOuter(T),spawn={x:r2(Math.max(30,x-o.u-60*s)),y:r2(y),a:0};
+ return {cones:[],parking:[],posts:[],temple:T,spawn,gate:null,
+  track:{kind:'temple',id:'temple',half:0,pts:[],length:0,curbs:[],cross:null,straight:null,box:{x:x-o.u-G.walk.len*s,y:y-o.v,w:2*o.u+G.walk.len*s,h:2*o.v,o:0}}};
+}
+const templeBlocks=layout=>layout&&layout.temple?layout.temple.blocks:[];
 function buildCourse(A,zones,id=SELECTED_TRACK){
  if(!Number.isFinite(A.E))A={...A,E:edgeClear(A)};
  if(id==='parking')return buildParking(A,zones);
+ if(id==='temple')return buildTemple(A);
  if(!TRACK_SHAPES[id])id='signature';
  const hw=TRACK_HALF,grid=trackGrid(A,zones,hw+LANE_PAD+3);let pl=null;
  if(!grid.empty)for(const k of TRACK_FALLBACK[id])if((pl=fitShape(A,zones,grid,k,hw)))break;
@@ -1127,7 +1173,7 @@ function groundDots(gc,l,t,r,b){
 // Fixed roadside station: local u/v are world units; projection uses the same K and Z as cars.
 const pitGeometryCache=new WeakMap();
 function pitStopGeometry(A,layout){
- if(!A||!A.fixedMobile||!layout)return null;
+ if(!A||!A.fixedMobile||!layout||layout.temple)return null;
  const cached=pitGeometryCache.get(layout);if(cached&&cached.W===A.W&&cached.H===A.H)return cached.g;
  // Keep the station in the upper-right clearing and face its front toward the nearest track segment.
  const lot=layout.lot,x=lot?lot.r+LOT_BAND+61:A.W*.863,y=lot?(lot.t*K+52)/K:A.H*.148/K,pts=layout.track&&layout.track.pts||[];let best=null;
@@ -1159,6 +1205,18 @@ function carPit(w,g){const c=w.car,q=pitOverlap(w.p,c,g);if(!q)return false;c.x+
 function conePit(o,g){const c=Math.cos(g.angle),s=Math.sin(g.angle),dx=o.x-g.x,dy=o.y-g.y,u=dx*c+dy*s,v=-dx*s+dy*c,r=bodyR(o),x=clamp(u,0,g.w),y=clamp(v,0,g.d);let nx=u-x,ny=v-y,d=Math.hypot(nx,ny),push;
  if(d>=r)return;if(d<1e-8){const faces=[[u,-1,0],[g.w-u,1,0],[v,0,-1],[g.d-v,0,1]].sort((a,b)=>a[0]-b[0]);nx=faces[0][1];ny=faces[0][2];push=r+faces[0][0];}else{nx/=d;ny/=d;push=r-d;}
  const X=nx*c-ny*s,Y=nx*s+ny*c;o.x+=X*(push+.01);o.y+=Y*(push+.01);const speed=o.vx*X+o.vy*Y;if(speed<0){o.vx-=(1+CONE_POST_E)*speed*X;o.vy-=(1+CONE_POST_E)*speed*Y;}}
+// The temple's ground paint (screen px, ink on paper): a swept stone apron round the pond with a dotted kerb, and a paved
+// walk west from the stairs' gate, with staggered joints and dotted gutters either side.
+function templeGround(gc,layout){
+ const T=layout&&layout.temple;if(!T)return;const G=TEMPLE_GEO,s=T.s,o=templeOuter(T),X=u=>Math.round(T.x+u*s),Y=v=>Math.round((T.y+v*s)*K),dot=(x,y)=>gc.fillRect(x,y,1,1);
+ const clear=(l,t,r,b)=>{gc.fillStyle=paper;gc.fillRect(l,t,r-l+1,b-t+1);gc.fillStyle=ink;};
+ const Ua=o.u/s+G.apron,Va=o.v/s+G.apron,l=X(-Ua),r=X(Ua),t=Y(-Va),b=Y(Va);
+ clear(l,t,r,b);for(let x=l;x<=r;x+=2){dot(x,t);dot(x,b);}for(let y=t;y<=b;y+=2){dot(l,y);dot(r,y);}
+ const W0=G.walk,gut=W0.v+6,ue=-o.u/s,us=ue-W0.len,wt=Y(-W0.v),wb=Y(W0.v),x0=X(us),x1=X(ue);clear(x0,Y(-gut)-1,l+1,Y(gut)+1);
+ for(let x=x0;x<=x1;x++){dot(x,wt);dot(x,wb);if(x%2===0){dot(x,Y(-gut));dot(x,Y(gut));}}for(let y=wt;y<=wb;y++)dot(x0,y);
+ for(let k=0,u=us;u<ue-1e-6;k++,u+=12){const xa=X(u),xb=Math.min(x1,X(u+12));if(k)for(let y=wt+1;y<wb;y+=2)dot(xa,y);
+  for(const v of k%2?[-W0.v/2,W0.v/2]:[0])for(let x=xa;x<xb;x++)dot(x,Y(v));}
+}
 function drawGround(gc,A,layout){
  const W=A.W,H=A.H,dot=(x,y)=>gc.fillRect(x,y,1,1);
  gc.fillStyle=paper;gc.fillRect(0,0,W,H);gc.fillStyle=ink;
@@ -1177,7 +1235,7 @@ function drawGround(gc,A,layout){
   }
  }
  drawPitBay(gc,A,layout);
-
+ templeGround(gc,layout);
 }
 function createWorld(id='compact',arena=DEFAULT_ARENA) {
  const p=PRESETS[id],layout=layoutCourse(arena),s=layout.spawn;
@@ -1531,7 +1589,7 @@ const STALL_SPEED=4,STALL_TIME=.5,STALL_BUMP=45;
 function step(w,input,dt=STEP){
  const c=w.car,A=w.arena,svx=c.vx,svy=c.vy,flying=!!w.p.flying;c.px=c.x;c.py=c.y;c.pa=c.a;if(flying)c.pz=c.z;let pressed=false;
  for(const o of w.cones){o.px=o.x;o.py=o.y;o.pa=o.a;}
- const n=substeps(w,dt),h=dt/n,pit=pitStopGeometry(A,w.layout),posts=gatePosts(w).concat(pitPosts(pit));
+ const n=substeps(w,dt),h=dt/n,pit=pitStopGeometry(A,w.layout),posts=gatePosts(w).concat(pitPosts(pit)),blocks=templeBlocks(w.layout);
  for(let sub=0;sub<n;sub++){
   const st=c.state||'driving';
   if(st==='driving')(flying?fly:drive)(w,input,h);else if(st==='tipping')drive(w,NO_INPUT,h);else tumble(w,h);
@@ -1543,9 +1601,11 @@ function step(w,input,dt=STEP){
    for(const o of w.cones)carCone(w,o);
    for(let a=0;a<w.cones.length;a++)for(let b=a+1;b<w.cones.length;b++)coneCone(w.cones[a],w.cones[b],A);
    // Posts go last, so they win: nothing ends a substep inside a post. A Drone flying above FLY.clear passes over them.
+   // The temple's blocks stop a Drone flying lower than their height (the pond's fence, the stairs; the shrine always).
    const over=flying&&c.z>=FLY.clear;
    for(const q of posts){if(!over&&carPost(w,q)>0)pressed=true;for(const o of w.cones)conePost(o,q);}
    if(pit){if((!flying||c.z<pit.height)&&carPit(w,pit))pressed=true;for(const o of w.cones)conePit(o,pit);}
+   for(const b of blocks){if((!flying||c.z<b.height)&&carPit(w,b))pressed=true;for(const o of w.cones)conePit(o,b);}
   }
   rollover(w,h,c.vx-vx0,c.vy-vy0);
   transferEdges(w);
@@ -1570,7 +1630,7 @@ function boxDistance(p,cx,cy,a,x,y){const dx=x-cx,dy=y-cy,cs=Math.cos(a),sn=Math
 // arena and off every keepOuts zone, and the body RECOVER_GAP clear of every cone and gate post. {x, y} world units, or null.
 function recoverSpot(w,a,sx,sy){
  const A=w.arena,p=w.p,b=carScreenBounds(p,a,0),v=visibleBounds(A),E=edgeClear({W:v.r-v.l,H:v.b-v.t}),M=SPAWN_INSIDE,zones=keepOuts(A),g=Math.max(2,2*Math.ceil(Math.sqrt((v.r-v.l)*(v.b-v.t)/40000)/2));
- const pit=pitStopGeometry(A,w.layout),obstacles=[...w.cones.map(o=>({x:o.x,y:o.y,r:bodyR(o)})),...gatePosts(w),...pitPosts(pit)],reach=Math.hypot(p.length,p.width)/2+RECOVER_GAP;
+ const pit=pitStopGeometry(A,w.layout),blocks=templeBlocks(w.layout),obstacles=[...w.cones.map(o=>({x:o.x,y:o.y,r:bodyR(o)})),...gatePosts(w),...pitPosts(pit)],reach=Math.hypot(p.length,p.width)/2+RECOVER_GAP;
  const bands=[];let best=null,bd=Infinity;
  for(let y=Math.ceil(Math.max(v.t+E,v.t+M-b.t)/g)*g;y<=Math.min(v.b-E,v.b-M-b.b);y+=g)for(let x=Math.ceil(Math.max(v.l+E,v.l+M-b.l)/g)*g;x<=Math.min(v.r-E,v.r-M-b.r);x+=g){
   // Every check uses the screen y the car will really have (world y = y/K, so (y/K)*K can differ from y by 1e-14).
@@ -1581,7 +1641,7 @@ function recoverSpot(w,a,sx,sy){
  for(const list of bands){if(!list)continue;
   for(let i=0;i<list.length;i+=3){const d=list[i],x=list[i+1],y=list[i+2];if(d>=bd)continue;
    if(!zonesClear(zones,x+b.l,y+b.t,x+b.r,y+b.b))continue;
-   const yw=y/K;if(pit&&pitOverlap(p,{x,y:yw,a},pit))continue;if(obstacles.some(o=>Math.abs(o.x-x)<reach+o.r&&Math.abs(o.y-yw)<reach+o.r&&boxDistance(p,x,yw,a,o.x,o.y)<o.r+RECOVER_GAP))continue;
+   const yw=y/K;if(pit&&pitOverlap(p,{x,y:yw,a},pit))continue;if(blocks.some(q=>pitOverlap(p,{x,y:yw,a},q)))continue;if(obstacles.some(o=>Math.abs(o.x-x)<reach+o.r&&Math.abs(o.y-yw)<reach+o.r&&boxDistance(p,x,yw,a,o.x,o.y)<o.r+RECOVER_GAP))continue;
    best={x,y:y/K};bd=d;}
   if(best)break;}
  return best;
@@ -1609,9 +1669,12 @@ const mobileCarArtScale=arena=>arena&&arena.mobile?1.8:1;
 function scaleArtBox(b,scale){return {l:b.l*scale,t:b.t*scale,r:b.r*scale,b:b.b*scale};}
 const portraitCarArt=arena=>!!(arena&&arena.mobile&&arena.uiH>arena.uiW);
 function carArtBox(b,arena){const q=scaleArtBox(b,mobileCarArtScale(arena));return portraitCarArt(arena)?{l:q.t,t:-q.r,r:q.b,b:-q.l}:q;}
+// True behind the shrine's veranda and within its roof's width: the shrine is taller than the Drone ever flies, so there it
+// keeps its ordinary depth key instead of drawing over everything.
+function templeHides(layout,x,y){const T=layout&&layout.temple;if(!T)return false;const G=TEMPLE_GEO;return Math.abs(x-T.x)<(G.roof.u+20)*T.s&&y<T.y+G.floor.u*T.s;}
 function carDrawable(w,alpha=1){
  const c=w.car,p=position(c,alpha),x=Math.round(p.x),y=Math.round(p.y*K),roll=c.roll||0,dz=liftOf(w,alpha);
- const lift=dz?{y:-Math.round(Z*dz),sx:Math.round(LIGHT.x*dz),sy:Math.round(LIGHT.y*dz)}:null,high=w.p.flying&&dz+w.p.flightHeight>=FLY.clear,artAngle=p.a+(portraitCarArt(w.arena)?Math.PI/2:0);
+ const lift=dz?{y:-Math.round(Z*dz),sx:Math.round(LIGHT.x*dz),sy:Math.round(LIGHT.y*dz)}:null,high=w.p.flying&&dz+w.p.flightHeight>=FLY.clear&&!templeHides(w.layout,p.x,p.y),artAngle=p.a+(portraitCarArt(w.arena)?Math.PI/2:0);
  return {type:'car',x,y,a:p.a,roll,tilt:tiltIndex(c),frame:frameIndex(artAngle,FRAMES),box:liftBox(carArtBox(carScreenBounds(w.p,artAngle,roll),w.arena),dz),lift,key:high?GATE_FRONT+1:y+Math.round(dz*K*K/Z)};
 }
 // of it and looked sunk into it); 'arch' (the beam and shoulders, above every car) always draws in front, so cars visibly pass
@@ -1627,7 +1690,7 @@ function sceneItems(w,alpha=1){
  const v=visibleBounds(w.arena),out=[],seen=(x,y,b)=>!(x+b.r<=v.l||x+b.l>=v.r||y+b.b<=v.t||y+b.t>=v.b);
  const car=carDrawable(w,alpha);if(seen(car.x,car.y,car.box))out.push(car);
  for(const o of w.cones){const p=position(o,alpha),x=Math.round(p.x),y=Math.round(p.y*K),cart=o.kind==='cart';if(seen(x,y,cart?CART_BOX:CONE_BOX))out.push({type:cart?'cart':'cone',x,y,a:p.a,tipped:!!o.tipped,key:y});}
- out.push(...gateDrawables(w),...propDrawables(w),...pitDrawables(w));
+ out.push(...gateDrawables(w),...propDrawables(w),...pitDrawables(w),...templeDrawables(w));
  return out;
 }
 const drawOrder=(a,b)=>a.key-b.key||(a.type==='car')-(b.type==='car');
@@ -1968,13 +2031,17 @@ function titleRect(layout,A,o={}){
  if(layout&&layout.lot){const s=lotTitleRect(layout.lot);if(s&&titleRuns(A,s,o).length)return s;
   const px=Math.max(1,Math.round(o.px||1)),m=shearMask((o.mask||glyphMask)(o.text||TITLE_TEXT,TITLE_MAX)),b=lotBox(layout.lot);
   return titleFallbackSpot(layout,A,[...(o.zones||keepOuts(A)),{id:'lot',...b}],(m.w+2)/(m.h+2),(TITLE_MAX+4)*px,((o.min||TITLE_MIN)+2)*px);}
+ // Under the temple's walk; else the fallback search with the grounds and the shrine blocked.
+ if(layout&&layout.temple){const T=layout.temple,s=templeTitleRect(T,A);if(titleRuns(A,s,o).length)return s;
+  const q=templeRect(T),px=Math.max(1,Math.round(o.px||1)),m=shearMask((o.mask||glyphMask)(o.text||TITLE_TEXT,TITLE_MAX));
+  return titleFallbackSpot(layout,A,[...(o.zones||keepOuts(A)),{id:'temple',l:q.l,t:templeTopY(T),r:q.r,b:q.b*K}],(m.w+2)/(m.h+2),(TITLE_MAX+4)*px,((o.min||TITLE_MIN)+2)*px);}
  if(typeof titleSpot==='function'){const s=titleSpot(layout,A);if(s&&titleRuns(A,s,o).length)return s;}
  const px=Math.max(1,Math.round(o.px||1)),m=shearMask((o.mask||glyphMask)(TITLE_TEXT,TITLE_MAX));
  return titleFallbackSpot(layout,A,o.zones||keepOuts(A),(m.w+2)/(m.h+2),(TITLE_MAX+4)*px,(TITLE_MIN+2)*px);
 }
 // Paints the title into the ground layer with INK only; returns the number of runs drawn.
-// The lot paints LOT_TITLE ("8-BIT PARKING") instead of TITLE_TEXT.
-const titleOpts=(layout,o)=>layout&&layout.lot?{...o,text:LOT_TITLE,min:LOT_TITLE_MIN}:o;
+// The lot paints LOT_TITLE ("8-BIT PARKING") and the temple map TEMPLE_TITLE ("8-BIT TEMPLE") instead of TITLE_TEXT.
+const titleOpts=(layout,o)=>layout&&layout.lot?{...o,text:LOT_TITLE,min:LOT_TITLE_MIN}:layout&&layout.temple?{...o,text:TEMPLE_TITLE,min:LOT_TITLE_MIN}:o;
 function drawTitle(gc,A,layout,o={}){
  o=titleOpts(layout,o);const runs=titleRuns(A,titleRect(layout,A,o),o);gc.fillStyle=ink;
  for(const [x,y,n] of runs)gc.fillRect(x,y,n,1);
@@ -2104,6 +2171,15 @@ function trackThumb(pts,w,h,o={}){
   for(let y=Math.max(0,Math.floor(Math.min(ay,by)-r));y<=Math.min(h-1,Math.ceil(Math.max(ay,by)+r));y++)
    for(let x=Math.max(0,Math.floor(Math.min(ax,bx)-r));x<=Math.min(w-1,Math.ceil(Math.max(ax,bx)+r));x++){
     const px=x+.5,py=y+.5,k=dd?clamp(((px-ax)*dx+(py-ay)*dy)/dd,0,1):0;if(Math.hypot(px-ax-k*dx,py-ay-k*dy)<=r)bits[y*w+x]=1;}}
+ return {w,h,bits};
+}
+// 1-bit thumbnail of the temple map: the fenced pond (outline, water checker), the stairs and the shrine solid.
+function templeThumb(L,w,h,pad=2){
+ const bits=new Uint8Array(w*h),T=L&&L.temple;if(!T)return {w,h,bits};
+ const G=TEMPLE_GEO,o=templeOuter(T),bw=2*o.u,bh=2*o.v*K,sc=Math.min((w-2*pad)/bw,(h-2*pad)/bh),ox=(w-bw*sc)/2,oy=(h-bh*sc)/2;
+ for(let j=0;j<h;j++)for(let i=0;i<w;i++){const u=((i+.5-ox)/sc-o.u)/T.s,v=((j+.5-oy)/sc/K-o.v)/T.s,ou=o.u/T.s,ov=o.v/T.s;if(Math.abs(u)>ou||Math.abs(v)>ov)continue;
+  const edge=ou-Math.abs(u)<1/sc/T.s||ov-Math.abs(v)<1/sc/K/T.s,shrine=Math.abs(u)<=G.floor.u&&Math.abs(v)<=G.floor.u,stairs=Math.abs(v)<=G.stairs.wall&&u<=G.stairs.u1;
+  if(edge||shrine||stairs||(i+j)%2===0)bits[j*w+i]=1;}
  return {w,h,bits};
 }
 // band and corners as a checker, every stall divider, the island and the corral solid.
@@ -2492,6 +2568,141 @@ function pitArt(g){
  return {base:base.finish(true),roof:roof.finish(true),shadow:sh.finish(true),ax,ay};
 }
 function pitDrawables(w){const g=pitStopGeometry(w.arena,w.layout);if(!g)return [];const front=pitPoint(g,g.w,g.d);return [{type:'pit',part:'base',x:Math.round(g.x),y:Math.round(g.y*K),key:Math.round(front.y*K)},{type:'pit',part:'roof',x:Math.round(g.x),y:Math.round(g.y*K),key:GATE_FRONT-1}];}
+// The temple's layers, raw rasters sharing one anchor (ax, ay) at the pond centre's ground point, each sorted at its own front
+// ground line: pond (coping, water, the shadows on the water, back and side fences; at the back fence), stairs (at their
+// south wall), pavilion (pillar, struts, shrine and roofs; at the veranda's front), front (the front fence) and shadow (the
+// fence's shadow on the ground). Two inks only: stone is paper with dotted joints, the water the middle dither with
+// paper glints (a darker dither in shadow), lacquered wood the dark dither with paper lattice, roof tiles the middle dither
+// with ink channels, gilt and plaster paper with ink outlines; faces toward the light (up-left) a step lighter.
+const TEMPLE_LAYERS=['pond','stairs','pavilion','front','shadow'];
+function templeArt(T){
+ const G=TEMPLE_GEO,s=T.s,size=Math.ceil(520*s)+40,ax=Math.ceil(240*s)+20,ay=Math.ceil(200*s)+20,L={};
+ for(const k of TEMPLE_LAYERS)L[k]=raster(size,ax,ay);
+ const {pond,pavilion:pv,stairs:sr,front,shadow:sh}=L;
+ const P=(u,v,z=0)=>[ax+u*s,ay+K*v*s-Z*z*s],S=(u,v,z=0)=>{const p=P(u,v,0);return [p[0]+LIGHT.x*z*s,p[1]+LIGHT.y*z*s];};
+ const poly=(r,pts,shade,outline=true)=>r.poly(pts.map(q=>P(...q)),shade,outline),line=(r,a,b,shade=0)=>r.line(P(...a),P(...b),shade);
+ const face=(r,u0,u1,v,z0,z1,shade,outline=true)=>poly(r,[[u0,v,z0],[u1,v,z0],[u1,v,z1],[u0,v,z1]],shade,outline);
+ const flat=(r,u0,u1,v0,v1,z,shade,outline=true)=>poly(r,[[u0,v0,z],[u1,v0,z],[u1,v1,z],[u0,v1,z]],shade,outline);
+ const box3=(u0,u1,v0,v1,z0,z1)=>{const q=[];for(const u of [u0,u1])for(const v of [v0,v1])for(const z of [z0,z1])q.push([u,v,z]);return q;};
+ // A gilt or plaster horn curling up and out from c along the plan direction (du, dv).
+ const horn=(r,c,du,dv,k=1)=>{const n=Math.hypot(du,dv)||1,o=[du/n,dv/n],pts=[[0,0],[4,1],[8,4],[10,9],[9,14],[7,16],[6,13],[7,9],[5,5.5],[1,3]].map(([a,z])=>[c[0]+o[0]*a*k,c[1]+o[1]*a*k,c[2]+z*k]);poly(r,pts,1);};
+ // A ball finial (an octagon in the screen plane) centred over (u, v, z).
+ const ball=(r,u,v,z,rad)=>{const c=P(u,v,z+rad);r.poly(Array.from({length:8},(_,i)=>[c[0]+Math.cos(i*TAU/8+TAU/16)*rad*s,c[1]+Math.sin(i*TAU/8+TAU/16)*rad*s]),1,true);};
+ const Pd=G.pond,U=Pd.u,V=Pd.v,Rm=Pd.rim,F=G.fence,uf=U+Rm/2,vf=V+Rm/2;
+
+ // Balustrade seen from the south between u0 and u1 at v: plinth, dark openwork panels with a paper lattice, a paper rail,
+ // and stone posts with caps every F.step (or fewer); ends: 'ball' adds a ball finial on that end post.
+ const fence=(r,u0,u1,v,ends={})=>{const n=Math.max(1,Math.round((u1-u0)/F.step)),du=(u1-u0)/n;
+  face(r,u0,u1,v,0,3,.75);face(r,u0,u1,v,3,F.z-2,.25);
+  for(let k=0;k<n;k++){const a=u0+k*du+3,b=u0+(k+1)*du-3;for(let u=a;u<b-3;u+=6){line(r,[u,v,3.5],[u+3,v,F.z-2.5],1);line(r,[u+3,v,3.5],[u,v,F.z-2.5],1);}}
+  face(r,u0,u1,v,F.z-2,F.z,1);
+  for(let k=0;k<=n;k++){const u=u0+k*du,end=k===0||k===n,w=end?3.5:2.5;face(r,u-w,u+w,v+.3,0,F.post,1);face(r,u-w-1,u+w+1,v+.4,F.post,F.post+2,1);if(end&&ends[k===0?'l':'r'])ball(r,u,v+.4,F.post+2,3.2);}};
+ // Fence along v at u, edge-on: the rail's top and the posts' fronts.
+ const sideFence=(r,u,v0,v1)=>{flat(r,u-1.5,u+1.5,v0,v1,F.z,1);const n=Math.max(1,Math.round((v1-v0)/F.step));
+  for(let k=1;k<n;k++){const v=v0+k*(v1-v0)/n;face(r,u-2.5,u+2.5,v+2.5,0,F.post,1);face(r,u-3.5,u+3.5,v+2.6,F.post,F.post+2,1);}};
+
+ // Ground shadow: the fence ring.
+ for(const [u0,u1,v0,v1] of [[-uf,uf,-vf-1,-vf+1],[-uf,uf,vf-1,vf+1],[-uf-1,-uf+1,-vf,vf],[uf-1,uf+1,-vf,vf]])sh.poly(hull(box3(u0,u1,v0,v1,0,F.post).map(q=>S(...q))),0,false,sh.shadowPixel);
+
+ // Pond: the stone coping, the back wall's inner face, the water with glints, the shadows cast on the water, the front coping.
+ flat(pond,-U-Rm,U+Rm,-V-Rm,V+Rm,Pd.coping,1);
+ for(let u=-U+20;u<U;u+=40){line(pond,[u,-V-Rm,Pd.coping],[u,-V,Pd.coping],.5);}
+ face(pond,-U,U,-V,Pd.water,Pd.coping,.75);
+ const w0=P(-U,-V,Pd.water),w1=P(U,V,Pd.water),wl=Math.ceil(w0[0]),wr=Math.floor(w1[0]),wt=Math.ceil(w0[1]),wb=Math.floor(w1[1]);
+ flat(pond,-U,U,-V,V,Pd.water,.5,false);
+ for(let y=wt+2;y<wb;y+=5)for(let x=wl+1;x<wr;x++)if((x*7+Math.floor(y/5)*29)%31<3)pond.pixel(x,y,1);
+ // Shadows on the water (light from the up-left): onto the water plane, in a darker dither than the water itself.
+ const W=(u,v,z)=>{const p=P(u,v,Pd.water);return [p[0]+LIGHT.x*(z-Pd.water)*s,p[1]+LIGHT.y*(z-Pd.water)*s];};
+ const onWater=(x,y)=>{if(x>=wl&&x<=wr&&y>=wt&&y<=wb)pond.pixel(x,y,.25);};
+ const cast=pts=>pond.poly(hull(pts.map(q=>W(...q))),0,false,onWater);
+ const R=G.roof,Gb=G.gable,fl=G.floor,st=G.stairs,pl=G.pillar;
+ cast(box3(-pl.r,pl.r,-pl.r,pl.r,Pd.water,pl.z));cast(box3(-fl.u,fl.u,-fl.u,fl.u,pl.z,R.z));
+ cast([[-R.u,-R.v,R.z+R.curl],[R.u,-R.v,R.z+R.curl],[R.u,R.v,R.z+R.curl],[-R.u,R.v,R.z+R.curl],[-R.tu,-R.tv,R.tz],[R.tu,R.tv,R.tz],[0,-Gb.v,Gb.z],[0,Gb.v,Gb.z]]);
+ cast([[-U,-st.wall,Pd.water],[-U,st.wall,Pd.water],[-U,-st.wall,8],[-U,st.wall,8],[st.u1,-st.wall,Pd.water],[st.u1,st.wall,Pd.water],[st.u1,-st.wall,fl.z+8],[st.u1,st.wall,fl.z+8]]);
+ for(const [u0,u1,v0,v1] of [[-uf,uf,-vf-1,-vf+1],[-uf-1,-uf+1,-vf,vf]])cast(box3(u0,u1,v0,v1,Pd.coping,F.post));
+ for(const u of [-U-Rm,U])flat(pond,u,u+Rm,-V-Rm,V+Rm,Pd.coping,1);
+ flat(pond,-U-Rm,U+Rm,V,V+Rm,Pd.coping,1);face(pond,-U-Rm,U+Rm,V+Rm,0,Pd.coping,.75);
+ for(let u=-U+20;u<U;u+=40)line(pond,[u,V,Pd.coping],[u,V+Rm,Pd.coping],.5);
+ // Back and side fences.
+ fence(pond,-uf,uf,-vf,{l:1,r:1});sideFence(pond,-uf,-vf,-F.gap);sideFence(pond,-uf,F.gap,vf);sideFence(pond,uf,-vf,vf);
+
+ // The single stone pillar rising from the water, with ripple rings at its foot, and the curved wooden struts that fan out
+ // from it to carry the floor (the back ones first).
+ const strut=(r,a,b)=>{const pts=[];for(let i=0;i<=6;i++){const t=i/6,e=Math.sin(t*Math.PI/2);pts.push([a[0]+(b[0]-a[0])*e,a[1]+(b[1]-a[1])*e,a[2]+(b[2]-a[2])*t]);}
+  for(let i=0;i<6;i++){const p=P(...pts[i]),q=P(...pts[i+1]);r.line(p,q,0);r.line([p[0]+1,p[1]],[q[0]+1,q[1]],.25);}};
+ const reach=fl.u-6;
+ for(const [du,dv] of [[-1,-1],[1,-1],[0,-1]])strut(pv,[du*pl.r*.7,dv*pl.r*.7,pl.z*.2],[du*reach,dv*reach,pl.z]);
+ for(let k=0;k<3;k++){const a=k*TAU/3+.3;line(pv,[Math.cos(a)*pl.r*1.6,Math.sin(a)*pl.r*1.6,Pd.water],[Math.cos(a+1.4)*pl.r*1.6,Math.sin(a+1.4)*pl.r*1.6,Pd.water],1);}
+ const col=(u0,u1,shade)=>poly(pv,[[u0,0,Pd.water],[u1,0,Pd.water],[u1,0,pl.z],[u0,0,pl.z]],shade,false);
+ col(-pl.r,pl.r,.75);col(-pl.r,-pl.r*.35,1);col(pl.r*.4,pl.r,.5);
+ for(const u of [-pl.r,pl.r])line(pv,[u,0,Pd.water],[u,0,pl.z]);for(const z of [Pd.water+1,pl.z-4])line(pv,[-pl.r,0,z],[pl.r,0,z],.5);
+ for(const [du,dv] of [[-1,0],[1,0],[-1,1],[1,1],[0,1]])strut(pv,[du*pl.r*.7,dv*pl.r*.7,pl.z*.2],[du*reach,dv*reach,pl.z]);
+
+ // The shrine: floor, back columns, the lattice room, front columns, and the veranda railing (open where the stairs arrive).
+ flat(pv,-fl.u,fl.u,-fl.u,fl.u,fl.z,.75);face(pv,-fl.u,fl.u,fl.u,pl.z,fl.z,.25);
+ const C=G.column,post=(u,v,z0,z1)=>{face(pv,u-C.r,u+C.r,v+C.r,z0,z1,.25,false);face(pv,u-C.r,u-C.r*.2,v+C.r,z0,z1,.5,false);line(pv,[u-C.r,v+C.r,z0],[u-C.r,v+C.r,z1]);line(pv,[u+C.r,v+C.r,z0],[u+C.r,v+C.r,z1]);};
+ for(const u of [-C.u,C.u])post(u,-C.u,fl.z,R.z);
+ const rm=G.room;face(pv,-rm.u,rm.u,rm.u,fl.z,rm.z,.25);
+ for(let u=-rm.u+5;u<rm.u-2;u+=6)line(pv,[u,rm.u+.2,fl.z+3],[u,rm.u+.2,rm.z-8],1);line(pv,[-rm.u+2,rm.u+.2,rm.z-5],[rm.u-2,rm.u+.2,rm.z-5],1);
+ for(const u of [-C.u,C.u])post(u,C.u,fl.z,R.z);
+ const fz=fl.z,rail=(u0,u1)=>{face(pv,u0,u1,fl.u,fz+7,fz+9,.25);line(pv,[u0,fl.u+.1,fz+4],[u1,fl.u+.1,fz+4]);for(let u=u0;u<=u1+1e-6;u+=(u1-u0)/Math.max(1,Math.round((u1-u0)/6)))face(pv,u-.8,u+.8,fl.u+.1,fz,fz+7,0,false);};
+ rail(-fl.u,fl.u);for(const u of [-fl.u,fl.u])flat(pv,u-1,u+1,-fl.u,fl.u,fz+9,.25);
+
+ // Lower roof: a hip roof whose slopes curve up from the curled eaves (z grows as t^1.5) to the base of the gable roof.
+ // Each slope is a grid of quads from its eave edge e(a) to its top edge r(a), a in -1..1.
+ const curl=a=>R.z+R.curl*a*a*a*a;
+ const slopes={
+  back:a=>[[a*R.u,-R.v,curl(Math.abs(a))],[a*R.tu,-R.tv]],front:a=>[[a*R.u,R.v,curl(Math.abs(a))],[a*R.tu,R.tv]],
+  west:a=>[[-R.u,a*R.v,curl(Math.abs(a))],[-R.tu,a*R.tv]],east:a=>[[R.u,a*R.v,curl(Math.abs(a))],[R.tu,a*R.tv]]};
+ const at=(f,a,t)=>{const [e,r]=f(a);return [e[0]+(r[0]-e[0])*t,e[1]+(r[1]-e[1])*t,e[2]+(R.tz-e[2])*Math.pow(t,1.5)];};
+ const M=16,N=8,slope=(f,shade,channels)=>{
+  for(let i=0;i<M;i++)for(let j=0;j<N;j++){const a0=-1+2*i/M,a1=-1+2*(i+1)/M,t0=j/N,t1=(j+1)/N;poly(pv,[at(f,a0,t0),at(f,a1,t0),at(f,a1,t1),at(f,a0,t1)],shade,false);}
+  if(channels!==null)for(let i=1;i<M;i++){const a=-1+2*i/M;for(let j=0;j<N;j++)line(pv,at(f,a,j/N),at(f,a,(j+1)/N),channels);}
+  for(const t of [.35,.7])for(let i=0;i<M;i++)line(pv,at(f,-1+2*i/M,t),at(f,-1+2*(i+1)/M,t),shade<.5?.5:1);
+  for(let i=0;i<M;i++)line(pv,at(f,-1+2*i/M,0),at(f,-1+2*(i+1)/M,0));};
+ const rib=(f,a)=>{for(let j=0;j<N;j++){const p=P(...at(f,a,j/N)),q=P(...at(f,a,(j+1)/N));pv.line(p,q,1);pv.line([p[0]-Math.sign(a),p[1]],[q[0]-Math.sign(a),q[1]],0);}};
+ slope(slopes.back,.25,null);
+ for(const k of [-1,1])horn(pv,[k*R.u,-R.v,curl(1)],k,-.7,1.7);
+ slope(slopes.west,.75,.5);slope(slopes.east,.25,.5);
+
+ // Gable roof on top: its two slopes, the plastered front gable with a dark medallion, and paper bargeboards.
+ const g0=R.tz-2,gw=Gb.u,gs=(k,shade,channels)=>{const n=8;for(let i=0;i<n;i++){const v0=-Gb.v+2*Gb.v*i/n,v1=-Gb.v+2*Gb.v*(i+1)/n;
+   poly(pv,[[k*gw,v0,g0],[k*gw,v1,g0],[0,v1,Gb.z],[0,v0,Gb.z]],shade,false);if(channels!==null)line(pv,[k*gw,v1,g0],[0,v1,Gb.z],channels);}
+  line(pv,[k*gw,-Gb.v,g0],[k*gw,Gb.v,g0]);};
+ gs(-1,.75,.5);gs(1,.25,.5);
+ slope(slopes.front,.5,0);
+ for(const a of [-1,1])rib(slopes.front,a);
+ for(let i=0;i<M;i++){const a0=-1+2*i/M,a1=-1+2*(i+1)/M,p=at(slopes.front,a0,0),q=at(slopes.front,a1,0);poly(pv,[p,q,[q[0],q[1],q[2]-3],[p[0],p[1],p[2]-3]],Math.abs(a0+a1)>1.7?1:0);}
+ for(const k of [-1,1])horn(pv,[k*R.u,R.v,curl(1)],k,.7,1.95);
+ poly(pv,[[-R.tu,Gb.v,R.tz],[R.tu,Gb.v,R.tz],[0,Gb.v,Gb.z-3]],1);
+ poly(pv,[[-5,Gb.v+.1,R.tz+8],[0,Gb.v+.1,R.tz+3],[5,Gb.v+.1,R.tz+8],[0,Gb.v+.1,R.tz+13]],0);line(pv,[-R.tu+3,Gb.v+.1,R.tz+1.5],[R.tu-3,Gb.v+.1,R.tz+1.5]);
+ for(const k of [-1,1]){poly(pv,[[k*(gw+1),Gb.v+.3,g0-1],[0,Gb.v+.3,Gb.z+1],[0,Gb.v+.3,Gb.z+4],[k*(gw+1),Gb.v+.3,g0+2]],1);horn(pv,[k*(gw+1),Gb.v+.4,g0-1],k,0,.9);}
+ // Ridge, its end knobs, and the gilt crown: a flaming pearl between two dragons.
+ for(const d of [0,1])line(pv,[0,-Gb.v,Gb.z+d],[0,Gb.v,Gb.z+d],0);
+ for(const v of [-Gb.v,Gb.v])ball(pv,0,v,Gb.z+1,2.2);
+ for(const k of [-1,1])horn(pv,[k*9,0,Gb.z+1],k,0,1.35);
+ ball(pv,0,0,Gb.z+3,5);{const c=P(0,0,Gb.z+8);pv.pixel(c[0],c[1],0);pv.pixel(c[0]+1,c[1],0);}
+
+ // Stairs climbing east from the gap in the west fence to the veranda, seen side-on: the far parapet, the treads (alternate
+ // shades), the near parapet's top and its long sloping wall down to the water, with ball-topped posts at both ends.
+ const u0=-U-Rm,u1=st.u1,zt=fl.z,run=u1-u0,d=run/st.n,rise=zt/st.n,parapet=(v0,v1)=>poly(sr,[[u0,v0,8],[u1,v0,zt+8],[u1,v1,zt+8],[u0,v1,8]],1);
+ const ends=v=>{for(const [u,z] of [[u0+3.5,0],[u1-3.5,zt]]){face(sr,u-3,u+3,v+3,z,z+14,1);ball(sr,u,v+3.1,z+14,3);}};
+ parapet(-st.wall,-st.v);ends(-(st.wall+st.v)/2);
+ for(let k=0;k<st.n;k++){const a=u0+k*d,z=(k+1)*rise;flat(sr,a,a+d,-st.v,st.v,z,k%2?.75:1,false);}
+ line(sr,[u0,-st.v,rise],[u1,-st.v,zt]);
+ parapet(st.v,st.wall);
+ poly(sr,[[u0,st.wall,0],[-U,st.wall,0],[-U,st.wall,Pd.water],[u1,st.wall,Pd.water],[u1,st.wall,zt+8],[u0,st.wall,8]],.75);
+ for(let k=1;k<5;k++){const f=k/5,a=u0+run*f;line(sr,[a,st.wall+.1,Pd.water+1],[a,st.wall+.1,8+zt*f-1],.5);}
+ ends((st.wall+st.v)/2);
+
+ // Front fence, and the ball-topped posts either side of the stairs' gate in the west fence.
+ fence(front,-uf,uf,vf,{l:1,r:1});
+ for(const v of [-F.gap,F.gap]){face(pond,-uf-3.5,-uf+3.5,v+3.5,0,F.post+2,1);ball(pond,-uf,v+3.6,F.post+2,3.2);}
+
+ const out={ax,ay};for(const k of TEMPLE_LAYERS)out[k]=L[k].finish(true);return out;
+}
+function templeDrawables(w){const T=w.layout&&w.layout.temple;if(!T)return [];const G=TEMPLE_GEO,P=G.pond,x=Math.round(T.x),y=Math.round(T.y*K),at=v=>Math.round((T.y+v*T.s)*K);
+ return [{type:'temple',part:'pond',x,y,key:at(-P.v-P.rim)},{type:'temple',part:'stairs',x,y,key:at(G.stairs.wall)},{type:'temple',part:'pavilion',x,y,key:at(G.floor.u)},{type:'temple',part:'front',x,y,key:at(P.v+P.rim)}];}
 // opening (inner clear height gate.height, thickness 2r). The front face is ink (it faces away from the light); the top and
 const GATE_TOP_SHADE=.25;
 // Arch pixels higher than GATE_SPLIT world units (above every car roof) can only ever overlap things BEHIND the gate plane:
@@ -2602,7 +2813,7 @@ if(typeof document==='undefined'){if(typeof module!=='undefined'){
  module.exports={BURN_SPEED,GEARS,AUTO_GEARS,MANUAL_GEARS,PADDLE_GEARS,PADDLE_SEQ,isPaddle,REV_SHIFT,SHIFT_AT,isManual,shiftOk,gearStep,gearName,shiftGear,gearTelemetry,WIDTH,HEIGHT,K,Z,WORLD_H,STEP,SIM_SPEED,TAU,PRESETS,CAR_ART,FRAMES,SHADOW_INK,LIGHT,DEFAULT_ARENA,edgeClear,CROSS_GAP,carBoxAll,SPAWN_INSIDE,CONE_COUNT,CONE_R,CONTROL_ZONES,keepOuts,layoutCourse,drawGround,resetCones,TRANSFER_MARGIN,CONE_BOX,transferBody,transferEdges,sceneItems,carDrawable,mobileCarArtScale,scaleArtBox,portraitCarArt,carArtBox,gateDrawables,drawOrder,SKID,createTrackRecorder,breakTracks,recordTracks,coneSprite,coneShadowSprite,CONE_H,archShape,inArch,gateArt,GATE_SPLIT,GATE_FRONT,plotLine,frameIndex,carModel,carShadowPolys,frameBounds,spriteBox,raster,carSprite,carShadow,buildCarAtlases,makeArena,normalizeInput,keysToInput,carScreenBounds,resizeWorld,wrap,delta,angleDelta,createWorld,drive,step,carCone,coneCone,position,wheelPoints,SPEED_CAP,OMEGA_MAX,CONE_MAX,FASTEST,SUB_MOVE,gatePosts,carPost,conePost,substeps,limitVelocity,ROLL_STEPS,ROLL_G,LOAD_W,LOAD_ZETA,IMPACT_GAIN,TIP_COMMIT,TIP_DROP,TIP_MIN,TIP_SOFT,ROLL_SPIN,ROLL_DECEL,ROLL_SETTLE,ROLL_FRICTION,REST_SPEED,RECOVER_TIME,RECOVER_GAP,CAR_STATES,uprightState,rollKappa,tipAngle,tumble,rollover,rollFrame,rolledModel,rollShadowPolys,rollSpritePoints,rollFrameBounds,rollSpriteBox,carRollSprite,carRollShadow,carHidden,canRecover,recover,recoverSpot,boxDistance};
  Object.assign(module.exports,{raceRoute,raceProject,raceCross,raceNew,raceMove,raceTime,raceRank,raceBetter,raceFingerprint,raceRecords,raceSave,RACE_VERSION});
  Object.assign(module.exports,{setTrack,TUNING,TUNING_SPEC,TUNING_DEFAULTS,setTuning,resetTuning}); // shared tuning interface
- Object.assign(module.exports,{visibleBounds,cameraGeometry,mobileCameraGeometry,titleRotation,renderMetrics,titleRasterSpec,groundDots,pitStopGeometry,pitPoint,gasPumpPoint,pitPosts,pitOverlap,carPit,conePit,drawPitBay,pitArt,pitDrawables,VIEW_SHORT,computeView,createControls,UI_MARGIN,UI_GAP,uiMetrics,controlZones,WHEEL_DEAD,turnDelta,pointerAngle,wheelDrag,wheelValue,wheelKickback,createModes,recoverAvailable,tryRecover,isRecoverKey,recoverFromKey}); // ui (r2-ui)
+ Object.assign(module.exports,{LIGHT,TEMPLE_GEO,TEMPLE_LAYERS,TEMPLE_SCALE,TEMPLE_TITLE,templeOuter,templeThumb,templeTitleRect,buildTemple,templeRect,templeClearance,templeTopY,templeParts,templeBlocks,templeArt,templeDrawables,templeHides,templeGround,visibleBounds,cameraGeometry,mobileCameraGeometry,titleRotation,renderMetrics,titleRasterSpec,groundDots,pitStopGeometry,pitPoint,gasPumpPoint,pitPosts,pitOverlap,carPit,conePit,drawPitBay,pitArt,pitDrawables,VIEW_SHORT,computeView,createControls,UI_MARGIN,UI_GAP,uiMetrics,controlZones,WHEEL_DEAD,turnDelta,pointerAngle,wheelDrag,wheelValue,wheelKickback,createModes,recoverAvailable,tryRecover,isRecoverKey,recoverFromKey}); // ui (r2-ui)
  Object.assign(module.exports,{PAINT_SLANT,PAINT_STRIPE,PAINT_SOLID_BELOW,PAINT_KEY_SOLID_BELOW,PAINT_COPY,GLYPHS,glyphMask,shearMask,maskRuns,keycapRuns,wrapPhrases,paintLayout,paintRuns,drawPaint}); // ground paint (r2-paint)
  Object.assign(module.exports,{buildCourse,fitTrack,roundedPath,circuitVerts,laneHalf,laneSelfClear,gateSpot,trackMarks,LANE_PAD,LANE_GAP,GATE_LEAD,TRACK_STEP,CONE_OFF,inGate,TRACKS,TRACK_SHAPES,TRACK_HALF,TRACK_FILL,shapeUnit,trackSelfClear,insideLoop,titleSpot,trackRadiusOk,TRACK_MIN_R}); // sim + course extra exports (r2-sim)
  Object.assign(module.exports,{wheelLimit,wheelInput,wheelAngle,GEAR_GATE,STICK_VB,gearSlot,stickMove,mobileStickMove,stickSlot,simpleAutoInput,stickPath,AUTO_GATE,autoSlot,autoMove,autoSlotAt,autoPath,stickGate,pathPoint,shiftBarW,TUNING_STORE,loadTuning,saveTuning,tuningGroups,uiPx,SPEED_EM,speedFit,shiftKeyW,shiftKeyGap,shiftKeyLayout,gearCues,trackThumbSize,trackThumb}); // ui extra exports (r2-ui, r3-ui)
@@ -2673,6 +2884,8 @@ const uprightCone=coneSprite(),tippedCones=Array.from({length:16},(_,i)=>coneSpr
 const cartFrames=Array.from({length:CART_FRAMES},(_,i)=>cartSprite(i*TAU/CART_FRAMES)),cartShades=Array.from({length:CART_FRAMES},(_,i)=>cartShadowSprite(i*TAU/CART_FRAMES));
 const propCanvases=new Map();
 function propSprites(p){const key=JSON.stringify(p);let c=propCanvases.get(key);if(!c){const art=propArt(p);c={sprite:toCanvas(art.sprite),shadow:toCanvas(art.shadow),ax:art.ax,ay:art.ay};if(propCanvases.size>400)propCanvases.clear();propCanvases.set(key,c);}return c;}
+const templeCanvases=new Map();
+function templeSprites(T){const key=JSON.stringify([T.x,T.y,T.s]);let result=templeCanvases.get(key);if(!result){const art=templeArt(T);result={ax:art.ax,ay:art.ay};for(const k of TEMPLE_LAYERS)result[k]=toCanvas(art[k]);templeCanvases.clear();templeCanvases.set(key,result);}return result;}
 const pitCanvases=new WeakMap();
 function pitSprites(A,layout){const g=pitStopGeometry(A,layout);let result=pitCanvases.get(g);if(!result){const art=pitArt(g);result={base:toCanvas(art.base),roof:toCanvas(art.roof),shadow:toCanvas(art.shadow),ax:art.ax,ay:art.ay};pitCanvases.set(g,result);}return result;}
 const uprightShade=coneShadowSprite(),tippedShades=Array.from({length:16},(_,i)=>coneShadowSprite(true,i*TAU/16));
@@ -2804,6 +3017,7 @@ function drawShadow(o){
  else if(o.type==='cart')ctx.drawImage(cartShades[frameIndex(o.a,CART_FRAMES)],o.x-16,o.y-20);
  else if(o.type==='prop'){const c=propSprites(world.layout.props[o.i]);ctx.drawImage(c.shadow,o.x-c.ax,o.y-c.ay);}
  else if(o.type==='pit'&&o.part==='base'){const p=pitSprites(world.arena,world.layout);ctx.drawImage(p.shadow,o.x-p.ax,o.y-p.ay);}
+ else if(o.type==='temple'&&o.part==='pond'){const t=templeSprites(world.layout.temple);ctx.drawImage(t.shadow,o.x-t.ax,o.y-t.ay);}
  else if(o.type==='gate'&&o.part==='leg0'){const g=gateSprites(world.layout.gate),b=g.art.shadowBox;ctx.drawImage(g.shadow,o.x-b.ax,o.y-b.ay);}
 }
 function drawItem(o){
@@ -2812,6 +3026,7 @@ function drawItem(o){
  else if(o.type==='cart')ctx.drawImage(cartFrames[frameIndex(o.a,CART_FRAMES)],o.x-16,o.y-20);
  else if(o.type==='prop'){const c=propSprites(world.layout.props[o.i]);ctx.drawImage(c.sprite,o.x-c.ax,o.y-c.ay);}
  else if(o.type==='pit'){const p=pitSprites(world.arena,world.layout);ctx.drawImage(p[o.part],o.x-p.ax,o.y-p.ay);}
+ else if(o.type==='temple'){const t=templeSprites(world.layout.temple);ctx.drawImage(t[o.part],o.x-t.ax,o.y-t.ay);}
  else if(o.type==='gate'){const g=gateSprites(world.layout.gate),b=g.art.box;ctx.drawImage(g[o.part],o.x-b.ax,o.y-b.ay);}
 }
 // Contract §6 order: ground, tracks, every shadow, then the depth-sorted drawables (cones, car, gate legs; the arch top last).
@@ -2981,7 +3196,7 @@ function syncTracks(){
  const A=world.arena,key=A.W+'x'+A.H+'|'+A.mobile+'|'+A.uiU;if(key!==thumbKey){thumbKey=key;thumbMasks={};}
  for(const b of trackButtons){
   const id=b.dataset.track,on=id===SELECTED_TRACK,c=b.querySelector('canvas');b.setAttribute('aria-pressed',String(on));
-  if(!(id in thumbMasks)){try{const sz=trackThumbSize(A.W,A.H),L=buildCourse({...A,E:edgeClear(A)},[],id);thumbMasks[id]=L.lot?lotThumb(L,sz.w,sz.h):trackThumb(L.track.pts.map(p=>[p[0],p[1]*K]),sz.w,sz.h);}catch(_){thumbMasks[id]=null;}}
+  if(!(id in thumbMasks)){try{const sz=trackThumbSize(A.W,A.H),L=buildCourse({...A,E:edgeClear(A)},[],id);thumbMasks[id]=L.lot?lotThumb(L,sz.w,sz.h):(L.temple?templeThumb(L,sz.w,sz.h):trackThumb(L.track.pts.map(p=>[p[0],p[1]*K]),sz.w,sz.h));}catch(_){thumbMasks[id]=null;}}
   const m=thumbMasks[id];if(!m){c.width=c.height=1;continue;}
   if(c.width!==m.w||c.height!==m.h){c.width=m.w;c.height=m.h;}
   const cx=c.getContext('2d');cx.fillStyle=on?ink:paper;cx.fillRect(0,0,m.w,m.h);cx.fillStyle=on?paper:ink;

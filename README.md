@@ -58,7 +58,7 @@ The right stick tilts the drone, and the tilted thrust moves it: released, it le
 
 ## Races and free drive
 
-Choose **Signature circuit**, **Easy oval**, **Figure eight**, or **Parking lot** in Settings. The road courses open in Ready. Tap the playground, press a pedal, or press W / Enter to start the clock. Holding W or the on-screen gas pedal starts and drives in the same gesture. The clock includes the trip from the standard spawn to the gate. The first forward gate crossing arms the lap; complete the route and cross forward again to finish.
+Choose **Daily Challenge** (the Signature circuit), **Easy oval**, **Figure eight**, **Temple**, or **Parking lot** in Settings. Temple and Parking lot are free-drive maps without a race. The road courses open in Ready. Tap the playground, press a pedal, or press W / Enter to start the clock. Holding W or the on-screen gas pedal starts and drives in the same gesture. The clock includes the trip from the standard spawn to the gate. The first forward gate crossing arms the lap; complete the route and cross forward again to finish.
 
 The top-center figures show `minutes:seconds:hundredths` and a percentage, side by side in the striped theme. The percentage is **track quality**, a distance budget that falls with off-road travel and never recovers. It is not route completion. Short excursions can rejoin ahead; large route skips still cannot finish the lap. The debug switch in Settings shows the route, cursor, gate state, progress, and off-track distance.
 
@@ -70,6 +70,82 @@ Finishing freezes the game and shows a centered result in the pause-screen style
 Opening Settings and dismissing it leaves the game paused. The dismissal click is consumed, including when it lands on the gas pedal. **Reset scene** restores the scene and a fresh Ready race on a road course. Parking stays free drive.
 
 Ranked time is `elapsedSeconds + 0.02 × (100 − quality)²`; lower wins. Personal bests are stored locally per course, vehicle, relevant handling setup, and effective route geometry. Storage failures fall back to session-only bests. Wrapping, teleport recovery, handling changes, or a physical course resize end an active timed attempt; a notice explains the interruption.
+
+## The Temple map
+
+**Temple** is a free-drive map, like the parking lot: no road, race gate, cones or pit garage, and no lap timer. It has only the One Pillar Pagoda (Chùa Một Cột), shown with its own painted title, **8-BIT TEMPLE**. The shrine is shaped like a lotus rising from a square pond. It stands on a single stone pillar, which carries the floor on curved wooden struts. It has a lattice room, a veranda railing, a curved tiled roof with upturned corners, and a small gable on top crowned by a gilt pearl between two dragons. A stone-coped pond with a balustrade fence surrounds it. A short flight of ten broad stairs climbs from a gate in the west fence to the veranda, and a paved walk leads to that gate.
+
+![The Temple map, rendered from the game's drawing code](docs/images/temple-map.png)
+
+![The pagoda close up (3×)](docs/images/temple-closeup.png)
+
+- The car starts on the west walk, facing the stairs.
+- The pond and its fence are solid for cars, from every side. The Drone can climb over the fence and fly over the water. It can't fly through the stairs or the shrine, which is taller than it can fly.
+- Light falls from the upper left, as everywhere in the game. The shrine, pillar, stairs and fence cast darker shadows on the water. Cars behind the pond or the shrine are hidden by them.
+- The stairs come in from the side, because this camera looks down steeply: stairs from the front would hide the pillar. For the same reason, the roof overhangs less at the front than at the sides.
+- Sizes are in `TEMPLE_GEO`, and the map is built by `buildTemple`. The temple is drawn at 1.45× on the fixed 1350 × 675 world, centred together with its title.
+- On a phone held upright, the whole map is drawn turned 90°. The title is turned back upright and moved east of the pond, above the controls, to fit; the buildings stay turned, like the pit garage on the road courses.
+
+| Desktop (1366×768) | Phone, landscape (844×390) | Phone, portrait (375×812) |
+| --- | --- | --- |
+| ![Desktop interface on the Temple map](docs/images/ui-desktop-temple.jpg) | ![Phone landscape on the Temple map](docs/images/ui-phone-landscape-temple.jpg) | ![Phone portrait on the Temple map](docs/images/ui-phone-portrait-temple.jpg) |
+
+## Art style guide
+
+Read this before drawing anything new. Everything on screen is drawn in code, in the same few rules. To see the current art at native pixels, run `node snapshot.cjs` (below) instead of guessing from the source or from a downscaled browser screenshot.
+
+| Figure eight | Parking lot |
+| --- | --- |
+| ![Figure eight](docs/images/course-eight.png) | ![Parking lot](docs/images/course-parking.png) |
+
+### Palette and shading
+
+- **Two inks only.** Ink `#30342d` (`INK = [48,52,45]`) and paper `#bfc1b1` (`PAPER = [191,193,177]`). Every sprite pixel is one or the other, fully opaque. Tests check this.
+- **Shades are ordered dithers** in `raster()`: `0` solid ink, `.25`, `.5` and `.75` (2×2 Bayer, more paper as the number rises), `1` solid paper.
+- **Shadows** use their own denser 4×4 dither (`shadowPixel`, 55% ink, `SHADOW_INK`), never a shade value.
+- **Outlines**: one-pixel ink outlines on filled shapes (`poly(points, shade, true)`). Dotted lines (`line(a, b, .5)`) are used for stone joints and guide markings.
+- **Ground**: paper with a sparse grid of single ink dots (`groundDots`). Road edges are 1 px, the centre guide is 2 px dashes.
+- Material vocabulary used so far:
+
+| Material | Shade |
+| --- | --- |
+| Stone tops, paper signs, gilt | `1` with ink outlines, dotted `.5` joints |
+| Stone front faces | `.75` |
+| Roof tiles | `.5` with ink channel lines |
+| Lacquered wood, shaded sides | `.25`, with a `.5` stripe on the lit side |
+| Black trim, tyres, windows | `0` |
+
+### Camera, light and depth
+
+- **Fixed oblique camera from the south.** Screen x = world x. Screen y = world y × `K` − `Z` × height, with `K = .66` and `Z = √(1 − K²) ≈ .75`. One world unit across is one screen pixel at default zoom; the fixed world is 1350 × 675 screen px.
+- Only faces that point south (+y, toward the viewer) and tops are visible; east and west walls are edge-on. Draw back to front within a sprite.
+- **Light comes from the upper left.** Shadows fall down-right by `LIGHT = {x: .45, y: .3}` screen px per unit of height. Make faces toward the light a step (`+.25`) lighter and faces away a step darker.
+- Shadows are drawn on the ground first, for everything, before any object. Build a shadow as the convex hull of a footprint swept to its height along `LIGHT` (`hull(...)`, then `poly(..., 0, false, shadowPixel)`).
+- **Depth sorting**: each drawable has a `key`, the screen y of its front ground line. Lower keys draw first, and the car wins ties. Anything higher than every car roof (`GATE_SPLIT`) goes in a separate top layer keyed `GATE_FRONT` (or `GATE_FRONT - 1`), so cars pass under it. A Drone flying above `FLY.clear` uses `GATE_FRONT + 1`, except behind the temple's shrine (`templeHides`).
+- In-world lettering uses the 5×7 `PROP_LETTERS` glyphs on an ink plate (`propLabel`), as in CART and GAS.
+
+### Adding a structure or course
+
+Use the pit garage (`pitArt`) and the temple (`templeArt`) as templates. Check the camera first: it looks down steeply (`K = .66`), so anything south of an object and higher than it hides it, and wide overhangs hide what is under them:
+
+1. **Geometry in one place.** Define sizes in local units (u right, v south, z up), like `TEMPLE_GEO`, and derive the art, colliders and clearances from them.
+2. **Art.** Write a `…Art()` function that returns raw rasters sharing one anchor: a base layer, any top layer, and a shadow layer. Project with `P = (u, v, z) => [ax + u, ay + K * v - Z * z]`. Cache the browser canvases (`templeSprites`, `pitSprites`).
+3. **Drawables.** Return `{type, part, x, y, key}` items from a `…Drawables(w)` function, add them in `sceneItems`, and draw the shadow and the parts in `drawShadow` and `drawItem`.
+4. **Collisions.** Use circle posts in `layout.posts`, which the Drone clears above `FLY.clear`, or oriented boxes `{x, y, angle, w, d, height}` checked with `pitOverlap`, `carPit` and `conePit` in `step()`. A box stops the Drone below its `height`. Also exclude them in `recoverSpot`.
+5. **Course or map.** Add the id and name to `TRACKS`. A road course adds a shape to `TRACK_SHAPES` (unit control points in driving order, `gate: [segment, fraction]`, `asp` range) and a `TRACK_FALLBACK` entry. A free-drive map returns its own layout from `buildCourse`, with `gate: null` and an empty `track.pts`, like `buildParking` and `buildTemple`; no race follows. Give it a painted title (`titleOpts`, `titleRect`) and a Settings thumbnail (`lotThumb`, `templeThumb`).
+6. **Check it.** Render it with `snapshot.cjs`, view it in the browser at desktop and phone sizes, add the id to the course loops in the verification scripts, and add focused tests: two-tone sprites, colliders, Drone heights, recovery and depth keys.
+
+### Snapshots
+
+`snapshot.cjs` loads the game's script in Node and draws a course exactly as `draw()` orders it: ground, shadows, sorted sprites. It needs no packages. It leaves out the painted title, the keyboard guide, tyre marks and the DOM controls.
+
+```sh
+node snapshot.cjs temple docs/images/temple-map.png
+node snapshot.cjs temple docs/images/temple-closeup.png --scale 3 --crop 520,60,840,360
+node snapshot.cjs eight docs/images/course-eight.png --at 600,300,0
+```
+
+The images in `docs/images` were made this way, except the `ui-*.jpg` interface screenshots, which come from the browser. They are documentation only and are not deployed.
 
 ## Appearance and settings
 
@@ -87,9 +163,10 @@ node verify-race.cjs
 node verify-current.cjs
 node verify-mobile.cjs
 node verify.cjs
+node snapshot.cjs temple docs/images/temple-map.png
 ```
 
-Latest local results on October 30, 2026: all suites pass — 144 broad checks plus 10 race groups, 50 current-feature checks, 12 mobile checks and two deployment groups. The formerly failing checks were audited and migrated to current behavior; actual gate, drone-pad and F1 skid defects were fixed. See [the regression audit](tasks/REGRESSION_AUDIT.md) for the exact changes.
+Latest local results on November 2, 2026 (Temple map added): all suites pass — 144 broad checks plus 10 race groups, 56 current-feature checks (six of them for the Temple map), 12 mobile checks and two deployment groups. The formerly failing checks were audited and migrated to current behavior; actual gate, drone-pad and F1 skid defects were fixed. See [the regression audit](tasks/REGRESSION_AUDIT.md) for the exact changes.
 
 Browser checks covered 1366×768, 864×930, 390×844, 844×390, and 320×568. Short drives, pause, and on-screen gas were exercised; a landscape instruction/prompt overlap was fixed. A simulated-finish fixture exercised the centered result, mobile restart, and tap-to-free-drive. A full lap through actual browser controls, physical-device multitouch, safe-area hardware, long-session performance, and direct-file browser validation remain outstanding. Do not treat this as a full green QA signoff.
 
