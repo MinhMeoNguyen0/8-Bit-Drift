@@ -41,3 +41,18 @@ test('the Temple map stays upright on a portrait phone and fits between the top 
  const s=require('fs').readFileSync(__dirname+'/dist/index.html','utf8');assert(/A\.upright=SELECTED_TRACK==='temple'/.test(s)&&/rotated=mobile&&cssH>cssW&&!A\.upright/.test(s),'only the Temple map skips the turn');
  e.setTrack('eight');
 });
+test('phone parking draws the car at its true size in a shorter lot, framed with its portrait title',()=>{
+ e.setTrack('parking');
+ for(const [w,h] of [[390,844],[320,568],[844,390],[568,320]]){
+  const v=e.computeView(w,h,1,300),u=v.scale,z=e.controlZones({...v,u,cssW:w,cssH:h,mobile:true},{});
+  const A=Object.assign(e.makeArena(1350,675),{fixedMobile:true,mobile:true,parking:true,uiU:u,uiW:w,uiH:h}),L=e.layoutCourse(A),lot=L.lot;
+  assert(lot.rows[0].slots.length<=e.LOT_MAX_MOBILE,`${w}x${h}: lot capped for phones`);
+  assert.equal(e.mobileCarArtScale(A),1,'parking car art is true size');
+  for(const id of ['compact','coupe','f1','van']){const p=e.PRESETS[id];assert(p.width<e.LOT_STALL_W&&p.length<e.LOT_STALL_D,`${id} fits a stall`);}
+  const b=e.lotBox(lot),c=e.mobileCameraGeometry(w,h,300,1350,675,z,u,b);
+  if(h>w){const hud=z.find(q=>q.id==='hud');assert((b.l-e.LOT_TITLE_ROOM-c.l)*c.scale>=hud.b*u,`${w}x${h}: portrait title clears the top bar`);}
+ }
+ assert.equal(e.mobileCarArtScale({mobile:true}),1.8,'road courses keep the larger phone car');
+ const D=Object.assign(e.makeArena(1350,675),{mobile:false}),Ld=e.layoutCourse(D);assert.equal(Ld.lot.rows[0].slots.length,e.LOT_MAX,'desktop lot unchanged');
+ e.setTrack('eight');
+});
