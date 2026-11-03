@@ -25,7 +25,7 @@ The publishing flow is:
 3. Pushing or merging into `main` runs the deployment checks again. If they pass, GitHub uploads only `dist` and updates the website. This is **CD (continuous deployment)**.
 4. A failed deployment check stops publication; an already published version remains available. To undo a release, revert its commit on `main` and push.
 
-Publication requires the standalone deployment, broad, current-feature and mobile suites to pass. The separate regression workflow also runs the game suites independently. See [the CI/CD guide](tasks/GITHUB_PAGES.md). No package install, build step, or personal deployment token is required.
+Publication requires the standalone deployment, broad, current-feature and mobile suites to pass. After deploying, the workflow fetches the live page and checks it is byte-identical to the commit's `dist/index.html`; the run fails if it isn't, and on success its summary says which commit is live. Pages lets browsers cache the page for up to 10 minutes, so hard-refresh to see a new release at once. The separate regression workflow also runs the game suites independently. See [the CI/CD guide](tasks/GITHUB_PAGES.md). No package install, build step, or personal deployment token is required.
 
 ## Controls and vehicles
 
@@ -79,9 +79,9 @@ Ranked time is `elapsedSeconds + 0.02 × (100 − quality)²`; lower wins. Perso
 
 ![The pagoda close up (3×)](docs/images/temple-closeup.png)
 
-- The car starts on the west walk, facing the stairs.
+- Every vehicle, the Drone included, starts on the painted **8-BIT TEMPLE** title, facing west along it.
 - The pond and its fence are solid for cars, from every side. The Drone can climb over the fence and fly over the water. It can't fly through the stairs or the shrine, which is taller than it can fly.
-- Light falls from the upper left, as everywhere in the game. The shrine, pillar, stairs and fence cast darker shadows on the water. Cars behind the pond or the shrine are hidden by them.
+- Light falls from the upper left, as everywhere in the game. The shrine, pillar, stairs and fence cast darker shadows on the water. A flying Drone's shadow falls on the open water too, but adds nothing where the water is already in the temple's shadow (`drawWaterShadow`, `waterShade`). Cars behind the pond or the shrine are hidden by them.
 - The stairs come in from the side, because this camera looks down steeply: stairs from the front would hide the pillar. For the same reason, the roof overhangs less at the front than at the sides.
 - Sizes are in `TEMPLE_GEO`, and the map is built by `buildTemple`. The temple is drawn at 1.45× on the fixed 1350 × 675 world, centred together with its title.
 - On a phone held upright, the whole map is drawn turned 90°. The title is turned back upright and moved east of the pond, above the controls, to fit; the buildings stay turned, like the pit garage on the road courses.
@@ -166,7 +166,7 @@ node verify.cjs
 node snapshot.cjs temple docs/images/temple-map.png
 ```
 
-Latest local results on November 2, 2026 (Temple map added): all suites pass — 144 broad checks plus 10 race groups, 56 current-feature checks (six of them for the Temple map), 12 mobile checks and two deployment groups. The formerly failing checks were audited and migrated to current behavior; actual gate, drone-pad and F1 skid defects were fixed. See [the regression audit](tasks/REGRESSION_AUDIT.md) for the exact changes.
+Latest local results on November 2, 2026 (Temple map added): all suites pass — 144 broad checks plus 10 race groups, 57 current-feature checks (seven of them for the Temple map), 12 mobile checks and two deployment groups. The formerly failing checks were audited and migrated to current behavior; actual gate, drone-pad and F1 skid defects were fixed. See [the regression audit](tasks/REGRESSION_AUDIT.md) for the exact changes.
 
 Browser checks covered 1366×768, 864×930, 390×844, 844×390, and 320×568. Short drives, pause, and on-screen gas were exercised; a landscape instruction/prompt overlap was fixed. A simulated-finish fixture exercised the centered result, mobile restart, and tap-to-free-drive. A full lap through actual browser controls, physical-device multitouch, safe-area hardware, long-session performance, and direct-file browser validation remain outstanding. Do not treat this as a full green QA signoff.
 

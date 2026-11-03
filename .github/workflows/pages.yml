@@ -54,3 +54,26 @@ jobs:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
+      # Proof of publication: the live page must be byte-identical to this commit's dist/index.html. Pages can take a
+      # little while to switch over, so retry for up to five minutes. Browsers may still show a cached copy for up to
+      # ten minutes (Pages sends max-age=600); a hard refresh loads the new one.
+      - name: Confirm the live site serves this commit
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          want=$(sha256sum dist/index.html | cut -d' ' -f1)
+          for attempt in $(seq 1 30); do
+            got=$(curl -fsSL -H 'Cache-Control: no-cache' "${PAGE_URL}?v=${GITHUB_SHA}" | sha256sum | cut -d' ' -f1) || got=none
+            if [ "$got" = "$want" ]; then
+              {
+                echo "### Published"
+                echo "${PAGE_URL} now serves commit \`${GITHUB_SHA::7}\` (index.html sha256 \`${want::12}\`)."
+                echo "Browsers may show a cached copy for up to 10 minutes; hard-refresh to see it at once."
+              } >> "$GITHUB_STEP_SUMMARY"
+              echo "Live site matches ${GITHUB_SHA::7} (attempt ${attempt})."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::${PAGE_URL} does not serve commit ${GITHUB_SHA::7} after 5 minutes (live sha256 ${got::12}, expected ${want::12})."
+          exit 1

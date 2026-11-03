@@ -256,7 +256,7 @@ const templeArena=(o={})=>Object.assign(e.makeArena(1350,675),{fixedMobile:true}
 function templeWorld(id='compact',A=templeArena()){e.setTrack('temple');const w=e.createWorld(id,A);return w;}
 const templeAt=(T,u,v)=>({x:T.x+u*T.s,y:T.y+v*T.s});
 const inTemple=w=>w.layout.temple.blocks.some(b=>e.pitOverlap(w.p,w.car,b));
-test('temple: a free-drive map (no road, gate, cones or pit) with the pagoda centred, the title below it and the car on the west walk',()=>{
+test('temple: a free-drive map (no road, gate, cones or pit) with the pagoda centred, the title below it and every vehicle starting on the title',()=>{
  for(const A of [templeArena(),templeArena({mobile:true,uiW:390,uiH:844}),templeArena({mobile:true,uiW:844,uiH:390})]){const w=templeWorld('compact',A),L=w.layout,T=L.temple;
   assert.equal(L.track.kind,'temple');assert.equal(L.track.pts.length,0);assert.equal(L.gate,null);assert.equal(L.cones.length,0);
   assert.equal(e.raceRoute(L),null,'no lap');assert.equal(e.pitStopGeometry(A,L),null,'no pit');
@@ -266,8 +266,9 @@ test('temple: a free-drive map (no road, gate, cones or pit) with the pagoda cen
   // The title is painted under the pond; a portrait phone turns it upright about its centre, so there it sits east of the pond.
   if(A.mobile&&A.uiH>A.uiW){const cx=(title.l+title.r)/2,h=title.b-title.t,w=title.r-title.l;assert(cx-h/2>q.r&&cx+h/2<A.W,'portrait: east of the pond');assert(Math.abs((title.t+title.b)/2-A.H/2)<1&&w>=200,'portrait: centred down the map, readable width');}
   else assert(q.b*e.K<title.t,'title below the pond');
-  assert(L.spawn.x<q.l+e.TEMPLE_GEO.walk.len*T.s&&L.spawn.x>q.l&&Math.abs(L.spawn.y-T.y)<1&&L.spawn.a===0,'on the walk, facing the stairs');
-  assert(!inTemple(w),'starts clear');}
+  // Every vehicle (the Drone too) starts on the middle of the painted 8-BIT TEMPLE, facing west along it, clear of the temple.
+  assert(Math.abs(L.spawn.x-(title.l+title.r)/2)<.01&&Math.abs(L.spawn.y*e.K-(title.t+title.b)/2)<.01&&L.spawn.a===Math.PI,'on the title');
+  for(const id of Object.keys(e.PRESETS)){const v=templeWorld(id,A);assert.equal(v.car.x,L.spawn.x,id);assert.equal(v.car.y,L.spawn.y,id);assert(!inTemple(v),id+' starts clear');}}
  // Every other map has no temple.
  for(const id of ['signature','oval','eight','parking']){e.setTrack(id);assert.equal(e.layoutCourse(templeArena()).temple||null,null,id);}
  // The title reads 8-BIT TEMPLE there, and the others keep theirs.
@@ -308,6 +309,22 @@ test('temple: two-tone layers that fit their raster, sorted back fence, stairs, 
  assert(at(w,0,-G.pond.v-60)<d.pond.key,'a car behind the pond draws before it');assert(at(w,0,G.pond.v+60)>d.front.key,'in front, after the front fence');
  const dr=templeWorld('van');dr.car.z=dr.car.pz=e.FLY.ceiling;assert(at(dr,0,-20)<d.pavilion.key,'a high Drone behind the shrine stays behind it');assert.equal(at(dr,150,-20),e.GATE_FRONT+1);
  assert.equal(e.sceneItems(w).filter(o=>o.type==='temple').length,4);
+});
+test('temple: a flying Drone shadow falls on the open water, but not on water the temple already shades, nor off the pond',()=>{
+ const w=templeWorld('van'),T=w.layout.temple,art=e.templeArt(T),ws=art.waterShade,pond=art.pond,P=e.TEMPLE_GEO.pond,s=T.s,W=ws.width;
+ const at=(x,y)=>(y*W+x)*4,ax=art.ax,ay=art.ay,px=(u,v,z)=>[Math.round(ax+u*s),Math.round(ay+e.K*v*s-e.Z*z*s)];
+ let open=0;const colors=new Set();for(let i=0;i<ws.data.length;i+=4)if(ws.data[i+3]){open++;colors.add(ws.data[i]+','+ws.data[i+1]+','+ws.data[i+2]);}
+ assert.equal(colors.size,2,'two inks');
+ const [l,t]=px(-P.u,-P.v,P.water),[r,b]=px(P.u,P.v,P.water),area=(r-l)*(b-t);assert(open>area*.4&&open<area*.95,'open water only: '+open+' of '+area);
+ for(let y=0;y<ws.height;y++)for(let x=0;x<W;x++)if(ws.data[at(x,y)+3])assert(x>=l-1&&x<=r+1&&y>=t-1&&y<=b+1,'only on the water');
+ // Water the temple shades (just right of and below the pillar's foot, the light being up-left) is never in waterShade.
+ const [fx,fy]=px(e.TEMPLE_GEO.pillar.r+4,e.TEMPLE_GEO.pillar.r+4,P.water);assert(pond.data[at(fx,fy)+3]&&!ws.data[at(fx,fy)+3],'already shaded water is left alone');
+ // Open water far from the temple is in it.
+ const [ox,oy]=px(-P.u+30,-P.v+30,P.water);assert(ws.data[at(ox,oy)+3],'open water shades');
+ // The page draws it straight after the pond layer, for a flying vehicle only.
+ const script=html.match(/<script>([\s\S]*?)<\/script>/)[1];
+ assert(/ctx\.drawImage\(t\[o\.part\],o\.x-t\.ax,o\.y-t\.ay\);if\(o\.part==='pond'\)drawWaterShadow\(/.test(script),'after the pond');assert(/function drawWaterShadow\(car\)\{[^]*?world\.p\.flying/.test(script),'flying only');
+ assert(/globalCompositeOperation='source-in';g\.drawImage\(t\.waterShade/.test(script),'shadow footprint filled with the shaded water');
 });
 test('temple: the settings thumbnail and the ground paint show the pond, stairs, shrine and walk',()=>{
  const A=templeArena(),sz=e.trackThumbSize(A.W,A.H),L=e.buildCourse({...A,E:e.edgeClear(A)},[],'temple'),m=e.templeThumb(L,sz.w,sz.h),n=m.bits.reduce((a,b)=>a+b,0);

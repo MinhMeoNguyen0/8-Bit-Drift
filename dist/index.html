@@ -875,12 +875,12 @@ const TEMPLE_TITLE_GAP=18,TEMPLE_TITLE_H=64;
 function templeTitleRect(T,A){const s=T.s,o=templeOuter(T),h=Math.round(TEMPLE_TITLE_H*s);
  if(A&&A.mobile&&A.uiH>A.uiW){const cx=Math.round(Math.min(T.x+o.u+70*s,A.W-h/2-90)),cy=Math.round(A.H/2),w=Math.min(2*(A.W-cx)-8,A.H-80,340);return {l:cx-Math.round(w/2),t:cy-Math.round(h/2),r:cx+Math.round(w/2),b:cy+Math.round(h/2)};}
  const w=Math.min(A.W-40,460*s),t=Math.ceil((T.y+o.v)*K+TEMPLE_TITLE_GAP*s);return {l:Math.round(T.x-w/2),t,r:Math.round(T.x+w/2),b:Math.min(A.H-8,t+h)};}
-// The map: the temple centred in the arena (from the ornament's top to the title's foot); the car starts on the west walk,
-// facing the stairs.
+// The map: the temple centred in the arena (from the ornament's top to the title's foot); every vehicle starts on the painted
+// 8-BIT TEMPLE title (wherever this screen paints it), facing west along it.
 function buildTemple(A){
  const G=TEMPLE_GEO,WH=A.H/K,s=Math.max(.3,Math.min(A.W/1350,A.H/675)*TEMPLE_SCALE),r2=v=>Math.round(v*100)/100,P=G.pond;
  const top=-Z*G.gable.top*s,bottom=(P.v+P.rim)*s*K+(TEMPLE_TITLE_GAP+TEMPLE_TITLE_H)*s,y=(A.H/2-(top+bottom)/2)/K,x=A.W/2;
- const T=templeParts(x,y,s),o=templeOuter(T),spawn={x:r2(Math.max(30,x-o.u-60*s)),y:r2(y),a:0};
+ const T=templeParts(x,y,s),o=templeOuter(T),R=templeTitleRect(T,A),spawn={x:r2((R.l+R.r)/2),y:r2((R.t+R.b)/2/K),a:Math.PI};
  return {cones:[],parking:[],posts:[],temple:T,spawn,gate:null,
   track:{kind:'temple',id:'temple',half:0,pts:[],length:0,curbs:[],cross:null,straight:null,box:{x:x-o.u-G.walk.len*s,y:y-o.v,w:2*o.u+G.walk.len*s,h:2*o.v,o:0}}};
 }
@@ -2613,7 +2613,7 @@ function templeArt(T){
  for(let y=wt+2;y<wb;y+=5)for(let x=wl+1;x<wr;x++)if((x*7+Math.floor(y/5)*29)%31<3)pond.pixel(x,y,1);
  // Shadows on the water (light from the up-left): onto the water plane, in a darker dither than the water itself.
  const W=(u,v,z)=>{const p=P(u,v,Pd.water);return [p[0]+LIGHT.x*(z-Pd.water)*s,p[1]+LIGHT.y*(z-Pd.water)*s];};
- const onWater=(x,y)=>{if(x>=wl&&x<=wr&&y>=wt&&y<=wb)pond.pixel(x,y,.25);};
+ const shaded=new Uint8Array(size*size),onWater=(x,y)=>{if(x>=wl&&x<=wr&&y>=wt&&y<=wb){pond.pixel(x,y,.25);shaded[y*size+x]=1;}};
  const cast=pts=>pond.poly(hull(pts.map(q=>W(...q))),0,false,onWater);
  const R=G.roof,Gb=G.gable,fl=G.floor,st=G.stairs,pl=G.pillar;
  cast(box3(-pl.r,pl.r,-pl.r,pl.r,Pd.water,pl.z));cast(box3(-fl.u,fl.u,-fl.u,fl.u,pl.z,R.z));
@@ -2699,7 +2699,11 @@ function templeArt(T){
  fence(front,-uf,uf,vf,{l:1,r:1});
  for(const v of [-F.gap,F.gap]){face(pond,-uf-3.5,-uf+3.5,v+3.5,0,F.post+2,1);ball(pond,-uf,v+3.6,F.post+2,3.2);}
 
- const out={ax,ay};for(const k of TEMPLE_LAYERS)out[k]=L[k].finish(true);return out;
+ // waterShade: the open water (not under the coping, not already in the temple's shadow) in the shade dither. draw() shows
+ // it through a flying Drone's shadow, so the shadow falls on the pond but adds nothing where the temple already shades it.
+ const ws=raster(size,ax,ay),wsb=Math.min(wb,Math.floor(P(0,V,Pd.coping)[1])-1);
+ for(let y=wt;y<=wsb;y++)for(let x=wl;x<=wr;x++)if(!shaded[y*size+x])ws.pixel(x,y,.25);
+ const out={ax,ay,waterShade:ws.finish(true)};for(const k of TEMPLE_LAYERS)out[k]=L[k].finish(true);return out;
 }
 function templeDrawables(w){const T=w.layout&&w.layout.temple;if(!T)return [];const G=TEMPLE_GEO,P=G.pond,x=Math.round(T.x),y=Math.round(T.y*K),at=v=>Math.round((T.y+v*T.s)*K);
  return [{type:'temple',part:'pond',x,y,key:at(-P.v-P.rim)},{type:'temple',part:'stairs',x,y,key:at(G.stairs.wall)},{type:'temple',part:'pavilion',x,y,key:at(G.floor.u)},{type:'temple',part:'front',x,y,key:at(P.v+P.rim)}];}
@@ -2885,7 +2889,7 @@ const cartFrames=Array.from({length:CART_FRAMES},(_,i)=>cartSprite(i*TAU/CART_FR
 const propCanvases=new Map();
 function propSprites(p){const key=JSON.stringify(p);let c=propCanvases.get(key);if(!c){const art=propArt(p);c={sprite:toCanvas(art.sprite),shadow:toCanvas(art.shadow),ax:art.ax,ay:art.ay};if(propCanvases.size>400)propCanvases.clear();propCanvases.set(key,c);}return c;}
 const templeCanvases=new Map();
-function templeSprites(T){const key=JSON.stringify([T.x,T.y,T.s]);let result=templeCanvases.get(key);if(!result){const art=templeArt(T);result={ax:art.ax,ay:art.ay};for(const k of TEMPLE_LAYERS)result[k]=toCanvas(art[k]);templeCanvases.clear();templeCanvases.set(key,result);}return result;}
+function templeSprites(T){const key=JSON.stringify([T.x,T.y,T.s]);let result=templeCanvases.get(key);if(!result){const art=templeArt(T);result={ax:art.ax,ay:art.ay,waterShade:toCanvas(art.waterShade)};for(const k of TEMPLE_LAYERS)result[k]=toCanvas(art[k]);templeCanvases.clear();templeCanvases.set(key,result);}return result;}
 const pitCanvases=new WeakMap();
 function pitSprites(A,layout){const g=pitStopGeometry(A,layout);let result=pitCanvases.get(g);if(!result){const art=pitArt(g);result={base:toCanvas(art.base),roof:toCanvas(art.roof),shadow:toCanvas(art.shadow),ax:art.ax,ay:art.ay};pitCanvases.set(g,result);}return result;}
 const uprightShade=coneShadowSprite(),tippedShades=Array.from({length:16},(_,i)=>coneShadowSprite(true,i*TAU/16));
@@ -3010,7 +3014,20 @@ function addTracks(){const n=recordTracks(world,trackRec,plotTrack,enabled);trac
   if(burn)smoke.push(...burnPuffs(world));else for(const p of wheelPoints(world))smoke.push({x:p.x,y:p.y,life:.9,vx:Math.sin(world.time*43)*7});}
 }
 // The car's two layers ('shadow', 'car') for a carDrawable() item. Agent 3: switch to roll frames here (o.roll, o.frame).
-function drawCarItem(o,layer){const L=o.lift,sh=layer==='shadow',x=o.x+(L&&sh?L.sx:0),y=o.y+(L?(sh?L.sy:L.y):0),s=mobileCarArtScale(world.arena);ctx.save();ctx.translate(x,y);ctx.scale(s,s);if(portraitCarArt(world.arena))ctx.rotate(-Math.PI/2);drawCar(ctx,world.id,layer,o.frame,0,0,o.roll||0,o.tilt);ctx.restore();}
+function drawCarItem(o,layer,g=ctx){const L=o.lift,sh=layer==='shadow',x=o.x+(L&&sh?L.sx:0),y=o.y+(L?(sh?L.sy:L.y):0),s=mobileCarArtScale(world.arena);g.save();g.translate(x,y);g.scale(s,s);if(portraitCarArt(world.arena))g.rotate(-Math.PI/2);drawCar(g,world.id,layer,o.frame,0,0,o.roll||0,o.tilt);g.restore();}
+// A flying Drone's shadow on the temple's pond: shadows are drawn on the ground before every object, so the pond layer covers
+// it. After the pond, the shadow's footprint is filled with waterShade (open water in the shade dither): it darkens lit water
+// and changes nothing where the temple's own shadow already falls, or off the water.
+let waterCanvas=null;
+function drawWaterShadow(car){
+ const T=world.layout&&world.layout.temple;if(!T||!car||!world.p.flying)return;
+ const t=templeSprites(T),W=t.waterShade.width,H=t.waterShade.height,tx=Math.round(T.x)-t.ax,ty=Math.round(T.y*K)-t.ay,L=car.lift,b=car.box,sx=car.x+(L?L.sx:0),sy=car.y+(L?L.sy:0);
+ const m=60;if(sx+b.r+m<tx||sx+b.l-m>tx+W||sy+b.b+m<ty||sy+b.t-m>ty+H)return;
+ if(!waterCanvas||waterCanvas.width!==W||waterCanvas.height!==H)waterCanvas=makeCanvas(W,H);
+ const g=waterCanvas.getContext('2d');g.setTransform(1,0,0,1,0,0);g.globalCompositeOperation='source-over';g.clearRect(0,0,W,H);g.imageSmoothingEnabled=false;
+ g.setTransform(1,0,0,1,-tx,-ty);drawCarItem(car,'shadow',g);g.setTransform(1,0,0,1,0,0);
+ g.globalCompositeOperation='source-in';g.drawImage(t.waterShade,0,0);g.globalCompositeOperation='source-over';ctx.drawImage(waterCanvas,tx,ty);
+}
 function drawShadow(o){
  if(o.type==='car')drawCarItem(o,'shadow');
  else if(o.type==='cone')ctx.drawImage(o.tipped?tippedShades[frameIndex(o.a,16)]:uprightShade,o.x-10,o.y-14);
@@ -3026,7 +3043,7 @@ function drawItem(o){
  else if(o.type==='cart')ctx.drawImage(cartFrames[frameIndex(o.a,CART_FRAMES)],o.x-16,o.y-20);
  else if(o.type==='prop'){const c=propSprites(world.layout.props[o.i]);ctx.drawImage(c.sprite,o.x-c.ax,o.y-c.ay);}
  else if(o.type==='pit'){const p=pitSprites(world.arena,world.layout);ctx.drawImage(p[o.part],o.x-p.ax,o.y-p.ay);}
- else if(o.type==='temple'){const t=templeSprites(world.layout.temple);ctx.drawImage(t[o.part],o.x-t.ax,o.y-t.ay);}
+ else if(o.type==='temple'){const t=templeSprites(world.layout.temple);ctx.drawImage(t[o.part],o.x-t.ax,o.y-t.ay);if(o.part==='pond')drawWaterShadow(drawList.find(q=>q.type==='car'));}
  else if(o.type==='gate'){const g=gateSprites(world.layout.gate),b=g.art.box;ctx.drawImage(g[o.part],o.x-b.ax,o.y-b.ay);}
 }
 // Contract §6 order: ground, tracks, every shadow, then the depth-sorted drawables (cones, car, gate legs; the arch top last).
