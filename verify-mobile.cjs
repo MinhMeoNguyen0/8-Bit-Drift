@@ -15,3 +15,19 @@ test('parking framing enlarges the lot and preserves its center',()=>{const w=84
 test('simulation speed changes without changing speedometer conversion',()=>{assert.equal(e.SIM_SPEED,1.5);const w=e.createWorld('compact');w.car.vx=60;w.car.vy=0;assert.equal(e.gearTelemetry(w).speed,36);assert.equal(e.PRESETS.f1.steer,.68);const k=e.shiftKeyLayout(117,78,true);assert(k.kw>=32&&k.kh>0);});
 test('F1 steering turns more sharply than its previous setup',()=>{const a=e.createWorld('f1'),b=e.createWorld('f1');a.p={...a.p,steer:.5};b.p={...b.p,steer:.68};for(const w of [a,b]){w.car.a=w.car.pa=0;w.car.vx=80;w.car.vy=0;}for(let i=0;i<60;i++){e.drive(a,{steering:1,throttle:1},e.STEP);e.drive(b,{steering:1,throttle:1},e.STEP);}assert(Math.abs(b.car.a)>Math.abs(a.car.a));});
 test('wider road courses retain their shape, gate clearance and scoring width',()=>{for(const id of ['signature','oval','eight']){assert(e.setTrack(id));const A=e.makeArena(1350,675);A.fixedMobile=true;A.mobile=true;const w=e.createWorld('compact',A),t=w.layout.track;assert.equal(t.id,id);assert.equal(t.kind,id);assert.equal(t.half,42);assert(w.layout.gate.width>=t.half*2-10);const r=e.raceRoute(w.layout);assert.equal(r.half,t.half);}});
+test('phones draw the course at device resolution, so dithered art (the temple pond) is never shrunk into blotches',()=>{
+ for(const [w,h,dpr] of [[926,428,3],[844,390,3],[390,844,3],[412,915,2.625],[844,390,2]]){
+  const v=e.computeView(w,h,dpr),u=v.scale/dpr,z=e.controlZones({...v,u,cssW:w,cssH:h,mobile:true},{}),c=e.mobileCameraGeometry(w,h,675,1350,675,z,u),r=e.renderMetrics(c.w,c.h,c.scale,dpr);
+  assert(c.scale<1,'the phone shows the course smaller than 1:1 ('+c.scale+')');
+  // Enough device pixels: canvas pixels per CSS pixel equal the device pixel ratio, so the browser maps the canvas 1:1 and
+  // drops none (pixel-sharp). Fewer device pixels than world pixels: one canvas pixel per world pixel, blended down.
+  if(c.scale*dpr>=1){assert(Math.abs(r.width/r.cssWidth-dpr)<1e-6,w+'x'+h+'@'+dpr+' canvas matches the device');assert.equal(e.canvasRendering(r,dpr),'','stays pixel-sharp');}
+  else{assert.equal(r.density,1);assert.equal(e.canvasRendering(r,dpr),'auto',w+'x'+h+'@'+dpr+' blends');}
+  // The camera is unchanged: the canvas still covers the screen, overshooting by less than one canvas pixel.
+  const W=c.w*c.scale,H=c.h*c.scale;assert(r.cssWidth>=W-1e-6&&r.cssHeight>=H-1e-6&&r.cssWidth-W<c.scale/r.density+1e-6&&r.cssHeight-H<c.scale/r.density+1e-6,'same view');}
+ // A low-density small screen still has to shrink the canvas: it blends there instead of dropping pixels.
+ const v=e.computeView(844,390,1),u=v.scale,z=e.controlZones({...v,u,cssW:844,cssH:390,mobile:true},{}),c=e.mobileCameraGeometry(844,390,675,1350,675,z,u),r=e.renderMetrics(c.w,c.h,c.scale,1);
+ assert.equal(r.density,1);assert.equal(e.canvasRendering(r,1),'auto');
+ // Desktop at 1:1 is untouched.
+ const d=e.renderMetrics(1350,675,1,1);assert.equal(d.density,1);assert.equal(e.canvasRendering(d,1),'');
+});

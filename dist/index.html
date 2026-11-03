@@ -1761,10 +1761,16 @@ function mobileCameraGeometry(cssW,cssH,short,courseW,courseH,zones,u,lot=null){
 const titleRotation=view=>view&&view.mobile&&view.cssH>view.cssW?-Math.PI/2:0;
 // Keep at least one output pixel per CSS pixel when the world is zoomed in.
 // World caches stay in logical pixels; only the final compositing canvas grows.
-function renderMetrics(visibleW,visibleH,worldScale){
- const density=Math.max(1,worldScale),width=Math.ceil(visibleW*density),height=Math.ceil(visibleH*density);
+// density: canvas pixels per world pixel. On a high-density screen the canvas matches device pixels (dpr, up to 3), so the
+// browser never shrinks it: shrinking a pixelated canvas drops whole rows and columns, which breaks dithered art (the
+// temple's pond) into blotchy blocks on phones. The CSS size is unchanged.
+function renderMetrics(visibleW,visibleH,worldScale,dpr=1){
+ const d=Number.isFinite(dpr)&&dpr>0?Math.min(dpr,3):1,density=Math.max(1,worldScale,worldScale*d),width=Math.ceil(visibleW*density),height=Math.ceil(visibleH*density);
  return {density,width,height,cssWidth:width*worldScale/density,cssHeight:height*worldScale/density};
 }
+// When the screen has fewer device pixels than the canvas (a small, low-density screen), the browser must shrink it: let it
+// blend there ('auto') so dithers average to an even grey instead of dropping pixels; otherwise keep the CSS pixelated look.
+const canvasRendering=(r,dpr=1)=>r.width>r.cssWidth*(Number.isFinite(dpr)&&dpr>0?dpr:1)*1.001?'auto':'';
 function computeView(cssW,cssH,dpr,short=viewFor()){
  dpr=dpr>0&&Number.isFinite(dpr)?dpr:1;short=+short>0&&Number.isFinite(+short)?+short:VIEW_SHORT;
  const devW=Math.max(0,+cssW||0)*dpr,devH=Math.max(0,+cssH||0)*dpr;
@@ -2817,7 +2823,7 @@ if(typeof document==='undefined'){if(typeof module!=='undefined'){
  module.exports={BURN_SPEED,GEARS,AUTO_GEARS,MANUAL_GEARS,PADDLE_GEARS,PADDLE_SEQ,isPaddle,REV_SHIFT,SHIFT_AT,isManual,shiftOk,gearStep,gearName,shiftGear,gearTelemetry,WIDTH,HEIGHT,K,Z,WORLD_H,STEP,SIM_SPEED,TAU,PRESETS,CAR_ART,FRAMES,SHADOW_INK,LIGHT,DEFAULT_ARENA,edgeClear,CROSS_GAP,carBoxAll,SPAWN_INSIDE,CONE_COUNT,CONE_R,CONTROL_ZONES,keepOuts,layoutCourse,drawGround,resetCones,TRANSFER_MARGIN,CONE_BOX,transferBody,transferEdges,sceneItems,carDrawable,mobileCarArtScale,scaleArtBox,portraitCarArt,carArtBox,gateDrawables,drawOrder,SKID,createTrackRecorder,breakTracks,recordTracks,coneSprite,coneShadowSprite,CONE_H,archShape,inArch,gateArt,GATE_SPLIT,GATE_FRONT,plotLine,frameIndex,carModel,carShadowPolys,frameBounds,spriteBox,raster,carSprite,carShadow,buildCarAtlases,makeArena,normalizeInput,keysToInput,carScreenBounds,resizeWorld,wrap,delta,angleDelta,createWorld,drive,step,carCone,coneCone,position,wheelPoints,SPEED_CAP,OMEGA_MAX,CONE_MAX,FASTEST,SUB_MOVE,gatePosts,carPost,conePost,substeps,limitVelocity,ROLL_STEPS,ROLL_G,LOAD_W,LOAD_ZETA,IMPACT_GAIN,TIP_COMMIT,TIP_DROP,TIP_MIN,TIP_SOFT,ROLL_SPIN,ROLL_DECEL,ROLL_SETTLE,ROLL_FRICTION,REST_SPEED,RECOVER_TIME,RECOVER_GAP,CAR_STATES,uprightState,rollKappa,tipAngle,tumble,rollover,rollFrame,rolledModel,rollShadowPolys,rollSpritePoints,rollFrameBounds,rollSpriteBox,carRollSprite,carRollShadow,carHidden,canRecover,recover,recoverSpot,boxDistance};
  Object.assign(module.exports,{raceRoute,raceProject,raceCross,raceNew,raceMove,raceTime,raceRank,raceBetter,raceFingerprint,raceRecords,raceSave,RACE_VERSION});
  Object.assign(module.exports,{setTrack,TUNING,TUNING_SPEC,TUNING_DEFAULTS,setTuning,resetTuning}); // shared tuning interface
- Object.assign(module.exports,{LIGHT,TEMPLE_GEO,TEMPLE_LAYERS,TEMPLE_SCALE,TEMPLE_TITLE,templeOuter,templeThumb,templeTitleRect,buildTemple,templeRect,templeClearance,templeTopY,templeParts,templeBlocks,templeArt,templeDrawables,templeHides,templeGround,visibleBounds,cameraGeometry,mobileCameraGeometry,titleRotation,renderMetrics,titleRasterSpec,groundDots,pitStopGeometry,pitPoint,gasPumpPoint,pitPosts,pitOverlap,carPit,conePit,drawPitBay,pitArt,pitDrawables,VIEW_SHORT,computeView,createControls,UI_MARGIN,UI_GAP,uiMetrics,controlZones,WHEEL_DEAD,turnDelta,pointerAngle,wheelDrag,wheelValue,wheelKickback,createModes,recoverAvailable,tryRecover,isRecoverKey,recoverFromKey}); // ui (r2-ui)
+ Object.assign(module.exports,{canvasRendering,LIGHT,TEMPLE_GEO,TEMPLE_LAYERS,TEMPLE_SCALE,TEMPLE_TITLE,templeOuter,templeThumb,templeTitleRect,buildTemple,templeRect,templeClearance,templeTopY,templeParts,templeBlocks,templeArt,templeDrawables,templeHides,templeGround,visibleBounds,cameraGeometry,mobileCameraGeometry,titleRotation,renderMetrics,titleRasterSpec,groundDots,pitStopGeometry,pitPoint,gasPumpPoint,pitPosts,pitOverlap,carPit,conePit,drawPitBay,pitArt,pitDrawables,VIEW_SHORT,computeView,createControls,UI_MARGIN,UI_GAP,uiMetrics,controlZones,WHEEL_DEAD,turnDelta,pointerAngle,wheelDrag,wheelValue,wheelKickback,createModes,recoverAvailable,tryRecover,isRecoverKey,recoverFromKey}); // ui (r2-ui)
  Object.assign(module.exports,{PAINT_SLANT,PAINT_STRIPE,PAINT_SOLID_BELOW,PAINT_KEY_SOLID_BELOW,PAINT_COPY,GLYPHS,glyphMask,shearMask,maskRuns,keycapRuns,wrapPhrases,paintLayout,paintRuns,drawPaint}); // ground paint (r2-paint)
  Object.assign(module.exports,{buildCourse,fitTrack,roundedPath,circuitVerts,laneHalf,laneSelfClear,gateSpot,trackMarks,LANE_PAD,LANE_GAP,GATE_LEAD,TRACK_STEP,CONE_OFF,inGate,TRACKS,TRACK_SHAPES,TRACK_HALF,TRACK_FILL,shapeUnit,trackSelfClear,insideLoop,titleSpot,trackRadiusOk,TRACK_MIN_R}); // sim + course extra exports (r2-sim)
  Object.assign(module.exports,{wheelLimit,wheelInput,wheelAngle,GEAR_GATE,STICK_VB,gearSlot,stickMove,mobileStickMove,stickSlot,simpleAutoInput,stickPath,AUTO_GATE,autoSlot,autoMove,autoSlotAt,autoPath,stickGate,pathPoint,shiftBarW,TUNING_STORE,loadTuning,saveTuning,tuningGroups,uiPx,SPEED_EM,speedFit,shiftKeyW,shiftKeyGap,shiftKeyLayout,gearCues,trackThumbSize,trackThumb}); // ui extra exports (r2-ui, r3-ui)
@@ -3489,10 +3495,10 @@ function applyView(){
  if(first){world=fitTransmission(createWorld(world.id,A));}
  else if(arenaChanged){raceInvalidate('Course size changed.');resizeWorld(world,A);if(race&&race.state==='ready')raceSetup();}
  else world.arena=A;
- const rendering=renderMetrics(visibleW,visibleH,worldScale);view.renderDensity=rendering.density;
+ const rendering=renderMetrics(visibleW,visibleH,worldScale,dpr);view.renderDensity=rendering.density;
  if(cameraChanged){canvas.width=rendering.width;canvas.height=rendering.height;ctx.imageSmoothingEnabled=false;buildSurface(A);resetTrackLayer(A);world.trackBreak=true;}
  const gk=groundKeyFor();if(arenaChanged||cameraChanged||gk!==groundKey){buildGround(world.arena);groundKey=gk;}
- canvas.style.width=rendering.cssWidth+'px';canvas.style.height=rendering.cssHeight+'px';canvas.style.transformOrigin='0 0';canvas.style.transform=rotated?'translateX('+cssW+'px) rotate(90deg)':'';canvas.style.left='0px';canvas.style.top='0px';root.dataset.mobile=String(mobile);ui.brake.setAttribute('aria-label',mobile&&world.p.trans==='auto'?'Brake and reverse':'Brake');
+ canvas.style.width=rendering.cssWidth+'px';canvas.style.height=rendering.cssHeight+'px';canvas.style.imageRendering=canvasRendering(rendering,dpr);canvas.style.transformOrigin='0 0';canvas.style.transform=rotated?'translateX('+cssW+'px) rotate(90deg)':'';canvas.style.left='0px';canvas.style.top='0px';root.dataset.mobile=String(mobile);ui.brake.setAttribute('aria-label',mobile&&world.p.trans==='auto'?'Brake and reverse':'Brake');
  watchPixelRatio(dpr);layoutUI();root.dataset.uiReady='true';if(race)raceDisplay();
  const pg=paintGeom();if((pg?pg.key:'')!==paintKey)buildGround(world.arena);if(mode==='menu')syncTracks();
  draw();updateUI();renderControls();syncRecover();
