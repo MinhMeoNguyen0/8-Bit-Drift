@@ -2,14 +2,17 @@ name: Confirm Vercel release
 
 # Vercel builds and deploys every push itself; its build command (vercel.json) runs the same suites as the Pages
 # workflow, so a failing check stops the release. When Vercel reports a successful production deployment, this
-# workflow proves the public site serves that commit and that analytics can load. Vercel announces deployments to
-# GitHub as repository_dispatch events (vercel.deployment.success); deployment_status covers projects that use
-# GitHub Deployments instead. Run it by hand to check the current main.
+# workflow waits for the public site to serve the pushed commit and checks that analytics can load. Vercel sends no
+# GitHub event for this project, so it polls; if Vercel's checks fail, the site never updates and this run fails.
+# A newer push cancels the older wait. Run it by hand to check the current main.
 on:
-  repository_dispatch:
-    types: [vercel.deployment.success]
-  deployment_status:
+  push:
+    branches: [main]
   workflow_dispatch:
+
+concurrency:
+  group: vercel-confirm
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -20,23 +23,16 @@ env:
 jobs:
   confirm:
     name: Confirm the live Vercel site
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'repository_dispatch' && github.event.client_payload.environment == 'production') ||
-      (github.event_name == 'deployment_status' && github.event.deployment_status.state == 'success' &&
-       startsWith(github.event.deployment.environment, 'Production'))
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.client_payload.git.sha || github.event.deployment.sha || github.sha }}
-      # The production domain can take a moment to switch to the new deployment, so retry for up to five minutes.
+      # Vercel's build runs the suites (about 2-3 minutes) before the domain switches, so retry for up to ten minutes.
       - name: Live page is byte-identical to this commit's dist/index.html
         run: |
           sha=$(git rev-parse HEAD)
           want=$(sha256sum dist/index.html | cut -d' ' -f1)
-          for attempt in $(seq 1 30); do
+          for attempt in $(seq 1 60); do
             got=$(curl -fsSL -H 'Cache-Control: no-cache' "${SITE_URL}/?v=${sha}" | sha256sum | cut -d' ' -f1) || got=none
             if [ "$got" = "$want" ]; then
               {
@@ -48,7 +44,7 @@ jobs:
             fi
             sleep 10
           done
-          echo "::error::${SITE_URL} does not serve commit ${sha::7} after 5 minutes (live sha256 ${got::12}, expected ${want::12})."
+          echo "::error::${SITE_URL} does not serve commit ${sha::7} after 10 minutes (live sha256 ${got::12}, expected ${want::12})."
           exit 1
       - name: Vercel Web Analytics script is served
         run: |
