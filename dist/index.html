@@ -926,8 +926,10 @@ function buildCourse(A,zones,id=SELECTED_TRACK){
 // control wins, as near the arena centre as it fits; smaller arenas drop the island, then the side columns (LOT_PLANS).
 // LOT_BAND: planted band round the lot (screen px). Each plan: aisle width, island depth (0 = none), side columns or not.
 // LOT_TOP: open ground kept above the lot (screen px) for the U of cones and a stray cart.
-// LOT_TITLE_ROOM: world px left of the lot box kept for the portrait title (50 tall, 5 px clear of the lot).
-const LOT_TITLE_ROOM=80,LOT_TOP=46,lotTopRect=g=>({l:g.cl,t:g.t*K-LOT_BAND-LOT_TOP,r:g.cr,b:g.t*K-LOT_BAND-2});
+// A portrait phone shows the lot upright and filling the screen width, so the cart corral and the gas station move from beside
+// the lot to the ground below it (LOT_BELOW screen px), where the camera frames them with the lot (lotViewBox).
+const portraitLot=A=>!!(A&&A.mobile&&A.uiH>A.uiW),LOT_BELOW=140;
+const LOT_TOP=46,lotTopRect=g=>({l:g.cl,t:g.t*K-LOT_BAND-LOT_TOP,r:g.cr,b:g.t*K-LOT_BAND-2});
 // LOT_MAX_MOBILE: phones get a shorter lot (short enough to zoom in, long enough that the island holds the title), so the camera that
 // frames it shows each stall larger.
 const LOT_STALL_W=26,LOT_STALL_D=42,LOT_BAND=6,LOT_MAX=13,LOT_MAX_MOBILE=10,LOT_MIN=3,LOT_TITLE='8-BIT PARKING';
@@ -974,7 +976,7 @@ function buildParking(A,zones){
  const props=[],posts=[];let corral=null;
  // Cart return stands alongside the left edge, aligned with it. The open end faces down the lot.
  // Keep a clear gap from the planted border; rails and the nested carts remain solid as before.
- const cx=g.l-LOT_BAND-CORRAL_HW-13,cy=(my+mb)/2,back=cy-CORRAL_HL,front=cy+CORRAL_HL;
+ const below=portraitLot(A),cx=below?g.l+CORRAL_HW+12:g.l-LOT_BAND-CORRAL_HW-13,cy=below?g.b+(LOT_BAND+22)/K+CORRAL_HL:(my+mb)/2,back=cy-CORRAL_HL,front=cy+CORRAL_HL;
  if(cx-CORRAL_HW-4>=8&&zonesClear(zones,cx-CORRAL_HW-4,back*K-18,cx+CORRAL_HW+4,front*K+5,2)){
   corral={x:r2(cx),y:r2(cy),xb:r2(cx-CORRAL_HW),xf:r2(cx+CORRAL_HW),y0:r2(back),y1:r2(front),back:-1};
   // Short rail segments sort independently by their ground depth; matching post circles block cars.
@@ -1028,6 +1030,8 @@ function buildParking(A,zones){
 }
 // The lot's painted footprint in screen px (asphalt plus the planted band), and whether a screen point is on its asphalt.
 const lotBox=lot=>({l:Math.floor(lot.l-LOT_BAND),t:Math.floor(lot.t*K-LOT_BAND),r:Math.ceil(lot.r+LOT_BAND),b:Math.ceil(lot.b*K+LOT_BAND)});
+// What a portrait phone frames (screen px): the lot, the open ground above it (cones) and the corral and station below it.
+const lotViewBox=lot=>{const b=lotBox(lot);return {l:b.l,t:b.t-LOT_TOP,r:b.r,b:b.b+LOT_BELOW};};
 const onAsphalt=(lot,x,y)=>lotRects(lot).some(([x0,y0,x1,y1])=>x>=x0&&x<x1&&y>=y0*K&&y<y1*K);
 // The island as a rounded rect in screen px: inside test for a point (corner radius up to 7 px).
 function inIsland(I,x,y){
@@ -1185,7 +1189,9 @@ function pitStopGeometry(A,layout){
  let angle=best?Math.atan2(best.dy,best.dx):0;if(best&&-Math.sin(angle)*(best.qx-x)+Math.cos(angle)*(best.qy-y)<0)angle+=Math.PI;
  // Parking's gas station turns a quarter turn counterclockwise around the same centre.
  if(lot)angle-=Math.PI/2;
- const c=Math.cos(angle),s=Math.sin(angle),g={x:x-55*c+40*s,y:y-55*s-40*c,angle,w:48,d:48,height:46,bay:lot?{x:65,y:40,w:56,h:78,lanes:2}:{x:57,y:37,w:50,h:60}};
+ // Portrait phones: the same station, moved under the lot's right end, its roof clear of the lot (footprint about x-65..x+105, y·K-26..y·K+66).
+ const B=lot&&portraitLot(A)?lotBox(lot):null,dx=B?B.r-107-x:0,dy=B?(B.b+70)/K-y:0;
+ const c=Math.cos(angle),s=Math.sin(angle),g={x:x+dx-55*c+40*s,y:y+dy-55*s-40*c,angle,w:48,d:48,height:46,bay:lot?{x:65,y:40,w:56,h:78,lanes:2}:{x:57,y:37,w:50,h:60}};
  if(lot){g.gasStation=true;g.canopyEnd=145;}
  pitGeometryCache.set(layout,{W:A.W,H:A.H,g});return g;
 }
@@ -1753,7 +1759,7 @@ function cameraGeometry(cssW,cssH,short,defaultZoom,courseW,courseH){
  return {scale,l,t,r:l+w,b:t+h,w,h};
 }
 // Fit the course into the open region between mobile controls; the viewport still covers the whole screen.
-// upright (the Temple map): a portrait phone shows the map as it is, not turned 90°, with the box (screen px of the map) fitted
+// upright (the Temple map and the parking lot): a portrait phone shows the map as it is, not turned 90°, with the box (screen px of the map) fitted
 // between the top bar and the controls below it.
 function mobileCameraGeometry(cssW,cssH,short,courseW,courseH,zones,u,lot=null,upright=null){
  if(upright&&cssH>cssW){const get=id=>zones.find(z=>z.id===id),wheel=get('wheel'),gear=get('gear'),hud=get('hud'),left=12,right=cssW-12,top=hud.b*u+12,bottom=Math.min(wheel.t,gear.t)*u-12;
@@ -1764,8 +1770,7 @@ function mobileCameraGeometry(cssW,cssH,short,courseW,courseH,zones,u,lot=null,u
  const top=hud.b*u+12,bottom=rotated?Math.min(wheel.t,gear.t)*u-12:cssH-12;
  const availableW=Math.max(cssW*.22,right-left),availableH=Math.max(cssH*.22,bottom-top);
  const vw=rotated?cssH:cssW,vh=rotated?cssW:cssH;
- // Portrait lots frame their title too (drawn LOT_TITLE_ROOM world px before the lot's left edge, i.e. above it on screen).
- const bounds=lot?(rotated?{...lot,l:lot.l-LOT_TITLE_ROOM}:lot):{l:0,t:0,r:courseW,b:courseH},bw=bounds.r-bounds.l,bh=bounds.b-bounds.t;
+ const bounds=lot||{l:0,t:0,r:courseW,b:courseH},bw=bounds.r-bounds.l,bh=bounds.b-bounds.t;
  const scale=lot?Math.min((rotated?availableH:availableW)/bw,(rotated?availableW:availableH)/bh)*.83*Math.min(1,300/short):Math.min(Math.min(vw/courseW,vh/courseH)*VIEW_SHORT/Math.max(short,VIEW_SHORT),rotated?availableH/courseW:availableW/courseW,rotated?availableW/courseH:availableH/courseH)*.94*1.35;
  const x=(left+right)/2,y=(top+bottom)/2,cx=rotated?y:x,cy=rotated?cssW-x:y,w=vw/scale,h=vh/scale,l=(bounds.l+bounds.r)/2-cx/scale,t=(bounds.t+bounds.b)/2-cy/scale;
  return {scale,l,t,r:l+w,b:t+h,w,h};
@@ -2847,7 +2852,7 @@ if(typeof document==='undefined'){if(typeof module!=='undefined'){
  Object.assign(module.exports,{wheelLimit,wheelInput,wheelAngle,GEAR_GATE,STICK_VB,gearSlot,stickMove,mobileStickMove,stickSlot,simpleAutoInput,stickPath,AUTO_GATE,autoSlot,autoMove,autoSlotAt,autoPath,stickGate,pathPoint,shiftBarW,TUNING_STORE,loadTuning,saveTuning,tuningGroups,uiPx,SPEED_EM,speedFit,shiftKeyW,shiftKeyGap,shiftKeyLayout,gearCues,trackThumbSize,trackThumb}); // ui extra exports (r2-ui, r3-ui)
  Object.assign(module.exports,{stripeH,scaleRuns,PAINT_PX_CSS,TITLE_TEXT,TITLE_MAX,TITLE_MIN,TITLE_GAP,TITLE_CELL,paintPx,titleFit,titleFallbackSpot,titleRuns,titleRect,drawTitle}); // ground paint extra exports (r2-paint)
  Object.assign(module.exports,{EDGE_PX,CURB_W,CURB_R,CURB_STRIPE,trackCurbs,curbFlags,laneField,buildParking,lotMarks,lotThumb,ACCESS_MARK,LOT_STALL_W,LOT_STALL_D,CART_R,CART_MASS,CART_BOX,CART_FRAMES,cartSprite,cartShadowSprite,propArt,propAnchor,propDrawables,bodyFrom,bodyR,bodyM,CORRAL_HW,CORRAL_HL,CORRAL_CARTS,RAIL_R});
- Object.assign(module.exports,{LOT_BAND,LOT_MAX,LOT_MAX_MOBILE,LOT_TITLE_ROOM,LOT_PLANS,LOT_TITLE,LOT_TITLE_MIN,lotRects,lotGeom,lotFit,lotBox,onAsphalt,inIsland,lotTitleRect,titleOpts,viewFor});
+ Object.assign(module.exports,{LOT_BAND,LOT_MAX,LOT_MAX_MOBILE,LOT_PLANS,LOT_TITLE,LOT_TITLE_MIN,lotRects,lotGeom,lotFit,lotBox,lotViewBox,portraitLot,LOT_BELOW,onAsphalt,inIsland,lotTitleRect,titleOpts,viewFor});
  Object.assign(module.exports,{TILT_MAX,TILT_PITCH,TILT_STEPS,TILT_STEP,droneTiltPoint,tiltIndex,droneTilt,droneParts,droneSprite,droneShadow}); // drone tilt
  Object.assign(module.exports,{ANALYTICS_SRC,analyticsOn}); // Vercel analytics host gate
  Object.assign(module.exports,{FLY,STICK_AXES,normalizeSticks,fly,liftOf,liftBox,carBox,flyPadZones,FLYPAD}); // drone flight (Mode 2 sticks)
@@ -2951,7 +2956,7 @@ function canvasTextMask(text,h){
 // keyboard, a painted line on touch screens, Q / E on the Supercar. Rebuilt when the car or the pointer type changes.
 function buildGround(A){ground=makeCanvas(A.W,A.H);const gc=ground.getContext('2d');drawGround(gc,A,world.layout);
  // (it is empty), so they paint no instructions; the title is painted on every screen where a spot off the lane fits.
- const o=titleOpts(world.layout,{touch:isTouch(),shift:true,mask:canvasTextMask,px:paintPx(view?view.u:1)});if(view&&view.mobile&&view.cssH>view.cssW&&world.layout.lot)o.text=TITLE_TEXT;
+ const o=titleOpts(world.layout,{touch:isTouch(),shift:true,mask:canvasTextMask,px:paintPx(view?view.u:1)});
  buildTitleLayer(A,world.layout,o);
  paintKey='';buildPaint();
 }
@@ -2963,10 +2968,12 @@ function titleRasterSpec(rect,worldScale){
 }
 function buildTitleLayer(A,layout,o){
  titleLayer=null;if(!view)return;let rect=titleRect(layout,A,o);
- if(layout.lot&&view.mobile&&view.cssH>view.cssW){const b=lotBox(layout.lot),width=Math.min(300,(b.b-b.t)*.85),x=b.l-LOT_TITLE_ROOM+25,y=(b.t+b.b)/2;rect={l:x-width/2,r:x+width/2,t:y-25,b:y+25};}
  if(!rect)return;
  const spec=titleRasterSpec(rect,view.worldScale),local={l:0,t:0,r:spec.width,b:spec.height};
- const runs=titleRuns({W:spec.width,H:spec.height},local,{...o,px:1,min:Math.max(1,Math.round((o.min||TITLE_MIN)*spec.scale)),max:Math.ceil(TITLE_MAX*spec.scale)});
+ // The spot was sized with the plain glyphs; the canvas font runs a little wider, so retry once with a lower floor (the box still
+ // caps the size) rather than leave the spot blank.
+ const minPx=Math.max(1,Math.round((o.min||TITLE_MIN)*spec.scale)),fit=min=>titleRuns({W:spec.width,H:spec.height},local,{...o,px:1,min,max:Math.ceil(TITLE_MAX*spec.scale)});
+ let runs=fit(minPx);if(!runs.length)runs=fit(Math.max(1,Math.floor(minPx*.75)));
  if(!runs.length)return;const c=makeCanvas(spec.width,spec.height),cx=c.getContext('2d');cx.fillStyle=ink;
  for(const [x,y,n] of runs)cx.fillRect(x,y,n,1);
  titleLayer={canvas:c,l:rect.l,t:rect.t,w:spec.width/spec.scale,h:spec.height/spec.scale};
@@ -3506,11 +3513,11 @@ function applyView(){
  if(!(cssW>0&&cssH>0))return;
  const next=computeView(cssW,cssH,dpr,viewFor()),u=next.scale/dpr,safe=readSafe(u),first=!view,mobile=isTouch()||Math.min(cssW,cssH)<500;
  view={...next,dpr,cssW,cssH,u,safe,mobile};uiZones=controlZones(view,safe);
- const mobileShort=VIEW_SHORT,A=makeArena(mobileShort*2,mobileShort);A.fixedMobile=true;A.safe=safe;A.uiU=u;A.uiW=cssW;A.uiH=cssH;A.mobile=mobile;A.upright=SELECTED_TRACK==='temple';A.parking=SELECTED_TRACK==='parking';view.upright=A.upright;
+ const mobileShort=VIEW_SHORT,A=makeArena(mobileShort*2,mobileShort);A.fixedMobile=true;A.safe=safe;A.uiU=u;A.uiW=cssW;A.uiH=cssH;A.mobile=mobile;A.upright=SELECTED_TRACK==='temple'||SELECTED_TRACK==='parking';A.parking=SELECTED_TRACK==='parking';view.upright=A.upright;
  // Both courses use the same world reference; each slider selects its own visible span.
- const rotated=mobile&&cssH>cssW&&!A.upright, camera=mobile?mobileCameraGeometry(cssW,cssH,viewFor(),A.W,A.H,uiZones,u,SELECTED_TRACK==='parking'?lotBox(layoutCourse(A).lot):null,A.upright?templeViewBox(layoutCourse(A).temple,A):null):cameraGeometry(cssW,cssH,viewFor(),VIEW_SHORT,A.W,A.H),worldScale=camera.scale,visibleW=camera.w,visibleH=camera.h;view.worldScale=worldScale;
+ const rotated=mobile&&cssH>cssW&&!A.upright, camera=mobile?mobileCameraGeometry(cssW,cssH,viewFor(),A.W,A.H,uiZones,u,SELECTED_TRACK==='parking'?lotBox(layoutCourse(A).lot):null,A.upright?(SELECTED_TRACK==='parking'?lotViewBox(layoutCourse(A).lot):templeViewBox(layoutCourse(A).temple,A)):null):cameraGeometry(cssW,cssH,viewFor(),VIEW_SHORT,A.W,A.H),worldScale=camera.scale,visibleW=camera.w,visibleH=camera.h;view.worldScale=worldScale;
  Object.assign(A,{viewL:camera.l,viewT:camera.t,viewR:camera.r,viewB:camera.b});
- const arenaChanged=first||world.arena.W!==A.W||world.arena.H!==A.H||!world.arena.fixedMobile||!ground;
+ const arenaChanged=first||world.arena.W!==A.W||world.arena.H!==A.H||!world.arena.fixedMobile||!ground||SELECTED_TRACK==='parking'&&portraitLot(world.arena)!==portraitLot(A);
  const cameraChanged=arenaChanged||Math.abs((world.arena.viewL??0)-A.viewL)>.001||Math.abs((world.arena.viewT??0)-A.viewT)>.001||Math.abs((world.arena.viewR??A.W)-A.viewR)>.001||Math.abs((world.arena.viewB??A.H)-A.viewB)>.001;
  if(first){world=fitTransmission(createWorld(world.id,A));}
  else if(arenaChanged){raceInvalidate('Course size changed.');resizeWorld(world,A);if(race&&race.state==='ready')raceSetup();}

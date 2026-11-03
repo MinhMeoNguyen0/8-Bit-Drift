@@ -38,20 +38,31 @@ test('the Temple map stays upright on a portrait phone and fits between the top 
   assert(sx(box.l)>=11&&sx(box.r)<=w-11,'fits the width');assert(sy(box.t)>=get('hud').b*u+11&&sy(box.b)<=Math.min(get('wheel').t,get('gear').t)*u-11,'between the top bar and the controls');
   assert(!e.portraitCarArt(A)&&e.titleRotation({mobile:true,cssW:w,cssH:h,upright:true})===0,'car and title not counter-rotated');
   assert(e.portraitCarArt({...A,upright:false})&&e.titleRotation({mobile:true,cssW:w,cssH:h})!==0,'other maps still turn');}
- const s=require('fs').readFileSync(__dirname+'/dist/index.html','utf8');assert(/A\.upright=SELECTED_TRACK==='temple'/.test(s)&&/rotated=mobile&&cssH>cssW&&!A\.upright/.test(s),'only the Temple map skips the turn');
+ const s=require('fs').readFileSync(__dirname+'/dist/index.html','utf8');assert(/A\.upright=SELECTED_TRACK==='temple'\|\|SELECTED_TRACK==='parking';/.test(s)&&/rotated=mobile&&cssH>cssW&&!A\.upright/.test(s),'only the Temple map and the parking lot skip the turn');
  e.setTrack('eight');
 });
-test('phone parking draws the car at its true size in a shorter lot, framed with its portrait title',()=>{
+test('portrait phone parking is upright, true-size and fills the screen, with the corral and station framed below the lot',()=>{
  e.setTrack('parking');
- for(const [w,h] of [[390,844],[320,568],[844,390],[568,320]]){
-  const v=e.computeView(w,h,1,300),u=v.scale,z=e.controlZones({...v,u,cssW:w,cssH:h,mobile:true},{});
-  const A=Object.assign(e.makeArena(1350,675),{fixedMobile:true,mobile:true,parking:true,uiU:u,uiW:w,uiH:h}),L=e.layoutCourse(A),lot=L.lot;
+ for(const [w,h] of [[390,664],[390,844],[375,667],[320,568],[430,932]]){
+  const v=e.computeView(w,h,1,300),u=v.scale,z=e.controlZones({...v,u,cssW:w,cssH:h,mobile:true},{}),get=id=>z.find(q=>q.id===id);
+  const A=Object.assign(e.makeArena(1350,675),{fixedMobile:true,mobile:true,parking:true,upright:true,uiU:u,uiW:w,uiH:h}),L=e.layoutCourse(A),lot=L.lot,b=e.lotBox(lot),box=e.lotViewBox(lot);
+  assert(e.portraitLot(A)&&!e.portraitCarArt(A),`${w}x${h}: lot not turned`);
   assert(lot.rows[0].slots.length<=e.LOT_MAX_MOBILE,`${w}x${h}: lot capped for phones`);
   assert.equal(e.mobileCarArtScale(A),1,'parking car art is true size');
   for(const id of ['compact','coupe','f1','van']){const p=e.PRESETS[id];assert(p.width<e.LOT_STALL_W&&p.length<e.LOT_STALL_D,`${id} fits a stall`);}
-  const b=e.lotBox(lot),c=e.mobileCameraGeometry(w,h,300,1350,675,z,u,b);
-  if(h>w){const hud=z.find(q=>q.id==='hud');assert((b.l-e.LOT_TITLE_ROOM-c.l)*c.scale>=hud.b*u,`${w}x${h}: portrait title clears the top bar`);}
+  // Camera: the whole view box sits between the top bar and the controls, and the lot spans most of the width.
+  const c=e.mobileCameraGeometry(w,h,300,1350,675,z,u,null,box),sx=x=>(x-c.l)*c.scale,sy=y=>(y-c.t)*c.scale;
+  assert(sx(box.l)>=-1e-6&&sx(box.r)<=w+1e-6&&sy(box.t)>=get('hud').b*u-1e-6&&sy(box.b)<=Math.min(get('wheel').t,get('gear').t)*u+1e-6,`${w}x${h}: framed between the controls`);
+  assert(sx(b.r)-sx(b.l)>=w*.8,`${w}x${h}: lot fills the width`);
+  // Corral and station stand below the lot, inside the view box.
+  const C=lot.corral;assert(C&&C.y0*e.K>b.b&&C.y1*e.K<=box.b&&C.xb>=box.l&&C.xf<=box.r,`${w}x${h}: corral below the lot`);
+  const g=e.pitStopGeometry(A,L),pts=[];for(const u2 of [0,145])for(const v2 of [0,118])pts.push(e.pitPoint(g,u2,v2));
+  assert(pts.every(p=>p.y*e.K>b.b&&p.y*e.K<=box.b&&p.x>=box.l&&p.x<=box.r),`${w}x${h}: station below the lot`);
+  assert(e.pitPosts(g).every(p=>p.y*e.K>b.b),`${w}x${h}: station posts clear of the lot`);
  }
+ // Landscape phones and desktop keep the corral beside the lot; road courses keep the larger phone car.
+ const land=Object.assign(e.makeArena(1350,675),{fixedMobile:true,mobile:true,parking:true,uiW:844,uiH:390}),LL=e.layoutCourse(land);
+ assert(!e.portraitLot(land)&&LL.lot.corral.xf<LL.lot.l,'landscape corral beside the lot');
  assert.equal(e.mobileCarArtScale({mobile:true}),1.8,'road courses keep the larger phone car');
  const D=Object.assign(e.makeArena(1350,675),{mobile:false}),Ld=e.layoutCourse(D);assert.equal(Ld.lot.rows[0].slots.length,e.LOT_MAX,'desktop lot unchanged');
  e.setTrack('eight');
