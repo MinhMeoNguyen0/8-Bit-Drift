@@ -868,13 +868,12 @@ function templeParts(x,y,s){
  const U=P.u+P.rim,V=P.v+P.rim,st=G.stairs;
  return {x:r2(x),y:r2(y),s,blocks:[box(-U,-V,U,V,G.fence.post),box(-U,-st.wall,st.u1,st.wall,G.floor.z+16),box(-G.floor.u-2,-G.floor.u-2,G.floor.u+2,G.floor.u+2,1e3)]};
 }
-// The title's paint rect (screen px): centred under the pond. A portrait phone draws the title turned upright about the
-// rect's centre, so there the rect sits east of the pond (above the phone's controls), centred down the arena, with its long
-// side within the narrow view.
+// The title's paint rect (screen px): centred under the pond (the map is never turned, even on a portrait phone).
 const TEMPLE_TITLE_GAP=18,TEMPLE_TITLE_H=64;
 function templeTitleRect(T,A){const s=T.s,o=templeOuter(T),h=Math.round(TEMPLE_TITLE_H*s);
- if(A&&A.mobile&&A.uiH>A.uiW){const cx=Math.round(Math.min(T.x+o.u+70*s,A.W-h/2-90)),cy=Math.round(A.H/2),w=Math.min(2*(A.W-cx)-8,A.H-80,340);return {l:cx-Math.round(w/2),t:cy-Math.round(h/2),r:cx+Math.round(w/2),b:cy+Math.round(h/2)};}
  const w=Math.min(A.W-40,460*s),t=Math.ceil((T.y+o.v)*K+TEMPLE_TITLE_GAP*s);return {l:Math.round(T.x-w/2),t,r:Math.round(T.x+w/2),b:Math.min(A.H-8,t+h)};}
+// What a portrait phone frames on the Temple map (screen px): the grounds from the roof's top to the title's foot.
+function templeViewBox(T,A){const o=templeOuter(T),R=templeTitleRect(T,A);return {l:T.x-o.u-20*T.s,t:templeTopY(T)-8,r:T.x+o.u+20*T.s,b:R.b+8};}
 // The map: the temple centred in the arena (from the ornament's top to the title's foot); every vehicle starts on the painted
 // 8-BIT TEMPLE title (wherever this screen paints it), facing west along it.
 function buildTemple(A){
@@ -1670,7 +1669,7 @@ function position(o,alpha){return {x:o.px+(o.x-o.px)*alpha,y:o.py+(o.y-o.py)*alp
 // flight height), and its depth key follows the view ray (K·K/Z per unit up). Above FLY.clear it draws over the gate's arch.
 const mobileCarArtScale=arena=>arena&&arena.mobile?1.8:1;
 function scaleArtBox(b,scale){return {l:b.l*scale,t:b.t*scale,r:b.r*scale,b:b.b*scale};}
-const portraitCarArt=arena=>!!(arena&&arena.mobile&&arena.uiH>arena.uiW);
+const portraitCarArt=arena=>!!(arena&&arena.mobile&&arena.uiH>arena.uiW&&!arena.upright);
 function carArtBox(b,arena){const q=scaleArtBox(b,mobileCarArtScale(arena));return portraitCarArt(arena)?{l:q.t,t:-q.r,r:q.b,b:-q.l}:q;}
 // True behind the shrine's veranda and within its roof's width: the shrine is taller than the Drone ever flies, so there it
 // keeps its ordinary depth key instead of drawing over everything.
@@ -1750,7 +1749,12 @@ function cameraGeometry(cssW,cssH,short,defaultZoom,courseW,courseH){
  return {scale,l,t,r:l+w,b:t+h,w,h};
 }
 // Fit the course into the open region between mobile controls; the viewport still covers the whole screen.
-function mobileCameraGeometry(cssW,cssH,short,courseW,courseH,zones,u,lot=null){
+// upright (the Temple map): a portrait phone shows the map as it is, not turned 90°, with the box (screen px of the map) fitted
+// between the top bar and the controls below it.
+function mobileCameraGeometry(cssW,cssH,short,courseW,courseH,zones,u,lot=null,upright=null){
+ if(upright&&cssH>cssW){const get=id=>zones.find(z=>z.id===id),wheel=get('wheel'),gear=get('gear'),hud=get('hud'),left=12,right=cssW-12,top=hud.b*u+12,bottom=Math.min(wheel.t,gear.t)*u-12;
+  const aw=Math.max(cssW*.5,right-left),ah=Math.max(cssH*.2,bottom-top),bw=upright.r-upright.l,bh=upright.b-upright.t,scale=Math.min(aw/bw,ah/bh),w=cssW/scale,h=cssH/scale;
+  const l=(upright.l+upright.r)/2-(left+right)/2/scale,t=(upright.t+upright.b)/2-(top+bottom)/2/scale;return {scale,l,t,r:l+w,b:t+h,w,h};}
  const rotated=cssH>cssW,get=id=>zones.find(z=>z.id===id),wheel=get('wheel'),gear=get('gear'),hud=get('hud');
  const left=rotated?12:wheel.r*u+8,right=rotated?cssW-12:gear.l*u-8;
  const top=hud.b*u+12,bottom=rotated?Math.min(wheel.t,gear.t)*u-12:cssH-12;
@@ -1761,7 +1765,7 @@ function mobileCameraGeometry(cssW,cssH,short,courseW,courseH,zones,u,lot=null){
  const x=(left+right)/2,y=(top+bottom)/2+(lot&&rotated?25:0),cx=rotated?y:x,cy=rotated?cssW-x:y,w=vw/scale,h=vh/scale,l=(bounds.l+bounds.r)/2-cx/scale,t=(bounds.t+bounds.b)/2-cy/scale;
  return {scale,l,t,r:l+w,b:t+h,w,h};
 }
-const titleRotation=view=>view&&view.mobile&&view.cssH>view.cssW?-Math.PI/2:0;
+const titleRotation=view=>view&&view.mobile&&view.cssH>view.cssW&&!view.upright?-Math.PI/2:0;
 // Keep at least one output pixel per CSS pixel when the world is zoomed in.
 // World caches stay in logical pixels; only the final compositing canvas grows.
 // density: canvas pixels per world pixel. On a high-density screen the canvas matches device pixels (dpr, up to 3), so the
@@ -2832,7 +2836,7 @@ if(typeof document==='undefined'){if(typeof module!=='undefined'){
  module.exports={BURN_SPEED,GEARS,AUTO_GEARS,MANUAL_GEARS,PADDLE_GEARS,PADDLE_SEQ,isPaddle,REV_SHIFT,SHIFT_AT,isManual,shiftOk,gearStep,gearName,shiftGear,gearTelemetry,WIDTH,HEIGHT,K,Z,WORLD_H,STEP,SIM_SPEED,TAU,PRESETS,CAR_ART,FRAMES,SHADOW_INK,LIGHT,DEFAULT_ARENA,edgeClear,CROSS_GAP,carBoxAll,SPAWN_INSIDE,CONE_COUNT,CONE_R,CONTROL_ZONES,keepOuts,layoutCourse,drawGround,resetCones,TRANSFER_MARGIN,CONE_BOX,transferBody,transferEdges,sceneItems,carDrawable,mobileCarArtScale,scaleArtBox,portraitCarArt,carArtBox,gateDrawables,drawOrder,SKID,createTrackRecorder,breakTracks,recordTracks,coneSprite,coneShadowSprite,CONE_H,archShape,inArch,gateArt,GATE_SPLIT,GATE_FRONT,plotLine,frameIndex,carModel,carShadowPolys,frameBounds,spriteBox,raster,carSprite,carShadow,buildCarAtlases,makeArena,normalizeInput,keysToInput,carScreenBounds,resizeWorld,wrap,delta,angleDelta,createWorld,drive,step,carCone,coneCone,position,wheelPoints,SPEED_CAP,OMEGA_MAX,CONE_MAX,FASTEST,SUB_MOVE,gatePosts,carPost,conePost,substeps,limitVelocity,ROLL_STEPS,ROLL_G,LOAD_W,LOAD_ZETA,IMPACT_GAIN,TIP_COMMIT,TIP_DROP,TIP_MIN,TIP_SOFT,ROLL_SPIN,ROLL_DECEL,ROLL_SETTLE,ROLL_FRICTION,REST_SPEED,RECOVER_TIME,RECOVER_GAP,CAR_STATES,uprightState,rollKappa,tipAngle,tumble,rollover,rollFrame,rolledModel,rollShadowPolys,rollSpritePoints,rollFrameBounds,rollSpriteBox,carRollSprite,carRollShadow,carHidden,canRecover,recover,recoverSpot,boxDistance};
  Object.assign(module.exports,{raceRoute,raceProject,raceCross,raceNew,raceMove,raceTime,raceRank,raceBetter,raceFingerprint,raceRecords,raceSave,RACE_VERSION});
  Object.assign(module.exports,{setTrack,TUNING,TUNING_SPEC,TUNING_DEFAULTS,setTuning,resetTuning}); // shared tuning interface
- Object.assign(module.exports,{canvasRendering,TEMPLE_BRICK,LIGHT,TEMPLE_GEO,TEMPLE_LAYERS,TEMPLE_SCALE,TEMPLE_TITLE,templeOuter,templeThumb,templeTitleRect,buildTemple,templeRect,templeClearance,templeTopY,templeParts,templeBlocks,templeArt,templeDrawables,templeHides,templeGround,visibleBounds,cameraGeometry,mobileCameraGeometry,titleRotation,renderMetrics,titleRasterSpec,groundDots,pitStopGeometry,pitPoint,gasPumpPoint,pitPosts,pitOverlap,carPit,conePit,drawPitBay,pitArt,pitDrawables,VIEW_SHORT,computeView,createControls,UI_MARGIN,UI_GAP,uiMetrics,controlZones,WHEEL_DEAD,turnDelta,pointerAngle,wheelDrag,wheelValue,wheelKickback,createModes,recoverAvailable,tryRecover,isRecoverKey,recoverFromKey}); // ui (r2-ui)
+ Object.assign(module.exports,{templeViewBox,canvasRendering,TEMPLE_BRICK,LIGHT,TEMPLE_GEO,TEMPLE_LAYERS,TEMPLE_SCALE,TEMPLE_TITLE,templeOuter,templeThumb,templeTitleRect,buildTemple,templeRect,templeClearance,templeTopY,templeParts,templeBlocks,templeArt,templeDrawables,templeHides,templeGround,visibleBounds,cameraGeometry,mobileCameraGeometry,titleRotation,renderMetrics,titleRasterSpec,groundDots,pitStopGeometry,pitPoint,gasPumpPoint,pitPosts,pitOverlap,carPit,conePit,drawPitBay,pitArt,pitDrawables,VIEW_SHORT,computeView,createControls,UI_MARGIN,UI_GAP,uiMetrics,controlZones,WHEEL_DEAD,turnDelta,pointerAngle,wheelDrag,wheelValue,wheelKickback,createModes,recoverAvailable,tryRecover,isRecoverKey,recoverFromKey}); // ui (r2-ui)
  Object.assign(module.exports,{PAINT_SLANT,PAINT_STRIPE,PAINT_SOLID_BELOW,PAINT_KEY_SOLID_BELOW,PAINT_COPY,GLYPHS,glyphMask,shearMask,maskRuns,keycapRuns,wrapPhrases,paintLayout,paintRuns,drawPaint}); // ground paint (r2-paint)
  Object.assign(module.exports,{buildCourse,fitTrack,roundedPath,circuitVerts,laneHalf,laneSelfClear,gateSpot,trackMarks,LANE_PAD,LANE_GAP,GATE_LEAD,TRACK_STEP,CONE_OFF,inGate,TRACKS,TRACK_SHAPES,TRACK_HALF,TRACK_FILL,shapeUnit,trackSelfClear,insideLoop,titleSpot,trackRadiusOk,TRACK_MIN_R}); // sim + course extra exports (r2-sim)
  Object.assign(module.exports,{wheelLimit,wheelInput,wheelAngle,GEAR_GATE,STICK_VB,gearSlot,stickMove,mobileStickMove,stickSlot,simpleAutoInput,stickPath,AUTO_GATE,autoSlot,autoMove,autoSlotAt,autoPath,stickGate,pathPoint,shiftBarW,TUNING_STORE,loadTuning,saveTuning,tuningGroups,uiPx,SPEED_EM,speedFit,shiftKeyW,shiftKeyGap,shiftKeyLayout,gearCues,trackThumbSize,trackThumb}); // ui extra exports (r2-ui, r3-ui)
@@ -3497,9 +3501,9 @@ function applyView(){
  if(!(cssW>0&&cssH>0))return;
  const next=computeView(cssW,cssH,dpr,viewFor()),u=next.scale/dpr,safe=readSafe(u),first=!view,mobile=isTouch()||Math.min(cssW,cssH)<500;
  view={...next,dpr,cssW,cssH,u,safe,mobile};uiZones=controlZones(view,safe);
- const mobileShort=VIEW_SHORT,A=makeArena(mobileShort*2,mobileShort);A.fixedMobile=true;A.safe=safe;A.uiU=u;A.uiW=cssW;A.uiH=cssH;A.mobile=mobile;
+ const mobileShort=VIEW_SHORT,A=makeArena(mobileShort*2,mobileShort);A.fixedMobile=true;A.safe=safe;A.uiU=u;A.uiW=cssW;A.uiH=cssH;A.mobile=mobile;A.upright=SELECTED_TRACK==='temple';view.upright=A.upright;
  // Both courses use the same world reference; each slider selects its own visible span.
- const rotated=mobile&&cssH>cssW, camera=mobile?mobileCameraGeometry(cssW,cssH,viewFor(),A.W,A.H,uiZones,u,SELECTED_TRACK==='parking'?lotBox(layoutCourse(A).lot):null):cameraGeometry(cssW,cssH,viewFor(),VIEW_SHORT,A.W,A.H),worldScale=camera.scale,visibleW=camera.w,visibleH=camera.h;view.worldScale=worldScale;
+ const rotated=mobile&&cssH>cssW&&!A.upright, camera=mobile?mobileCameraGeometry(cssW,cssH,viewFor(),A.W,A.H,uiZones,u,SELECTED_TRACK==='parking'?lotBox(layoutCourse(A).lot):null,A.upright?templeViewBox(layoutCourse(A).temple,A):null):cameraGeometry(cssW,cssH,viewFor(),VIEW_SHORT,A.W,A.H),worldScale=camera.scale,visibleW=camera.w,visibleH=camera.h;view.worldScale=worldScale;
  Object.assign(A,{viewL:camera.l,viewT:camera.t,viewR:camera.r,viewB:camera.b});
  const arenaChanged=first||world.arena.W!==A.W||world.arena.H!==A.H||!world.arena.fixedMobile||!ground;
  const cameraChanged=arenaChanged||Math.abs((world.arena.viewL??0)-A.viewL)>.001||Math.abs((world.arena.viewT??0)-A.viewT)>.001||Math.abs((world.arena.viewR??A.W)-A.viewR)>.001||Math.abs((world.arena.viewB??A.H)-A.viewB)>.001;

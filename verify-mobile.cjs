@@ -31,3 +31,13 @@ test('phones draw the course at device resolution, so dithered art (the temple p
  // Desktop at 1:1 is untouched.
  const d=e.renderMetrics(1350,675,1,1);assert.equal(d.density,1);assert.equal(e.canvasRendering(d,1),'');
 });
+test('the Temple map stays upright on a portrait phone and fits between the top bar and the controls',()=>{
+ for(const [w,h] of [[375,812],[390,844],[320,568]]){const v=e.computeView(w,h,1),u=v.scale,z=e.controlZones({...v,u,cssW:w,cssH:h,mobile:true},{}),get=id=>z.find(q=>q.id===id);
+  e.setTrack('temple');const A=Object.assign(e.makeArena(1350,675),{fixedMobile:true,mobile:true,uiW:w,uiH:h,upright:true}),L=e.layoutCourse(A),box=e.templeViewBox(L.temple,A),c=e.mobileCameraGeometry(w,h,675,1350,675,z,u,null,box);
+  const sx=x=>(x-c.l)*c.scale,sy=y=>(y-c.t)*c.scale;
+  assert(sx(box.l)>=11&&sx(box.r)<=w-11,'fits the width');assert(sy(box.t)>=get('hud').b*u+11&&sy(box.b)<=Math.min(get('wheel').t,get('gear').t)*u-11,'between the top bar and the controls');
+  assert(!e.portraitCarArt(A)&&e.titleRotation({mobile:true,cssW:w,cssH:h,upright:true})===0,'car and title not counter-rotated');
+  assert(e.portraitCarArt({...A,upright:false})&&e.titleRotation({mobile:true,cssW:w,cssH:h})!==0,'other maps still turn');}
+ const s=require('fs').readFileSync(__dirname+'/dist/index.html','utf8');assert(/A\.upright=SELECTED_TRACK==='temple'/.test(s)&&/rotated=mobile&&cssH>cssW&&!A\.upright/.test(s),'only the Temple map skips the turn');
+ e.setTrack('eight');
+});

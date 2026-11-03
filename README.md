@@ -88,7 +88,7 @@ Ranked time is `elapsedSeconds + 0.02 × (100 − quality)²`; lower wins. Perso
 - Light falls from the upper left, as everywhere in the game. The water is paper with ink ripple dashes; in shadow it turns to ink with paper ripples. The shrine, pillar, stairs and fence cast these shadows on the water. A flying Drone's shadow falls on the open water too, but adds nothing where the water is already in the temple's shadow (`drawWaterShadow`, `waterShade`). Cars behind the pond or the shrine are hidden by them.
 - The stairs come in from the side, because this camera looks down steeply: stairs from the front would hide the pillar. For the same reason, the roof overhangs less at the front than at the sides.
 - Sizes are in `TEMPLE_GEO`, and the map is built by `buildTemple`. The temple is drawn at 1.45× on the fixed 1350 × 675 world, centred together with its title.
-- On a phone held upright, the whole map is drawn turned 90°. The title is turned back upright and moved east of the pond, above the controls, to fit; the buildings stay turned, like the pit garage on the road courses.
+- On a phone held upright, the Temple map is **not** turned 90° like the road courses: it stays upright, and the camera fits the temple, pond and title between the top bar and the controls (`templeViewBox`, the `upright` camera).
 
 | Desktop (1366×768) | Phone, landscape (844×390) | Phone, portrait (375×812) |
 | --- | --- | --- |
