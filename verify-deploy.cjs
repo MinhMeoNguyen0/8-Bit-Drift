@@ -11,7 +11,7 @@ test('standalone HTML has an entry point, no external assets, and executable gam
  assert.equal(typeof game.step,'function');assert.equal(typeof game.createWorld,'function');
 });
 test('each vehicle starts and simulates on each course without invalid state',()=>{
- for(const track of ['signature','oval','eight','parking']){
+ for(const track of ['signature','oval','eight','temple','parking']){
   game.setTrack(track);
   for(const id of Object.keys(game.PRESETS)){
    const arena=game.makeArena(1350,675);arena.fixedMobile=true;
