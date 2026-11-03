@@ -31,3 +31,6 @@ test-results/
 *.bak
 
 # dist/index.html is the source and the website: keep dist tracked.
+
+# Vercel CLI project link (local only).
+/.vercel/

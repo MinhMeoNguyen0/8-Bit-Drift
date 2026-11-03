@@ -1,0 +1,51 @@
+name: Confirm Vercel release
+
+# Vercel builds and deploys every push itself; its build command (vercel.json) runs the same suites as the Pages
+# workflow, so a failing check stops the release. When Vercel reports a successful production deployment, this
+# workflow proves the public site serves that commit and that analytics can load.
+on:
+  deployment_status:
+
+permissions:
+  contents: read
+
+env:
+  SITE_URL: https://8-bit-drift.vercel.app
+
+jobs:
+  confirm:
+    name: Confirm the live Vercel site
+    if: github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.deployment.sha }}
+      # The production domain can take a moment to switch to the new deployment, so retry for up to five minutes.
+      - name: Live page is byte-identical to this commit's dist/index.html
+        run: |
+          sha="${{ github.event.deployment.sha }}"
+          want=$(sha256sum dist/index.html | cut -d' ' -f1)
+          for attempt in $(seq 1 30); do
+            got=$(curl -fsSL -H 'Cache-Control: no-cache' "${SITE_URL}/?v=${sha}" | sha256sum | cut -d' ' -f1) || got=none
+            if [ "$got" = "$want" ]; then
+              {
+                echo "### Published on Vercel"
+                echo "${SITE_URL} now serves commit \`${sha::7}\` (index.html sha256 \`${want::12}\`)."
+              } >> "$GITHUB_STEP_SUMMARY"
+              echo "Live site matches ${sha::7} (attempt ${attempt})."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::${SITE_URL} does not serve commit ${sha::7} after 5 minutes (live sha256 ${got::12}, expected ${want::12})."
+          exit 1
+      - name: Vercel Web Analytics script is served
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' "${SITE_URL}/_vercel/insights/script.js")
+          if [ "$code" = "200" ]; then
+            echo "Analytics script is served."
+          else
+            echo "::warning::${SITE_URL}/_vercel/insights/script.js returned HTTP ${code}. Enable Web Analytics in the Vercel project's Analytics tab."
+          fi

@@ -25,4 +25,14 @@ test('each vehicle starts and simulates on each course without invalid state',()
   }
  }
 });
+test('Vercel analytics loads only on the Vercel site, from its own origin',()=>{
+ assert.equal(game.ANALYTICS_SRC,'/_vercel/insights/script.js','same-origin path, no third-party host');
+ const on=(protocol,hostname)=>game.analyticsOn({protocol,hostname});
+ assert(on('https:','8-bit-drift.vercel.app'));assert(on('https:','vercel.app'));
+ for(const [p,h] of [['file:',''],['http:','127.0.0.1'],['http:','localhost'],['https:','minhmeonguyen0.github.io'],['http:','8-bit-drift.vercel.app'],['https:','vercel.app.example.com'],['https:','notvercel.app']])assert(!on(p,h),`${p}//${h}`);
+ assert(!game.analyticsOn(undefined));
+ const script=html.match(/<script>([\s\S]*?)<\/script>/)[1],browser=script.split('// ---- Browser only below.')[1];
+ assert.equal((script.match(/createElement\('script'\)/g)||[]).length,1,'one dynamic script');
+ assert(/^[^\n]*\n\s*if\(analyticsOn\(location\)\)\{[^\n]*s\.src=ANALYTICS_SRC/.test(browser),'loader is gated by analyticsOn');
+});
 console.log(`Deployment checks: ${count} passed. Full regressions run separately.`);
