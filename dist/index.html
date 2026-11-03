@@ -848,12 +848,12 @@ function fitShape(A,zones,grid,id,hw){
 // round the pond centre (x, y). TEMPLE_GEO is the one source for the art, the colliders and the ground paint.
 const TEMPLE_GEO={
  pond:{u:220,v:150,rim:6,water:-5,coping:2},fence:{z:12,post:16,step:44,gap:26},
- stairs:{v:16,wall:22,u1:-40,n:33},walk:{v:30,len:90},apron:14,
- pillar:{r:13,z:62},floor:{u:40,z:66},room:{u:28,z:92},column:{u:38,r:2.5},
- roof:{u:62,v:46,z:100,curl:16,tu:20,tv:16,tz:126},gable:{u:24,v:16,z:146,top:184}
+ stairs:{v:16,wall:22,u1:-52,n:10},walk:{v:30,len:90},apron:14,
+ pillar:{r:17,z:80},floor:{u:52,z:86},room:{u:36,z:120},column:{u:49,r:3.2},
+ roof:{u:80,v:60,z:130,curl:21,tu:26,tv:21,tz:164},gable:{u:31,v:21,z:190,top:240}
 };
 // Scale for an arena (the fixed course is 1350 x 675 screen px) and the pond's half-size in world units at that scale.
-const TEMPLE_SCALE=1.35,TEMPLE_TITLE='8-BIT TEMPLE';
+const TEMPLE_SCALE=1.45,TEMPLE_TITLE='8-BIT TEMPLE';
 const templeOuter=T=>{const P=TEMPLE_GEO.pond,s=T.s;return {u:(P.u+P.rim)*s,v:(P.v+P.rim)*s};};
 // The grounds' plan rect (world units): pond, fence, and the walk to the west.
 function templeRect(T){const o=templeOuter(T);return {l:T.x-o.u-TEMPLE_GEO.walk.len*T.s,r:T.x+o.u,t:T.y-o.v,b:T.y+o.v};}
@@ -869,10 +869,11 @@ function templeParts(x,y,s){
  return {x:r2(x),y:r2(y),s,blocks:[box(-U,-V,U,V,G.fence.post),box(-U,-st.wall,st.u1,st.wall,G.floor.z+16),box(-G.floor.u-2,-G.floor.u-2,G.floor.u+2,G.floor.u+2,1e3)]};
 }
 // The title's paint rect (screen px): centred under the pond. A portrait phone draws the title turned upright about the
-// rect's centre, so there the rect sits west of the walk, centred down the arena, with its long side within the narrow view.
+// rect's centre, so there the rect sits east of the pond (above the phone's controls), centred down the arena, with its long
+// side within the narrow view.
 const TEMPLE_TITLE_GAP=18,TEMPLE_TITLE_H=64;
 function templeTitleRect(T,A){const s=T.s,o=templeOuter(T),h=Math.round(TEMPLE_TITLE_H*s);
- if(A&&A.mobile&&A.uiH>A.uiW){const cx=Math.round(T.x-o.u-TEMPLE_GEO.walk.len*s-60*s),cy=Math.round(A.H/2),w=Math.min(2*cx-8,A.H-80,340);return {l:cx-Math.round(w/2),t:cy-Math.round(h/2),r:cx+Math.round(w/2),b:cy+Math.round(h/2)};}
+ if(A&&A.mobile&&A.uiH>A.uiW){const cx=Math.round(Math.min(T.x+o.u+70*s,A.W-h/2-90)),cy=Math.round(A.H/2),w=Math.min(2*(A.W-cx)-8,A.H-80,340);return {l:cx-Math.round(w/2),t:cy-Math.round(h/2),r:cx+Math.round(w/2),b:cy+Math.round(h/2)};}
  const w=Math.min(A.W-40,460*s),t=Math.ceil((T.y+o.v)*K+TEMPLE_TITLE_GAP*s);return {l:Math.round(T.x-w/2),t,r:Math.round(T.x+w/2),b:Math.min(A.H-8,t+h)};}
 // The map: the temple centred in the arena (from the ornament's top to the title's foot); the car starts on the west walk,
 // facing the stairs.
@@ -2575,7 +2576,7 @@ function pitDrawables(w){const g=pitStopGeometry(w.arena,w.layout);if(!g)return 
 // with ink channels, gilt and plaster paper with ink outlines; faces toward the light (up-left) a step lighter.
 const TEMPLE_LAYERS=['pond','stairs','pavilion','front','shadow'];
 function templeArt(T){
- const G=TEMPLE_GEO,s=T.s,size=Math.ceil(500*s)+40,ax=Math.ceil(240*s)+20,ay=Math.ceil(140*s)+20,L={};
+ const G=TEMPLE_GEO,s=T.s,size=Math.ceil(520*s)+40,ax=Math.ceil(240*s)+20,ay=Math.ceil(200*s)+20,L={};
  for(const k of TEMPLE_LAYERS)L[k]=raster(size,ax,ay);
  const {pond,pavilion:pv,stairs:sr,front,shadow:sh}=L;
  const P=(u,v,z=0)=>[ax+u*s,ay+K*v*s-Z*z*s],S=(u,v,z=0)=>{const p=P(u,v,0);return [p[0]+LIGHT.x*z*s,p[1]+LIGHT.y*z*s];};
@@ -2630,12 +2631,12 @@ function templeArt(T){
  const strut=(r,a,b)=>{const pts=[];for(let i=0;i<=6;i++){const t=i/6,e=Math.sin(t*Math.PI/2);pts.push([a[0]+(b[0]-a[0])*e,a[1]+(b[1]-a[1])*e,a[2]+(b[2]-a[2])*t]);}
   for(let i=0;i<6;i++){const p=P(...pts[i]),q=P(...pts[i+1]);r.line(p,q,0);r.line([p[0]+1,p[1]],[q[0]+1,q[1]],.25);}};
  const reach=fl.u-6;
- for(const [du,dv] of [[-1,-1],[1,-1],[0,-1]])strut(pv,[du*pl.r*.7,dv*pl.r*.7,12],[du*reach,dv*reach,pl.z]);
+ for(const [du,dv] of [[-1,-1],[1,-1],[0,-1]])strut(pv,[du*pl.r*.7,dv*pl.r*.7,pl.z*.2],[du*reach,dv*reach,pl.z]);
  for(let k=0;k<3;k++){const a=k*TAU/3+.3;line(pv,[Math.cos(a)*pl.r*1.6,Math.sin(a)*pl.r*1.6,Pd.water],[Math.cos(a+1.4)*pl.r*1.6,Math.sin(a+1.4)*pl.r*1.6,Pd.water],1);}
  const col=(u0,u1,shade)=>poly(pv,[[u0,0,Pd.water],[u1,0,Pd.water],[u1,0,pl.z],[u0,0,pl.z]],shade,false);
  col(-pl.r,pl.r,.75);col(-pl.r,-pl.r*.35,1);col(pl.r*.4,pl.r,.5);
  for(const u of [-pl.r,pl.r])line(pv,[u,0,Pd.water],[u,0,pl.z]);for(const z of [Pd.water+1,pl.z-4])line(pv,[-pl.r,0,z],[pl.r,0,z],.5);
- for(const [du,dv] of [[-1,0],[1,0],[-1,1],[1,1],[0,1]])strut(pv,[du*pl.r*.7,dv*pl.r*.7,12],[du*reach,dv*reach,pl.z]);
+ for(const [du,dv] of [[-1,0],[1,0],[-1,1],[1,1],[0,1]])strut(pv,[du*pl.r*.7,dv*pl.r*.7,pl.z*.2],[du*reach,dv*reach,pl.z]);
 
  // The shrine: floor, back columns, the lattice room, front columns, and the veranda railing (open where the stairs arrive).
  flat(pv,-fl.u,fl.u,-fl.u,fl.u,fl.z,.75);face(pv,-fl.u,fl.u,fl.u,pl.z,fl.z,.25);
@@ -2661,7 +2662,7 @@ function templeArt(T){
   for(let i=0;i<M;i++)line(pv,at(f,-1+2*i/M,0),at(f,-1+2*(i+1)/M,0));};
  const rib=(f,a)=>{for(let j=0;j<N;j++){const p=P(...at(f,a,j/N)),q=P(...at(f,a,(j+1)/N));pv.line(p,q,1);pv.line([p[0]-Math.sign(a),p[1]],[q[0]-Math.sign(a),q[1]],0);}};
  slope(slopes.back,.25,null);
- for(const k of [-1,1])horn(pv,[k*R.u,-R.v,curl(1)],k,-.7,1.3);
+ for(const k of [-1,1])horn(pv,[k*R.u,-R.v,curl(1)],k,-.7,1.7);
  slope(slopes.west,.75,.5);slope(slopes.east,.25,.5);
 
  // Gable roof on top: its two slopes, the plastered front gable with a dark medallion, and paper bargeboards.
@@ -2672,14 +2673,14 @@ function templeArt(T){
  slope(slopes.front,.5,0);
  for(const a of [-1,1])rib(slopes.front,a);
  for(let i=0;i<M;i++){const a0=-1+2*i/M,a1=-1+2*(i+1)/M,p=at(slopes.front,a0,0),q=at(slopes.front,a1,0);poly(pv,[p,q,[q[0],q[1],q[2]-3],[p[0],p[1],p[2]-3]],Math.abs(a0+a1)>1.7?1:0);}
- for(const k of [-1,1])horn(pv,[k*R.u,R.v,curl(1)],k,.7,1.5);
+ for(const k of [-1,1])horn(pv,[k*R.u,R.v,curl(1)],k,.7,1.95);
  poly(pv,[[-R.tu,Gb.v,R.tz],[R.tu,Gb.v,R.tz],[0,Gb.v,Gb.z-3]],1);
  poly(pv,[[-5,Gb.v+.1,R.tz+8],[0,Gb.v+.1,R.tz+3],[5,Gb.v+.1,R.tz+8],[0,Gb.v+.1,R.tz+13]],0);line(pv,[-R.tu+3,Gb.v+.1,R.tz+1.5],[R.tu-3,Gb.v+.1,R.tz+1.5]);
- for(const k of [-1,1]){poly(pv,[[k*(gw+1),Gb.v+.3,g0-1],[0,Gb.v+.3,Gb.z+1],[0,Gb.v+.3,Gb.z+4],[k*(gw+1),Gb.v+.3,g0+2]],1);horn(pv,[k*(gw+1),Gb.v+.4,g0-1],k,0,.7);}
+ for(const k of [-1,1]){poly(pv,[[k*(gw+1),Gb.v+.3,g0-1],[0,Gb.v+.3,Gb.z+1],[0,Gb.v+.3,Gb.z+4],[k*(gw+1),Gb.v+.3,g0+2]],1);horn(pv,[k*(gw+1),Gb.v+.4,g0-1],k,0,.9);}
  // Ridge, its end knobs, and the gilt crown: a flaming pearl between two dragons.
  for(const d of [0,1])line(pv,[0,-Gb.v,Gb.z+d],[0,Gb.v,Gb.z+d],0);
  for(const v of [-Gb.v,Gb.v])ball(pv,0,v,Gb.z+1,2.2);
- for(const k of [-1,1])horn(pv,[k*7,0,Gb.z+1],k,0,1.05);
+ for(const k of [-1,1])horn(pv,[k*9,0,Gb.z+1],k,0,1.35);
  ball(pv,0,0,Gb.z+3,5);{const c=P(0,0,Gb.z+8);pv.pixel(c[0],c[1],0);pv.pixel(c[0]+1,c[1],0);}
 
  // Stairs climbing east from the gap in the west fence to the veranda, seen side-on: the far parapet, the treads (alternate

@@ -6,7 +6,7 @@
 //
 // track: signature, oval, eight, temple or parking (default temple). --crop is in arena screen px (1350 x 675);
 // --at places the car in world units (screen y = y * K). Example: a 3x close-up of the temple:
-//   node snapshot.cjs temple docs/images/temple-closeup.png --scale 3 --crop 540,60,830,330
+//   node snapshot.cjs temple docs/images/temple-closeup.png --scale 3 --crop 520,60,840,360
 const fs=require('node:fs'),vm=require('node:vm'),zlib=require('node:zlib'),path=require('node:path');
 const html=fs.readFileSync(path.join(__dirname,'dist/index.html'),'utf8'),sandbox={module:{exports:{}}};
 vm.runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)[1],sandbox);const e=sandbox.module.exports;

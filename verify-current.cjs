@@ -263,8 +263,8 @@ test('temple: a free-drive map (no road, gate, cones or pit) with the pagoda cen
   assert(Math.abs(T.x-A.W/2)<1,'centred across');assert.equal(T.s,e.TEMPLE_SCALE);
   const q=e.templeRect(T),top=e.templeTopY(T),title=e.templeTitleRect(T,A);
   assert(q.l>0&&q.r<A.W&&top>8,'grounds and roof on the map');assert(title.b<=A.H-8&&title.l>=0&&title.r<=A.W&&title.t>=0,'title on the map');
-  // The title is painted under the pond; a portrait phone turns it upright about its centre, so there it sits west of the walk.
-  if(A.mobile&&A.uiH>A.uiW){const cx=(title.l+title.r)/2,h=title.b-title.t,w=title.r-title.l;assert(cx+h/2<q.l&&cx-h/2>0,'portrait: west of the walk');assert(Math.abs((title.t+title.b)/2-A.H/2)<1&&w>=200,'portrait: centred down the map, readable width');}
+  // The title is painted under the pond; a portrait phone turns it upright about its centre, so there it sits east of the pond.
+  if(A.mobile&&A.uiH>A.uiW){const cx=(title.l+title.r)/2,h=title.b-title.t,w=title.r-title.l;assert(cx-h/2>q.r&&cx+h/2<A.W,'portrait: east of the pond');assert(Math.abs((title.t+title.b)/2-A.H/2)<1&&w>=200,'portrait: centred down the map, readable width');}
   else assert(q.b*e.K<title.t,'title below the pond');
   assert(L.spawn.x<q.l+e.TEMPLE_GEO.walk.len*T.s&&L.spawn.x>q.l&&Math.abs(L.spawn.y-T.y)<1&&L.spawn.a===0,'on the walk, facing the stairs');
   assert(!inTemple(w),'starts clear');}
