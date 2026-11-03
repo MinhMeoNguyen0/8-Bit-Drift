@@ -18,7 +18,7 @@ permissions:
   contents: read
 
 env:
-  SITE_URL: https://8-bit-drift.vercel.app
+  SITE_URL: https://8bit-drift.vercel.app
 
 jobs:
   confirm:

@@ -16,7 +16,7 @@ Then visit [the local preview](http://127.0.0.1:4173/). The preview reads the sa
 
 ## Play online and publish updates
 
-**[Play 8-Bit Drift on Vercel](https://8-bit-drift.vercel.app/)** or **[on GitHub Pages](https://minhmeonguyen0.github.io/8-Bit-Drift/).** Published and checked on October 30, 2026: the page loads, the on-screen gas pedal starts the race, and the timer advances without console errors. See deployments and checks in [GitHub Actions](https://github.com/MinhMeoNguyen0/8-Bit-Drift/actions).
+**[Play 8-Bit Drift on Vercel](https://8bit-drift.vercel.app/)** or **[on GitHub Pages](https://minhmeonguyen0.github.io/8-Bit-Drift/).** Published and checked on October 30, 2026: the page loads, the on-screen gas pedal starts the race, and the timer advances without console errors. See deployments and checks in [GitHub Actions](https://github.com/MinhMeoNguyen0/8-Bit-Drift/actions).
 
 The publishing flow is:
 
@@ -27,7 +27,7 @@ The publishing flow is:
 
 Publication requires the standalone deployment, broad, current-feature and mobile suites to pass. After deploying, the workflow fetches the live page and checks it is byte-identical to the commit's `dist/index.html`; the run fails if it isn't, and on success its summary says which commit is live. Pages lets browsers cache the page for up to 10 minutes, so hard-refresh to see a new release at once. The separate regression workflow also runs the game suites independently. See [the CI/CD guide](tasks/GITHUB_PAGES.md). No package install, build step, or personal deployment token is required.
 
-**Vercel** is linked to this repository and deploys on its own: every pull request gets a preview deployment, and every push to `main` goes to production at `https://8-bit-drift.vercel.app`. Its build command in `vercel.json` runs the same four suites (`verify-deploy`, `verify`, `verify-current`, `verify-mobile`), so a failing check fails the Vercel build and the live site keeps its previous version. Only `dist` is served. After each push to `main`, `.github/workflows/vercel.yml` waits up to ten minutes for the live page to become byte-identical to the commit (so it also fails when Vercel's checks stop the release) and warns if the analytics script is not served. To undo a Vercel release, revert the commit on `main`, or use Instant Rollback in the Vercel dashboard.
+**Vercel** is linked to this repository and deploys on its own: every pull request gets a preview deployment, and every push to `main` goes to production at `https://8bit-drift.vercel.app`. Its build command in `vercel.json` runs the same four suites (`verify-deploy`, `verify`, `verify-current`, `verify-mobile`), so a failing check fails the Vercel build and the live site keeps its previous version. Only `dist` is served. After each push to `main`, `.github/workflows/vercel.yml` waits up to ten minutes for the live page to become byte-identical to the commit (so it also fails when Vercel's checks stop the release) and warns if the analytics script is not served. To undo a Vercel release, revert the commit on `main`, or use Instant Rollback in the Vercel dashboard.
 
 **Analytics** (Vercel Web Analytics) is the one deliberate network request. `analyticsOn` in `dist/index.html` loads `/_vercel/insights/script.js` from the page's own origin, only over HTTPS on a `vercel.app` host; direct file opening, the local preview and GitHub Pages make no requests. Enable it in the Vercel project's Analytics tab. If a custom domain is added, extend `analyticsOn` and its test in `verify-deploy.cjs`.
 
