@@ -91,6 +91,10 @@ button.row:hover{background:var(--ink);color:var(--paper)}button.row:active{tran
 .tune input::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:22px;margin-top:-9px;border:2px solid var(--ink);background:var(--paper);box-shadow:2px 2px 0 var(--ink-a)}
 .tune input::-moz-range-track{height:4px;background:var(--ink)}
 .tune input::-moz-range-thumb{width:10px;height:18px;border:2px solid var(--ink);border-radius:0;background:var(--paper)}
+/* Sound: the Music / Effects switches share a row; the SOUND section holds the volumes and what is playing. */
+.sound-pick{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:5px}.sound-pick .switch-row{padding:0 6px;gap:4px}.sound-pick .switch-row span{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.now-playing{margin:0;letter-spacing:.3px}.sound-keys{margin:0;opacity:.8}
+@media not all and (any-pointer:fine){.sound-keys{display:none}}
 .readout{display:flex;gap:8px;margin:0;color:var(--muted);letter-spacing:.5px;font-variant-numeric:tabular-nums}
 .live{display:flex;align-items:center;gap:5px}.light{width:6px;height:6px;box-shadow:inset 0 0 0 1px var(--ink)}.live[data-running="true"] .light{background:var(--ink)}
 kbd{display:inline-block;min-width:13px;padding:0 2px;border:1px solid var(--line);text-align:center;font:inherit}
@@ -189,14 +193,14 @@ kbd{display:inline-block;min-width:13px;padding:0 2px;border:1px solid var(--lin
 .race-result h2,.race-result .result-main{--sw:max(2px,.09em);--sg:max(1px,.05em);background:repeating-linear-gradient(180deg,var(--ink) 0 var(--sw),transparent var(--sw) calc(var(--sw) + var(--sg)));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}.race-result h2{font:inherit;margin:0 0 .2em}.race-result .result-main{font-size:1.35em;line-height:1.15;font-variant-numeric:tabular-nums}.race-result .result-secondary{font-size:.65em;line-height:1.35;margin:.35em 0}.race-result button{font-size:.65em;border:2px solid var(--ink);background:var(--paper);padding:.45em .8em;box-shadow:2px 2px var(--ink)}.race-result button:hover{background:var(--ink);color:var(--paper)}.race-result .result-hint{font-size:.55em;margin-top:.5em}
 .race-debug{position:absolute;z-index:2;right:max(8px,var(--safe-r));top:80px;padding:5px;background:var(--paper);border:1px solid var(--ink);font:11px/1.3 monospace;white-space:pre;pointer-events:none;text-transform:none}
 .race-notice{position:absolute;z-index:2;left:50%;top:20%;transform:translateX(-50%);max-width:90%;padding:8px;background:var(--paper);border:1px solid var(--ink);text-align:center;pointer-events:none}.race-notice[hidden]{display:none}
-.panel.wide:not([hidden]){grid-template-rows:repeat(9,auto) 1fr;grid-template-areas:"head tune" "track tune" "skid tune" "debug tune" "new tune" "rules tune" "clear tune" "reset tune" "read tune" ". tune"}.panel.wide #race-debug-label{grid-area:debug}.panel.wide #new-race{grid-area:new}.panel.wide #race-rules{grid-area:rules}
+.panel.wide:not([hidden]){grid-template-rows:repeat(10,auto) 1fr;grid-template-areas:"head tune" "sound tune" "track tune" "skid tune" "debug tune" "new tune" "rules tune" "clear tune" "reset tune" "read tune" ". tune"}.panel.wide .sound-pick{grid-area:sound;grid-template-columns:minmax(0,1fr)}.panel.wide .sound-pick .switch-row{grid-area:auto}.panel.wide #race-debug-label{grid-area:debug}.panel.wide #new-race{grid-area:new}.panel.wide #race-rules{grid-area:rules}
 </style>
 </head>
 <body>
 <main class="playground" id="playground">
   <h1 class="sr-only">8-Bit Drift</h1>
   <canvas id="paint" width="1" height="1" aria-hidden="true" hidden></canvas>
-  <canvas id="game" width="400" height="240" tabindex="0" aria-label="Driving playground. W accelerates, Space brakes, A and D steer (arrow keys work too). Q and E move the gear stick. The Drone flies like a real drone: W and S climb and descend, A and D turn, the arrow keys fly forward, back and sideways. Tap R to right the car after a rollover; hold R for a new race. Escape pauses. All edges wrap." aria-describedby="driving-help">This playground needs a browser with Canvas 2D support.</canvas>
+  <canvas id="game" width="400" height="240" tabindex="0" aria-label="Driving playground. W accelerates, Space brakes, A and D steer (arrow keys work too). Q and E move the gear stick. The Drone flies like a real drone: W and S climb and descend, A and D turn, the arrow keys fly forward, back and sideways. Tap R to right the car after a rollover; hold R for a new race. Escape pauses. M mutes the sound and H sounds the horn. All edges wrap." aria-describedby="driving-help">This playground needs a browser with Canvas 2D support.</canvas>
   <span class="game-focus" aria-hidden="true">Keyboard controls active</span>
   <div class="ui-box hud" id="hud" role="group" aria-label="Car and settings">
     <div class="cars" role="group" aria-label="Pick your car">
@@ -215,17 +219,18 @@ kbd{display:inline-block;min-width:13px;padding:0 2px;border:1px solid var(--lin
   <div class="race-notice" id="race-notice" hidden></div>
   <section class="panel" id="settings" role="dialog" aria-modal="false" aria-labelledby="settings-title" hidden>
     <div class="panel-head"><h2 id="settings-title">SETTINGS</h2><button class="icon-btn close" id="settings-close" type="button" aria-label="Close settings" title="Close (Esc)"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" fill="none"/></svg></button></div>
+    <div class="sound-pick" role="group" aria-label="Sound"><label class="row switch-row" for="music-toggle" title="Music (M mutes everything)"><span>Music</span><input id="music-toggle" type="checkbox" role="switch" checked></label><label class="row switch-row" for="sfx-toggle" title="Sound effects (M mutes everything)"><span>Effects</span><input id="sfx-toggle" type="checkbox" role="switch" checked></label></div>
     <label class="row switch-row" for="skids"><span>Skid marks</span><input id="skids" type="checkbox" role="switch" checked></label>
     <label class="row switch-row" id="race-debug-label" for="race-debug-toggle"><span>Race debug mode</span><input id="race-debug-toggle" type="checkbox" role="switch"></label>
     <details id="race-rules"><summary>Race rules</summary><p>Complete the course and cross the gate. Track quality falls with off-road travel. Ranked time = elapsed time + 0.02 × (100 − quality)² seconds.</p></details>
     <button class="row" id="clear" type="button">Clear tracks</button>
     <button class="row" id="reset" type="button">Reset scene</button>
-    <div class="track-pick" role="group" aria-labelledby="track-title"><span id="track-title">Track</span><div class="track-row" id="track-row"></div></div><div class="settings-sections"><details class="tuning" id="tuning"><summary id="tuning-title">TUNING</summary><div id="tune-list"></div><button class="row" id="tune-reset" type="button">Reset tuning</button></details><details class="about"><summary>ABOUT ME</summary><a href="https://www.linkedin.com/in/minhnguyen161/" target="_blank" rel="noopener noreferrer">LinkedIn</a><a href="https://github.com/MinhMeoNguyen0" target="_blank" rel="noopener noreferrer">GitHub</a></details></div>
+    <div class="track-pick" role="group" aria-labelledby="track-title"><span id="track-title">Track</span><div class="track-row" id="track-row"></div></div><div class="settings-sections"><details class="tuning sound-mix" id="sound-mix"><summary>SOUND</summary><p class="now-playing" id="now-playing" aria-live="polite">Now playing</p><fieldset class="tune-group"><legend>Volume</legend><div class="tune"><label for="vol-master">Master</label><output id="vol-master-value" for="vol-master">80%</output><input type="range" id="vol-master" min="0" max="100" step="5" value="80"></div><div class="tune"><label for="vol-music">Music</label><output id="vol-music-value" for="vol-music">55%</output><input type="range" id="vol-music" min="0" max="100" step="5" value="55"></div><div class="tune"><label for="vol-sfx">Effects</label><output id="vol-sfx-value" for="vol-sfx">75%</output><input type="range" id="vol-sfx" min="0" max="100" step="5" value="75"></div></fieldset><p class="sound-keys">M mutes all &middot; hold H for the horn</p></details><details class="tuning" id="tuning"><summary id="tuning-title">TUNING</summary><div id="tune-list"></div><button class="row" id="tune-reset" type="button">Reset tuning</button></details><details class="about"><summary>ABOUT ME</summary><a href="https://www.linkedin.com/in/minhnguyen161/" target="_blank" rel="noopener noreferrer">LinkedIn</a><a href="https://github.com/MinhMeoNguyen0" target="_blank" rel="noopener noreferrer">GitHub</a></details></div>
     <p class="readout"><span class="live" id="live" data-running="false"><span class="light" aria-hidden="true"></span><output id="status">READY</output></span></p>
   </section>
   <div class="ui-box wheel" id="wheel"><div class="wheel-face" id="wheel-face" role="slider" tabindex="0" aria-label="Steering wheel" aria-orientation="horizontal" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0" aria-valuetext="centred" title="Drag to steer (or hold A / D, or the arrow keys while focused)"><div class="rim" id="rim"><svg viewBox="0 0 100 100" aria-hidden="true"><defs><pattern id="wheel-dither" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 0h1v1H0zm1 1h1v1H1z"/></pattern><pattern id="wheel-stripes" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 1h2v1H0z"/></pattern></defs><circle cx="50" cy="52" r="43" fill="none" stroke="#30342d" stroke-width="12"/><circle cx="50" cy="49" r="43" fill="none" stroke="#30342d" stroke-width="11"/><circle class="chain" cx="50" cy="49" r="43" fill="none" stroke="url(#wheel-dither)" stroke-width="4.6" stroke-dasharray="4.2 2.55" stroke-linecap="round"/><circle cx="50" cy="49" r="43" fill="none" stroke="#30342d" stroke-width="1.6" stroke-dasharray="2.2 4.55" stroke-dashoffset="-1"/><path d="M10 49C24 49 34 48 43 50M90 49C76 49 66 48 57 50M50 58V91" fill="none" stroke="#30342d" stroke-width="7" stroke-linecap="round"/><path d="M13 47H38M62 47H87M48 65V88" fill="none" stroke="url(#wheel-dither)" stroke-width="2"/><circle cx="50" cy="51" r="17" fill="#30342d"/><circle cx="50" cy="48" r="14" fill="#bfc1b1" stroke="#30342d" stroke-width="2"/><path d="M37 44A14 14 0 0 1 63 44" fill="none" stroke="url(#wheel-dither)" stroke-width="4"/><path class="marker" d="M42.5 0.5h15l-2 12h-11z" fill="url(#wheel-stripes)" stroke="#30342d" stroke-width="1.6" stroke-linejoin="round"/><path d="M47 4.5h6l-3 5z" fill="#30342d"/></svg></div></div></div>
   <div class="ui-box pedals" id="pedals" role="group" aria-label="Pedals"><div class="pedal-set"><button class="pedal" id="pedal-brake" type="button" aria-label="Brake (hold)" title="Brake (Space)"><span aria-hidden="true">BRAKE</span></button><button class="pedal" id="pedal-gas" type="button" aria-label="Gas (hold)" title="Gas (W)"><span aria-hidden="true">GAS</span></button></div></div>
-  <p class="sr-only" id="driving-help">W accelerates. Space brakes. A and D steer. Escape pauses. On touch screens, drag the steering wheel and hold the gas or brake pedal. Hold R for a new race, or tap the new race button on touch screens. If the car rolls over, tap R or use the Right the car button that appears next to the car chooser. The edges are connected. Every car has a gear stick. The Supercar is a manual with five gears and reverse under fifth: Q shifts down and E shifts up, and Q in first gear selects reverse when the car is stopped. The other cars are automatics with Park, Reverse, Neutral and Drive; they start in Drive, Q moves the stick down toward Drive and E moves it up toward Park. Reverse and Park only engage when the car is stopped. You can also drag the stick's knob through its gate (on the focused stick, the arrow keys move it, and 1 to 5 pick a gear on the Supercar). The Drone flies with two sticks, like a real drone's remote in Mode 2. The left stick (W and S, A and D) climbs, descends and turns on the spot; the right stick (the arrow keys) tilts the drone to fly forward, back, left and right. Let go and it levels out, holds its height and drifts to a stop. On touch screens, drag the two sticks. The same instructions are painted on the ground.</p>
+  <p class="sr-only" id="driving-help">W accelerates. Space brakes. A and D steer. Escape pauses. On touch screens, drag the steering wheel and hold the gas or brake pedal. Hold R for a new race, or tap the new race button on touch screens. If the car rolls over, tap R or use the Right the car button that appears next to the car chooser. The edges are connected. Every car has a gear stick. The Supercar is a manual with five gears and reverse under fifth: Q shifts down and E shifts up, and Q in first gear selects reverse when the car is stopped. The other cars are automatics with Park, Reverse, Neutral and Drive; they start in Drive, Q moves the stick down toward Drive and E moves it up toward Park. Reverse and Park only engage when the car is stopped. You can also drag the stick's knob through its gate (on the focused stick, the arrow keys move it, and 1 to 5 pick a gear on the Supercar). The Drone flies with two sticks, like a real drone's remote in Mode 2. The left stick (W and S, A and D) climbs, descends and turns on the spot; the right stick (the arrow keys) tilts the drone to fly forward, back, left and right. Let go and it levels out, holds its height and drifts to a stop. On touch screens, drag the two sticks. The same instructions are painted on the ground. Press M to mute or unmute the sound and hold H for the horn; Settings switches the music and sound effects on or off and sets their volumes.</p>
   <p class="ui-box speed" id="speed" aria-hidden="true"><span class="big" id="speed-value">0</span><span class="unit"><span>KM</span><span>/H</span></span><span class="gear-read" id="gear-read"><span class="big" id="gear-value">1</span><span class="unit"><span id="gear-unit">GEAR</span></span></span></p>
   <div class="ui-box gearstick" id="gearstick"><div class="paddles" id="paddles" role="group" aria-label="Paddle shifters"><div class="shift-lights" id="shift-lights" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><button class="paddle down" id="paddle-down" type="button" aria-label="Downshift paddle" aria-keyshortcuts="Q" title="Downshift (Q)"><span class="sym" aria-hidden="true">&minus;</span><span class="tag" aria-hidden="true">DOWN</span><b aria-hidden="true">Q</b></button><div class="gear-lcd" aria-hidden="true"><span class="num" id="paddle-gear">1</span><span class="tag">GEAR</span></div><button class="paddle up" id="paddle-up" type="button" aria-label="Upshift paddle" aria-keyshortcuts="E" title="Upshift (E)"><span class="sym" aria-hidden="true">+</span><span class="tag" aria-hidden="true">UP</span><b aria-hidden="true">E</b></button></div><div class="gear-keys"><button type="button" class="shift-key up" id="shift-up" aria-label="Shift up"><svg viewBox="0 0 10 7"><path d="M5 0l5 5H7v2H3V5H0z" fill="currentColor"/></svg><b>E</b></button><button type="button" class="shift-key down" id="shift-down" aria-label="Shift down"><b>Q</b><svg viewBox="0 0 10 7"><path d="M3 0h4v2h3L5 7 0 2h3z" fill="currentColor"/></svg></button></div><div class="shift-bar" id="shift-bar" aria-hidden="true"><i></i></div><div class="gear-face" id="gear-face" role="slider" tabindex="0" aria-label="Gear stick" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="5" aria-valuenow="1" aria-valuetext="gear 1" aria-keyshortcuts="Q E" title="Drag the knob through the H gate (or Q / E)"><svg viewBox="0 0 110 106" preserveAspectRatio="xMinYMid meet" aria-hidden="true"><defs><pattern id="gear-dither" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 0h1v1H0zm1 1h1v1H1z"/></pattern><pattern id="gear-stripes" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 1h2v1H0z"/></pattern></defs><path d="M6 6h102v100H6z" fill="#30342d"/><path d="M2 2h102v100H2z" fill="#bfc1b1" stroke="#30342d" stroke-width="2"/><g id="gate-manual"><path d="M22 28V76M55 28V76M88 28V76M22 52H88" fill="none" stroke="#30342d" stroke-width="12" stroke-linecap="round"/><path d="M22 28V76M55 28V76M88 28V76M22 52H88" fill="none" stroke="url(#gear-dither)" stroke-width="4" stroke-linecap="round" transform="translate(1.2 1.2)"/><g fill="#30342d" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-style="italic" font-size="12" text-anchor="middle"><text x="22" y="17">1</text><text x="22" y="95">2</text><text x="55" y="17">3</text><text x="55" y="95">4</text><text x="88" y="17">5</text><text x="88" y="95">R</text></g></g><g id="gate-auto" display="none"><path d="M62 22V82M62 22h9M62 42h9M62 62h9M62 82h9" fill="none" stroke="#30342d" stroke-width="12" stroke-linecap="round"/><path d="M62 22V82" fill="none" stroke="url(#gear-dither)" stroke-width="4" stroke-linecap="round" transform="translate(1.2 1.2)"/><g fill="#30342d" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-style="italic" font-size="14" text-anchor="middle"><text x="30" y="27">P</text><text x="30" y="47">R</text><text x="30" y="67">N</text><text x="30" y="87">D</text></g></g><circle id="gear-pivot" cx="55" cy="52" r="13" fill="url(#gear-dither)" stroke="#30342d" stroke-width="2"/><circle id="gear-shadow" cx="26" cy="31" r="10" fill="url(#gear-dither)"/><line id="gear-shaft" x1="55" y1="52" x2="22" y2="28" stroke="#30342d" stroke-width="6" stroke-linecap="round"/><g id="gear-knob" transform="translate(22 28)"><circle r="11.5" fill="#30342d"/><circle r="8.5" fill="none" stroke="url(#gear-stripes)" stroke-width="3"/><text id="gear-num" y="4.2" fill="#bfc1b1" font-family="Arial Black,Arial,sans-serif" font-weight="900" font-style="italic" font-size="11" text-anchor="middle">1</text></g></svg></div></div>
   <div class="ui-box flypad" id="fly-left" role="group" aria-label="Left stick: push up to climb and down to descend (W and S), left and right to turn (A and D)"><div class="fly-face" id="fly-left-face" title="Left stick: push up to climb and down to descend (W and S), left and right to turn (A and D)"><svg viewBox="0 0 100 100" aria-hidden="true"><defs><pattern id="flyl-dither" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 0h1v1H0zm1 1h1v1H1z"/></pattern><pattern id="flyl-stripes" width="2" height="2" patternUnits="userSpaceOnUse"><path fill="#bfc1b1" d="M0 0h2v2H0z"/><path fill="#30342d" d="M0 1h2v1H0z"/></pattern></defs><path d="M8 8h90v90H8z" fill="#30342d"/><path d="M3 3h90v90H3z" fill="#bfc1b1" stroke="#30342d" stroke-width="2.5"/><path d="M18 18h60v60H18z" fill="url(#flyl-dither)" stroke="#30342d" stroke-width="2"/><path d="M48 18V78M18 48H78" stroke="#30342d" stroke-width="1.6"/><text x="48" y="13.6" text-anchor="middle">UP</text><text x="48" y="89.6" text-anchor="middle">DOWN</text><path d="M13.5 56A9 9 0 0 1 13.5 40" fill="none" stroke="#30342d" stroke-width="2.6"/><path d="M8.6 42.4l4.9-6.4 3.6 7.1z" fill="#30342d"/><path d="M82.5 56A9 9 0 0 0 82.5 40" fill="none" stroke="#30342d" stroke-width="2.6"/><path d="M87.4 42.4l-4.9-6.4-3.6 7.1z" fill="#30342d"/><g class="fly-knob" id="fly-left-knob"><circle cx="52" cy="52" r="12.5" fill="url(#flyl-dither)"/><circle cx="48" cy="48" r="12.5" fill="#30342d"/><circle cx="48" cy="48" r="8.5" fill="url(#flyl-stripes)"/><circle cx="48" cy="48" r="3" fill="#30342d"/></g></svg></div></div>
@@ -1256,7 +1261,7 @@ function createWorld(id='compact',arena=DEFAULT_ARENA) {
  // Each cone keeps its home (hx, hy) so resetCones() and a world reset restore the course.
  const cones=layout.cones.map(bodyFrom);
  // trackBreak: set by the simulation (edge transfer, roll start); the renderer consumes it and starts a new skid segment.
- return {id,p,arena,layout,car,cones,time:0,wraps:0,hits:0,trackBreak:false,manual:false,gear:p.trans==='manual'?1:'D',shiftTime:0};
+ return {id,p,arena,layout,car,cones,time:0,wraps:0,hits:0,impact:0,knock:0,knockKind:'',trackBreak:false,manual:false,gear:p.trans==='manual'?1:'D',shiftTime:0};
 }
 function bodyFrom(h,i){const a=Number.isFinite(h.a)?h.a:(i*.7)%TAU,o={x:h.x,y:h.y,hx:h.x,hy:h.y,ha:a,px:h.x,py:h.y,vx:0,vy:0,a,pa:a,omega:0,tipped:false};if(h.kind)Object.assign(o,{kind:h.kind,r:h.r,m:h.m});return o;}
 const bodyR=o=>o.r||CONE_R,bodyM=o=>o.m||CONE_MASS;
@@ -1422,6 +1427,7 @@ function carCone(w,o){
   const cross=rx*normalY-ry*normalX,j=-(1.12)*relative/(invA+invB+cross*cross/inertia);
   c.vx-=j*normalX*invA;c.vy-=j*normalY*invA;c.omega-=cross*j/inertia;
   o.vx+=j*normalX*invB;o.vy+=j*normalY*invB;
+  if(j*invB>(w.knock||0)){w.knock=j*invB;w.knockKind=o.kind==='cart'?'cart':'cone';} // read by the sound
   // A cart never tips: an off-centre knock spins it on its casters instead.
   if(o.kind==='cart'){if(j*invB>4)w.hits++;o.omega=clamp(o.omega+(normalX*ry-normalY*rx)*j*invB*.004,-4,4);}
   else if(j*invB>8){if(!o.tipped)w.hits++;o.tipped=true;o.a=Math.atan2(o.vy,o.vx);o.omega=clamp(cross*.08,-3,3);}
@@ -1597,8 +1603,10 @@ function rollover(w,dt,dvx,dvy){
 // there for good. Stalled against one (still pushing on the gas, under STALL_SPEED) for STALL_TIME seconds, it bumps back
 // off it at STALL_BUMP (world units/s, a knock, not reverse driving), so steering can then take it round.
 const STALL_SPEED=4,STALL_TIME=.5,STALL_BUMP=45;
+// w.impact (largest velocity change from a post, wall or temple block) and w.knock (the hardest knock given to a cone or
+// cart, w.knockKind) describe the last step only: the page's sound reads them, the physics never does.
 function step(w,input,dt=STEP){
- const c=w.car,A=w.arena,svx=c.vx,svy=c.vy,flying=!!w.p.flying;c.px=c.x;c.py=c.y;c.pa=c.a;if(flying)c.pz=c.z;let pressed=false;
+ const c=w.car,A=w.arena,svx=c.vx,svy=c.vy,flying=!!w.p.flying;c.px=c.x;c.py=c.y;c.pa=c.a;if(flying)c.pz=c.z;let pressed=false;w.impact=0;w.knock=0;
  for(const o of w.cones){o.px=o.x;o.py=o.y;o.pa=o.a;}
  const n=substeps(w,dt),h=dt/n,pit=pitStopGeometry(A,w.layout),posts=gatePosts(w).concat(pitPosts(pit)),blocks=templeBlocks(w.layout);
  for(let sub=0;sub<n;sub++){
@@ -1613,10 +1621,11 @@ function step(w,input,dt=STEP){
    for(let a=0;a<w.cones.length;a++)for(let b=a+1;b<w.cones.length;b++)coneCone(w.cones[a],w.cones[b],A);
    // Posts go last, so they win: nothing ends a substep inside a post. A Drone flying above FLY.clear passes over them.
    // The temple's blocks stop a Drone flying lower than their height (the pond's fence, the stairs; the shrine always).
-   const over=flying&&c.z>=FLY.clear;
+   const over=flying&&c.z>=FLY.clear,bx=c.vx,by=c.vy;
    for(const q of posts){if(!over&&carPost(w,q)>0)pressed=true;for(const o of w.cones)conePost(o,q);}
    if(pit){if((!flying||c.z<pit.height)&&carPit(w,pit))pressed=true;for(const o of w.cones)conePit(o,pit);}
    for(const b of blocks){if((!flying||c.z<b.height)&&carPit(w,b))pressed=true;for(const o of w.cones)conePit(o,b);}
+   w.impact=Math.max(w.impact,Math.hypot(c.vx-bx,c.vy-by));
   }
   rollover(w,h,c.vx-vx0,c.vy-vy0);
   transferEdges(w);
@@ -2839,6 +2848,154 @@ function raceBetter(a,b){if(!b)return true;const eps=1e-7;if(Math.abs(a.ranked-b
 function raceFingerprint(route,id,car,tuning){let h=2166136261;const str=JSON.stringify([RACE_VERSION,SIM_SPEED,PRESETS[car]?.steer,id,car,tuning,route.half,route.segments.map(q=>[q.x,q.y,q.dx,q.dy])]);for(let i=0;i<str.length;i++)h=Math.imul(h^str.charCodeAt(i),16777619);return (h>>>0).toString(36);}
 function raceRecords(store){try{const raw=store&&store.getItem(RACE_STORE),v=raw?JSON.parse(raw):{};if(!v||typeof v!=='object'||Array.isArray(v))return {};return Object.fromEntries(Object.entries(v).filter(([k,r])=>/^[a-z0-9]+$/.test(k)&&r&&Number.isFinite(r.elapsed)&&r.elapsed>=0&&Number.isFinite(r.quality)&&r.quality>=0&&r.quality<=100&&Number.isFinite(r.ranked)&&Math.abs(r.ranked-raceRank(r.elapsed,r.quality).ranked)<1e-6).slice(-RACE_LIMIT));}catch(_){return {};}}
 function raceSave(store,records){try{if(!store)return false;store.setItem(RACE_STORE,JSON.stringify(Object.fromEntries(Object.entries(records).slice(-RACE_LIMIT))));return true;}catch(_){return false;}}
+// ---- Sound, pure part (testable in Node). The page synthesises everything with the Web Audio API: two pulse voices, a
+// triangle and noise, like an 8-bit console. No audio files, libraries or requests. See the README's "Sound and music".
+// Notes are written 'c5', 'f#4', 'bb3' (MIDI 72, 66, 58). A step string lists tokens 'value:length' in eighth notes
+// (length 1 when left out); '.' is a rest. Values are notes (lead), chord-tone indices (bass, arp: '0' the chord's first
+// note, '1^' its second an octave up) or '*' (the chord's upper voicing, struck together).
+const NOTE_STEPS={c:0,d:2,e:4,f:5,g:7,a:9,b:11};
+function noteMidi(n){const m=/^([a-g])(#|b)?(\d)$/.exec(String(n));return m?12*(+m[3]+1)+NOTE_STEPS[m[1]]+(m[2]==='#'?1:m[2]==='b'?-1:0):null;}
+const midiHz=m=>440*Math.pow(2,(m-69)/12);
+function parseSteps(s){let at=0;const steps=[];for(const tok of String(s).trim().split(/\s+/)){if(!tok)continue;const i=tok.lastIndexOf(':'),v=i>0?tok.slice(0,i):tok,n=i>0?+tok.slice(i+1):1,len=n>0?n:1;if(v!=='.')steps.push({at,len,v});at+=len;}return {steps,length:at};}
+// A bar of melody: [{at, len, midi}] in eighth notes, plus its total length.
+function parseBar(s){const p=parseSteps(s);return {notes:p.steps.map(q=>({at:q.at,len:q.len,midi:noteMidi(q.v)})).filter(q=>q.midi!==null),length:p.length};}
+// Songs: calm, slow loops, one per map (SONG_FOR). chords: one per bar, written root, fifth, then the upper voicing (the
+// bass plays the first two, the arpeggio or the comping the rest). lead: phrases of one melody bar per chord. form: the
+// phrase each pass of the chords plays (-1 = a breather: no melody, no drums). bar: eighths per bar (6 = a 3/4 waltz).
+// drums: two characters per eighth (k soft kick, s brush, h hat, w / t wood blocks, . nothing). swing: off-beat delay in
+// eighths. key: semitones above C, to transpose the jingles into the song's key. The instruments live in SONG_VOICES.
+const SONGS={
+ coast:{name:'Coast Road',bpm:84,bar:8,key:2,swing:0,arpUp:0,pad:false,bell:false,form:[-1,0,1,0,-1,1],
+  chords:['d2 a2 f#3 a3 c#4','b2 f#3 a3 d4 f#4','g2 d3 b3 d4 f#4','a2 e3 c#4 e4 f#4','d2 a2 f#3 a3 c#4','f#2 c#3 a3 c#4 e4','e2 b2 g3 b3 d4','a2 e3 g3 c#4 e4'],
+  bass:'0:3 0 1:2 0^:2',arp:'2 3 4 3 2 3 4 3',drums:'k...h.h.s...h.h.',
+  lead:[['f#5:2 e5 f#5 a5:4','b5:2 a5:2 f#5:2 d5:2','e5:3 f#5 g5:2 b5:2','a5:6 .:2','f#5:2 a5:2 d6:2 c#6:2','c#6:3 a5 e5:4','g5:2 f#5:2 e5:2 d5:2','e5:4 c#5:2 .:2'],
+   ['a4:2 d5:2 f#5:3 e5','d5:4 .:2 b4 d5','b4:2 d5:2 f#5:2 g5:2','e5:4 c#5:2 e5:2','f#5:3 e5 d5:2 a4:2','c#5:2 e5:2 a5:4','g5:3 f#5 e5:2 b4:2','c#5:4 e5:2 g5:2']]},
+ breeze:{name:'Easy Breeze',bpm:92,bar:6,key:7,swing:0,arpUp:0,pad:false,bell:false,form:[-1,0,1,-1,1,0],
+  chords:['g2 d3 b3 d4 f#4','e2 b2 g3 b3 d4','c3 g3 b3 e4 g4','d3 a3 b3 d4 f#4','g2 d3 b3 d4 f#4','b2 f#3 a3 d4 f#4','c3 g3 b3 e4 g4','d3 a3 c4 f#4 a4'],
+  bass:'0:4 1:2',arp:'.:2 *:2 *:2',drums:'........h...',
+  lead:[['b4:4 d5:2','g5:4 f#5 e5','e5:4 d5:2','b4:6','d5:2 g5:2 b5:2','a5:3 f#5 d5:2','e5:2 g5:2 e5:2','f#5:4 .:2'],
+   ['d5:3 e5 d5:2','b4:4 g4:2','g4:2 c5:2 e5:2','d5:6','g5:3 f#5 g5:2','f#5:2 d5:2 b4:2','c5:2 e5:2 b4:2','a4:4 .:2']]},
+ sunday:{name:'Sunday Loop',bpm:76,bar:8,key:5,swing:0,arpUp:0,pad:false,bell:false,form:[-1,0,1,0,-1,1],
+  chords:['f2 c3 a3 c4 e4','a2 e3 g3 c4 e4','bb2 f3 a3 d4 f4','c3 g3 a3 e4 g4','f2 c3 a3 c4 e4','d2 a2 f3 a3 c4','g2 d3 f3 bb3 d4','c3 g3 bb3 e4 g4'],
+  bass:'0:4 1:2 0^:2',arp:'2 4 3 4 2 4 3 4',drums:'k.....h.s.....h.',
+  lead:[['c5:3 a4 c5:2 e5:2','e5:4 d5:2 c5:2','d5:3 c5 d5:2 f5:2','e5:6 .:2','a5:3 g5 f5:2 e5:2','f5:3 e5 d5:2 a4:2','bb4:2 d5:2 g5:2 f5:2','e5:3 d5 c5:4'],
+   ['.:2 f5 g5 a5:2 c6:2','g5:3 e5 c5:4','d5:2 f5:2 a5:2 g5:2','e5:2 g5:2 a5:4','c6:3 a5 g5:2 f5:2','a5:3 f5 d5:4','f5:2 d5:2 bb4:2 c5:2','e5:2 d5:2 c5:4']]},
+ lotus:{name:'Lotus Pond',bpm:64,bar:8,key:5,swing:0,arpUp:0,pad:true,bell:true,form:[-1,0,1,-1,1,0],
+  chords:['d2 a2 f3 a3 c4','c2 g2 g3 c4 d4','f2 c3 a3 c4 g4','a2 e3 g3 c4 e4','d2 a2 f3 a3 c4','c2 g2 g3 c4 d4','f2 c3 a3 c4 g4','g2 d3 c4 d4 g4'],
+  bass:'0:6 1:2',arp:'2 3 4:2 3 2:3',drums:'t.......w...w...',
+  lead:[['a4:3 c5 d5:4','c5:2 a4:2 g4:4','a4:3 g4 f4:2 g4:2','a4:8','d5:3 f5 g5:4','f5:2 d5:2 c5:4','d5:3 c5 a4:2 c5:2','d5:8'],
+   ['.:2 d5 f5 a5:4','g5:3 f5 d5:4','c5:2 d5:2 f5:2 a5:2','g5:6 .:2','f5:3 d5 c5:2 a4:2','g4:4 a4:2 c5:2','a4:3 g4 f4:4','g4:6 .:2']]},
+ lounge:{name:'Lot Lounge',bpm:80,bar:8,key:0,swing:.3,arpUp:0,pad:false,bell:false,form:[-1,0,1,0,-1,1],
+  chords:['d2 a2 f3 c4 e4','g2 d3 f3 b3 e4','c2 g2 e3 b3 d4','a2 e3 g3 c#4 e4','d2 a2 f3 a3 c4','g2 d3 f3 b3 d4','c2 g2 e3 g3 b3','a2 e3 g3 c#4 e4'],
+  bass:'0:2 1:2 0^:2 1:2',arp:'.:3 * .:3 *',drums:'k...h..hs...h..h',
+  lead:[['a4 c5 e5:2 d5:2 .:2','f5:2 e5 d5 b4:4','c5:2 e5:2 g5:2 b5:2','a5:3 g5 e5:2 c#5:2','d5:2 f5:2 a5:3 .','g5 f5 e5 d5 b4:4','e5:6 d5 c5','c#5:4 .:4'],
+   ['f5:3 e5 d5:2 c5:2','b4:2 d5:2 f5:2 e5:2','e5:4 .:2 g5 e5','g5:2 e5:2 c#5:2 a4:2','a4:2 d5 f5 a5:4','g5:3 f5 d5:2 b4:2','c5:2 e5:2 g5:2 b4:2','a4:6 .:2']]}
+};
+const SONG_FOR={signature:'coast',oval:'breeze',eight:'sunday',temple:'lotus',parking:'lounge'};
+const songFor=track=>SONGS[SONG_FOR[track]]?SONG_FOR[track]:'sunday';
+// Instruments, used by the page. wave: a pulse duty (.125, .25, .5) or 'triangle'; gain: peak level; a / d / s / r: attack,
+// decay (s), sustain share and release (s); cutoff: a lowpass (Hz) for a softer tone; vib: vibrato depth (share of the
+// pitch, fading in); glide: start this many semitones low and slide up (a đàn tranh bend, used at the temple).
+const SONG_VOICES={
+ default:{lead:{wave:.25,gain:.085,a:.012,d:.35,s:.55,r:.22,cutoff:2600,vib:.004},arp:{wave:.125,gain:.032,a:.004,d:.18,s:.25,r:.12,cutoff:2200},
+  bass:{wave:'triangle',gain:.2,a:.006,d:.3,s:.75,r:.1},pad:{wave:.5,gain:.016,a:.6,d:1,s:.8,r:.9,cutoff:900},bell:{wave:'triangle',gain:.07,a:.004,d:1.6,s:0,r:1.2}},
+ breeze:{lead:{wave:.5,gain:.07,a:.02,d:.4,s:.6,r:.25,cutoff:2000,vib:.005},arp:{wave:.25,gain:.022,a:.006,d:.2,s:.35,r:.15,cutoff:1800}},
+ lotus:{lead:{wave:.25,gain:.09,a:.004,d:.55,s:.3,r:.4,cutoff:2400,glide:-1},arp:{wave:.25,gain:.03,a:.003,d:.3,s:.08,r:.3,cutoff:2000}},
+ lounge:{lead:{wave:.5,gain:.075,a:.025,d:.45,s:.6,r:.25,cutoff:1700,vib:.006},arp:{wave:.25,gain:.02,a:.006,d:.25,s:.3,r:.12,cutoff:1500}}
+};
+const songVoice=(id,part)=>({...SONG_VOICES.default[part],...((SONG_VOICES[id]||{})[part]||{})});
+const DRUM_KINDS='kshwt';
+// Everything bar n (counting from 0) of a song plays: [{part, at, len, midi | kind}] with at / len in eighth notes, swing
+// applied. Deterministic: the page schedules it a little ahead of time.
+function songBar(song,n){
+ const bars=song.chords.length,bar=song.bar||8,pass=Math.floor(n/bars),sec=pass%song.form.length,b=n%bars,phrase=song.form[sec];
+ const chord=song.chords[b].split(/\s+/).map(noteMidi),upper=chord.slice(2),sw=at=>Number.isInteger(at)&&at%2===1?at+(song.swing||0):at,events=[];
+ const tone=v=>{const i=parseInt(v,10);return Number.isInteger(i)&&chord[i]!==undefined?chord[i]+(v.endsWith('^')?12:0):null;};
+ for(const q of parseSteps(song.bass).steps){const m=tone(q.v);if(m!==null)events.push({part:'bass',at:sw(q.at),len:q.len,midi:m});}
+ for(const q of parseSteps(song.arp).steps)for(const m of q.v==='*'?upper:[tone(q.v)])if(m!==null)events.push({part:'arp',at:sw(q.at),len:q.len,midi:m+(song.arpUp||0)});
+ if(song.pad)for(const m of upper)events.push({part:'pad',at:0,len:bar,midi:m});
+ if(phrase>=0){
+  for(const q of parseBar(song.lead[phrase][b]).notes)events.push({part:'lead',at:sw(q.at),len:q.len,midi:q.midi});
+  const d=song.drums||'';for(let i=0;i<d.length;i++)if(DRUM_KINDS.includes(d[i]))events.push({part:'drum',at:i%4===2?i/2+(song.swing||0):i/2,len:.5,kind:d[i]});
+  if(song.bell&&b===0)events.push({part:'bell',at:0,len:bar,midi:chord[0]+36});
+ }
+ return {section:sec,phrase,bar:b,events};
+}
+const songBarSeconds=song=>(song.bar||8)*30/song.bpm;
+// Short tunes for game moments, written in C (the page moves them into the playing song's key, SONGS[id].key) at bpm.
+const JINGLES={
+ go:{bpm:220,notes:'g5 c6:3'},armed:{bpm:240,notes:'e6 g6:2'},lost:{bpm:200,notes:'a4 e4:2'},ended:{bpm:170,notes:'e5 c5 a4:3'},
+ finish:{bpm:200,notes:'c5 e5 g5 c6:2 g5 c6:4'},best:{bpm:220,notes:'c5 e5 g5 c6 e6 g6 e6 c7:5'},recover:{bpm:300,notes:'g4 b4 d5 g5:3'},
+ car:{bpm:520,notes:'c5 g5:2'},track:{bpm:440,notes:'e5 g5 c6:2'},open:{bpm:500,notes:'g5 c6'},close:{bpm:500,notes:'c6 g5'},
+ on:{bpm:600,notes:'c6 g6'},off:{bpm:600,notes:'g5 c5'},pause:{bpm:360,notes:'c5 g4:2'},reset:{bpm:520,notes:'c6 g5 e5 c5:2'}
+};
+const jingleKey=(key=0)=>{const k=((key%12)+12)%12;return k>6?k-12:k;}; // the nearest transposition, up or down
+// The ground cars' engines: a soft, layered hum whose pitch follows the same engine load the rev bar shows, so it glides
+// down after an upshift. Each car has its own character. idle / top: pitch (Hz) at no load and full load; gain: level;
+// harm: the tone's harmonics (1 = the fundamental; few and falling, so it purrs rather than buzzes); sub: a sine an octave
+// down for body; tone: how far the lowpass opens (Hz) with throttle and revs; lump / lumpK: the idle putter (an amplitude
+// wobble at lumpK × pitch) that smooths out as the revs rise; air: a breathy intake noise on the gas. Calm on purpose.
+const ENGINE_VOICE={
+ compact:{idle:52,top:160,gain:.5,harm:[1,.42,.2,.12,.06,.03],sub:.3,tone:1300,lump:.32,lumpK:.2,air:.25},
+ coupe:{idle:44,top:185,gain:.55,harm:[1,.7,.35,.25,.12,.08,.04],sub:.5,tone:1500,lump:.42,lumpK:.16,air:.3},
+ f1:{idle:78,top:300,gain:.45,harm:[1,.3,.25,.08,.05],sub:.15,tone:2200,lump:.12,lumpK:.25,air:.35}
+};
+function engineTone(w,throttle=0,running=true){
+ const id=ENGINE_VOICE[w.id]?w.id:'compact',v=ENGINE_VOICE[id],c=w.car,st=c.state||'driving',on=running&&!w.p.flying&&st!=='rolling'&&st!=='resting';
+ const t=gearTelemetry(w),gas=clamp(+throttle||0,0,1),neutral=w.gear==='P'||w.gear==='N';
+ const rev=clamp(c.burnout?Math.max(t.load,.45+.4*(c.spin||0)):neutral?gas*.55:t.load,0,1),freq=v.idle+(v.top-v.idle)*Math.pow(rev,.85)+gas*4;
+ return {voice:id,freq,gain:on?v.gain*(.35+.35*gas+.3*rev):0,cutoff:300+v.tone*(.4*gas+.6*rev),lump:v.lump*Math.pow(1-rev,1.5),lumpRate:freq*v.lumpK,
+  air:on?v.air*(.2+.8*gas)*(.3+.7*rev):0,airFreq:400+5*freq};
+}
+// The Drone's rotors: pitch rises with lift and tilt, and they spin down when it lands.
+function rotorTone(w,sticks,running=true){
+ if(!w.p.flying)return {freq:0,gain:0,chop:0};
+ const c=w.car,s=sticks||{},tilt=Math.min(1,Math.hypot(c.tiltR||0,c.tiltP||0)/TILT_MAX),lift=clamp(+s.lift||0,-1,1);
+ const freq=92+34*Math.max(0,lift)-14*Math.max(0,-lift)+46*tilt+12*Math.abs(clamp(+s.yaw||0,-1,1));
+ return {freq,gain:running&&!c.landed?.32+.12*tilt+.08*Math.abs(lift):0,chop:14+freq*.12};
+}
+// Tyre noise: a skid hisses with the slide, a burnout roars with the wheel spin.
+function tyreNoise(w,running=true){
+ const c=w.car;if(!running||w.p.flying)return {gain:0,freq:900};
+ if(c.burnout)return {gain:.16+.14*(c.spin||0),freq:700+500*(c.spin||0)};
+ if(!c.skidding)return {gain:0,freq:900};
+ const s=Math.hypot(c.vx,c.vy);return {gain:clamp(.05+(c.slip-3)/90,.05,.22),freq:600+Math.min(1400,s*5)};
+}
+// What the sound needs to know about one moment; audioEvents compares two of them.
+function audioSnapshot(w,race,knock=w.knock||0,impact=w.impact||0){
+ const c=w.car;return {id:w.id,gear:w.gear,state:c.state||'driving',landed:!!c.landed,launching:!!c.launching,wraps:w.wraps,knock,knockKind:w.knockKind||'cone',impact,
+  race:race||null,raceState:race?race.state:'free',armed:!!(race&&race.armed),lost:!!(race&&race.lost),best:!!(race&&race.result&&race.result.isBest)};
+}
+const KNOCK_MIN=6,IMPACT_MIN=22;
+// The sound events between two snapshots of the same world, in order. A different car or a new race only re-baselines.
+function audioEvents(a,b){
+ const out=[];if(!a||!b||a.id!==b.id)return out;
+ if(b.gear!==a.gear)out.push({type:'shift',gear:b.gear});
+ if(b.state!==a.state){const s=b.state;
+  if(s==='tipping'&&a.state==='driving')out.push({type:'tip'});else if(s==='rolling')out.push({type:'roll'});
+  else if(s==='resting')out.push({type:'settle'});else if(s==='recovering')out.push({type:'recover'});
+  else if(s==='driving'&&(a.state==='rolling'||a.state==='tipping'))out.push({type:'land'});}
+ if(b.knock>=KNOCK_MIN)out.push({type:b.knockKind==='cart'?'cart':'cone',strength:clamp(b.knock/120,0,1)});
+ if(b.impact>=IMPACT_MIN)out.push({type:'bump',strength:clamp(b.impact/260,0,1)});
+ if(b.wraps>a.wraps)out.push({type:'wrap'});
+ if(b.landed!==a.landed)out.push({type:b.landed?'touchdown':'takeoff'});
+ if(b.launching&&!a.launching)out.push({type:'launch'});
+ if(a.race&&a.race===b.race){
+  if(a.raceState==='ready'&&b.raceState==='racing')out.push({type:'go'});
+  if(b.raceState==='racing'&&b.armed&&!a.armed)out.push({type:'armed'});
+  if(b.raceState==='racing'&&b.lost&&!a.lost)out.push({type:'lost'});
+  if(a.raceState==='racing'&&b.raceState==='finished')out.push({type:b.best?'best':'finish'});
+  if(a.raceState==='racing'&&b.raceState==='free')out.push({type:'ended'});
+ }
+ return out;
+}
+// Settings, saved apart from tuning and race records. Volumes 0-1; music / sfx switch each part on or off.
+const AUDIO_STORE='8bitdrift.audio.v1',AUDIO_DEFAULTS={music:true,sfx:true,volume:.8,musicVol:.55,sfxVol:.75};
+function audioSettings(v){const o={...AUDIO_DEFAULTS};if(v&&typeof v==='object'&&!Array.isArray(v)){for(const k of ['music','sfx'])if(typeof v[k]==='boolean')o[k]=v[k];for(const k of ['volume','musicVol','sfxVol'])if(Number.isFinite(v[k]))o[k]=clamp(v[k],0,1);}return o;}
+function loadAudio(store){try{const raw=store&&store.getItem(AUDIO_STORE);return audioSettings(raw?JSON.parse(raw):null);}catch(_){return audioSettings();}}
+function saveAudio(store,s){try{if(!store)return false;store.setItem(AUDIO_STORE,JSON.stringify(audioSettings(s)));return true;}catch(_){return false;}}
+// A slider's 0-1 value to a gain: squared, so equal steps sound like equal steps.
+const volumeGain=v=>clamp(+v||0,0,1)**2;
 // Vercel Web Analytics loads only on the Vercel site: direct file opening, local preview and GitHub Pages make no requests.
 const ANALYTICS_SRC='/_vercel/insights/script.js';
 function analyticsOn(loc){return !!loc&&loc.protocol==='https:'&&/(^|\.)vercel\.app$/.test(loc.hostname);}
@@ -2856,10 +3013,184 @@ if(typeof document==='undefined'){if(typeof module!=='undefined'){
  Object.assign(module.exports,{TILT_MAX,TILT_PITCH,TILT_STEPS,TILT_STEP,droneTiltPoint,tiltIndex,droneTilt,droneParts,droneSprite,droneShadow}); // drone tilt
  Object.assign(module.exports,{ANALYTICS_SRC,analyticsOn}); // Vercel analytics host gate
  Object.assign(module.exports,{FLY,STICK_AXES,normalizeSticks,fly,liftOf,liftBox,carBox,flyPadZones,FLYPAD}); // drone flight (Mode 2 sticks)
+ Object.assign(module.exports,{noteMidi,midiHz,parseSteps,parseBar,SONGS,SONG_FOR,songFor,SONG_VOICES,songVoice,DRUM_KINDS,songBar,songBarSeconds,JINGLES,jingleKey,ENGINE_VOICE,engineTone,rotorTone,tyreNoise,audioSnapshot,KNOCK_MIN,IMPACT_MIN,audioEvents,AUDIO_STORE,AUDIO_DEFAULTS,audioSettings,loadAudio,saveAudio,volumeGain}); // sound
 }return;}
 
 // ---- Browser only below. Rendering reads world.arena (W×H); WIDTH/HEIGHT/WORLD_H stay only as the Node test default. ----
 if(analyticsOn(location)){window.va=window.va||function(){(window.vaq=window.vaq||[]).push(arguments);};const s=document.createElement('script');s.defer=true;s.src=ANALYTICS_SRC;document.head.appendChild(s);}
+// ---- Sound (browser). Web Audio synthesis only: pulse waves (12.5 / 25 / 50% duty), a triangle and shift-register noise,
+// like an 8-bit console, with a soft echo on the music and a gentle lowpass over everything, so it stays calm. Nothing
+// plays until the first press or key: browsers only allow audio after a gesture. Graph:
+//   song gain → music → (echo) → tone (muffles while paused) → master → warm lowpass → compressor → speakers
+//   engine, rotors, tyres, horn, knocks → veh (half level) → fx; other effects → fx → master
+function createSound(store){
+ // LEVEL lifts the whole mix to a comfortable loudness (music about -21 dBFS RMS at the default volumes).
+ // VEHICLE: every sound a vehicle makes (engine, rotors, tyres, horn, knocks, shifts) plays at this share of the effects.
+ const AC=window.AudioContext||window.webkitAudioContext,LOOK=.4,LEVEL=3.2,VEHICLE=.5,waves={},noises={},last={};
+ const VEHICLE_FX=new Set(['shift','deny','cone','cart','bump','tip','roll','settle','land','wrap','takeoff','touchdown','launch']);
+ let S=loadAudio(store),ac=null,master=null,music=null,tone=null,echoDelay=null,fx=null,veh=null,cont=null,songId='',play=null,timer=0,ducked=true,hidden=false,horn=null,memo=null,dipUntil=0;
+ // A band-limited pulse: few harmonics keep it soft rather than buzzy.
+ const pulse=d=>waves[d]||(waves[d]=(()=>{const n=20,re=new Float32Array(n),im=new Float32Array(n);for(let k=1;k<n;k++){re[k]=Math.sin(TAU*k*d)/(k*Math.PI);im[k]=(1-Math.cos(TAU*k*d))/(k*Math.PI);}return ac.createPeriodicWave(re,im);})());
+ // Noise from a 15-bit shift register, as on the NES: long mode hisses; short mode (a 93-step loop) rings metallic.
+ function noiseBuffer(short){const k=short?1:0;if(noises[k])return noises[k];const n=ac.sampleRate,b=ac.createBuffer(1,n,n),d=b.getChannelData(0);let r=1,v=.7;
+  for(let i=0;i<n;i++){if(!short||i%4===0){const bit=(r^(r>>(short?6:1)))&1;r=(r>>1)|(bit<<14);v=r&1?.7:-.7;}d[i]=v;}return noises[k]=b;}
+ function init(){
+  if(ac)return true;if(!AC)return false;
+  try{ac=new AC();}catch(_){return false;}
+  const comp=ac.createDynamicsCompressor();comp.threshold.value=-16;comp.knee.value=10;comp.ratio.value=3;comp.attack.value=.004;comp.release.value=.3;comp.connect(ac.destination);
+  const warm=ac.createBiquadFilter();warm.type='lowpass';warm.frequency.value=7200;warm.Q.value=.4;warm.connect(comp);
+  master=ac.createGain();master.gain.value=0;master.connect(warm);
+  tone=ac.createBiquadFilter();tone.type='lowpass';tone.frequency.value=1300;tone.Q.value=.5;tone.connect(master);
+  music=ac.createGain();music.gain.value=0;music.connect(tone);
+  // The echo: three eighths late, darker each repeat, without the bass (highpass) so it never muddies.
+  const send=ac.createGain(),hp=ac.createBiquadFilter(),back=ac.createGain(),dark=ac.createBiquadFilter();send.gain.value=.3;hp.type='highpass';hp.frequency.value=320;
+  echoDelay=ac.createDelay(2);echoDelay.delayTime.value=.3;back.gain.value=.34;dark.type='lowpass';dark.frequency.value=2000;
+  music.connect(send);send.connect(hp);hp.connect(echoDelay);echoDelay.connect(dark);dark.connect(back);back.connect(echoDelay);dark.connect(tone);
+  fx=ac.createGain();fx.gain.value=0;fx.connect(master);veh=ac.createGain();veh.gain.value=VEHICLE;veh.connect(fx);
+  apply();return true;
+ }
+ const running=()=>!!ac&&ac.state==='running';
+ const fxOn=()=>running()&&S.sfx;
+ // Volumes, the paused muffle and the music clock follow the settings.
+ function apply(){
+  if(!ac)return;const t=ac.currentTime,want=S.music?volumeGain(S.musicVol)*(ducked?.6:1):0;
+  master.gain.setTargetAtTime(volumeGain(S.volume)*LEVEL,t,.05);fx.gain.setTargetAtTime(S.sfx?volumeGain(S.sfxVol):0,t,.05);
+  if(t>=dipUntil)music.gain.setTargetAtTime(want,t,ducked?.3:.15);tone.frequency.setTargetAtTime(ducked?1300:11000,t,ducked?.25:.4);
+  if(S.music&&!hidden)startMusic();else stopMusic();
+ }
+ // One note: an oscillator through an envelope (attack a, decay d to sustain s, release r after len), with an optional
+ // lowpass, a pitch sweep (to), a slide up from below (glide, in semitones) and vibrato that fades in (vib).
+ function note(dest,o){
+  const t=Math.max(o.t,ac.currentTime),len=Math.max(.015,o.len||.1),a=o.a??.005,d=o.d??.1,s=o.s??.6,r=o.r??.08,peak=o.gain??.1,f=o.freq,end=t+len,stop=end+r*1.3+.04;
+  const osc=ac.createOscillator(),g=ac.createGain();
+  if(typeof o.wave==='number')osc.setPeriodicWave(pulse(o.wave));else osc.type=o.wave||'triangle';
+  if(o.glide){osc.frequency.setValueAtTime(f*Math.pow(2,o.glide/12),t);osc.frequency.exponentialRampToValueAtTime(f,t+.07);}else osc.frequency.setValueAtTime(f,t);
+  if(o.to)osc.frequency.exponentialRampToValueAtTime(Math.max(20,o.to),t+(o.sweep||len));
+  if(o.vib){const l=ac.createOscillator(),lg=ac.createGain();l.frequency.value=o.vibRate||5;lg.gain.setValueAtTime(0,t);lg.gain.setValueAtTime(0,t+Math.min(.18,len*.3));lg.gain.linearRampToValueAtTime(f*o.vib,t+Math.min(len,.5)+.001);l.connect(lg);lg.connect(osc.frequency);l.start(t);l.stop(stop);}
+  g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(peak,t+a);g.gain.setTargetAtTime(peak*s,t+a,Math.max(.001,d/3));g.gain.setTargetAtTime(0,Math.max(end,t+a),Math.max(.001,r/4));
+  let head=osc;if(o.cutoff){const lp=ac.createBiquadFilter();lp.type='lowpass';lp.frequency.value=o.cutoff;lp.Q.value=.4;osc.connect(lp);head=lp;}
+  head.connect(g);g.connect(dest);osc.start(t);osc.stop(stop);
+ }
+ // A burst of noise through a filter (bandpass by default) that can sweep (to); a: attack, len: decay time.
+ function hiss(dest,o){
+  const t=Math.max(o.t,ac.currentTime),len=o.len||.05,a=o.a??.002,peak=o.gain??.05,src=ac.createBufferSource(),g=ac.createGain(),f=ac.createBiquadFilter();
+  src.buffer=noiseBuffer(!!o.short);src.loop=true;f.type=o.type||'bandpass';f.frequency.setValueAtTime(o.freq||3000,t);if(o.to)f.frequency.exponentialRampToValueAtTime(o.to,t+a+len);f.Q.value=o.q??.9;
+  g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(peak,t+a);g.gain.setTargetAtTime(0,t+a,Math.max(.001,len/4));
+  src.connect(f);f.connect(g);g.connect(dest);src.start(t,Math.random()*.8);src.stop(t+a+len*1.4+.05);
+ }
+ // ---- Music: bars are scheduled LOOK seconds ahead of the audio clock, so timers never make it stumble.
+ function begin(id){
+  const song=SONGS[id];if(!song)return;const now=ac.currentTime,t=now+.12;
+  if(play){const old=play.gain;old.gain.cancelScheduledValues(now);old.gain.setTargetAtTime(0,now,.3);setTimeout(()=>{try{old.disconnect();}catch(_){/* gone */}},2500);}
+  const g=ac.createGain();g.gain.setValueAtTime(0,now);g.gain.linearRampToValueAtTime(1,t+(play?2:1.2));g.connect(music);
+  echoDelay.delayTime.setTargetAtTime(3*30/song.bpm,now,.2);
+  play={id,song,gain:g,bar:0,time:t+(play?.5:0)};
+ }
+ function bar(p){
+  const s=p.song,e8=30/s.bpm,info=songBar(s,p.bar);
+  for(const ev of info.events){const t=p.time+ev.at*e8,len=ev.len*e8;
+   if(ev.part==='drum')drum(p.gain,ev.kind,t);else note(p.gain,{...songVoice(p.id,ev.part),freq:midiHz(ev.midi),t,len:len*(ev.part==='arp'?.85:.94)});}
+ }
+ function drum(dest,kind,t){
+  if(kind==='k')note(dest,{wave:'triangle',freq:110,to:42,sweep:.11,t,len:.12,a:.002,d:.1,s:.2,r:.08,gain:.2});
+  else if(kind==='s')hiss(dest,{t,len:.13,freq:2400,q:.6,gain:.03});
+  else if(kind==='h')hiss(dest,{t,len:.03,freq:7500,type:'highpass',gain:.018});
+  else note(dest,{wave:.5,freq:midiHz(kind==='w'?81:74),t,len:.03,a:.001,d:.05,s:0,r:.06,gain:.045,cutoff:2600});
+ }
+ function tick(){
+  if(!running()||!play)return;const now=ac.currentTime;if(play.time<now-.05)play.time=now+.05;
+  for(let n=0;play.time<now+LOOK&&n<4;n++){bar(play);play.time+=songBarSeconds(play.song);play.bar++;}
+ }
+ function startMusic(){if(!ac||!songId)return;if(!play||play.id!==songId)begin(songId);if(!timer){timer=setInterval(tick,80);tick();}}
+ function stopMusic(){clearInterval(timer);timer=0;}
+ function setSong(id){if(!SONGS[id]||id===songId)return;songId=id;if(ac&&timer)begin(id);}
+ // A jingle in the playing song's key; big ones (dip) lower the music for a moment.
+ function jingle(name,o={}){
+  const j=JINGLES[name];if(!j||!fxOn())return;const e8=30/j.bpm,k=jingleKey(play?play.song.key:0),t=ac.currentTime+.01;let endAt=t;
+  for(const n of parseBar(j.notes).notes){const at=t+n.at*e8,len=n.len*e8*.9;endAt=Math.max(endAt,at+len);
+   note(fx,{wave:o.wave??.25,freq:midiHz(n.midi+k),t:at,len,a:.004,d:.15,s:.5,r:o.r??.12,gain:o.gain??.06,cutoff:o.cutoff??3800});
+   if(o.under)note(fx,{wave:'triangle',freq:midiHz(n.midi+k-12),t:at,len,a:.004,d:.2,s:.6,r:.15,gain:o.gain*1.6});}
+  if(o.dip&&S.music){const now=ac.currentTime;dipUntil=endAt+.3;music.gain.cancelScheduledValues(now);music.gain.setTargetAtTime(volumeGain(S.musicVol)*.25,now,.05);music.gain.setTargetAtTime(volumeGain(S.musicVol)*(ducked?.6:1),dipUntil,.5);}
+ }
+ // ---- One-shot effects. strength 0-1 scales the knocks; a little random pitch keeps repeats from sounding stamped.
+ function effect(type,o={}){
+  if(!fxOn())return;
+  const t=ac.currentTime+.005,v=f=>f*(.94+Math.random()*.12),st=clamp(o.strength??.5,0,1),now=performance.now();
+  const gap={cone:70,cart:90,bump:120,land:200,settle:200,wrap:300,shift:40,lost:2500}[type]||0;if(gap){if(now-(last[type]||0)<gap)return;last[type]=now;}
+  const out=VEHICLE_FX.has(type)?veh:fx;
+  switch(type){
+   case 'shift':hiss(out,{t,len:.02,freq:3400,type:'highpass',gain:.045});note(out,{wave:.25,freq:v(o.paddle?700:200),to:o.paddle?560:150,t:t+.012,len:.035,a:.002,d:.03,s:.3,r:.03,gain:.05,cutoff:2200});break;
+   case 'deny':for(const k of [0,1])note(out,{wave:.5,freq:98,t:t+k*.09,len:.055,a:.002,d:.05,s:.6,r:.03,gain:.04,cutoff:900});break;
+   case 'cone':note(out,{wave:'triangle',freq:v(560),to:250,t,len:.09,a:.001,d:.08,s:.2,r:.06,gain:.1+.12*st});hiss(out,{t,len:.03,freq:1800,gain:.015+.03*st});break;
+   case 'cart':hiss(out,{t,len:.12,freq:2600,q:2,gain:.04+.05*st,short:true});note(out,{wave:.125,freq:v(880),t,len:.04,a:.001,d:.04,s:0,r:.04,gain:.03});note(out,{wave:.125,freq:v(1320),t:t+.035,len:.05,a:.001,d:.05,s:0,r:.05,gain:.025});break;
+   case 'bump':note(out,{wave:'triangle',freq:v(150),to:46,t,len:.16,a:.002,d:.14,s:.3,r:.1,gain:.14+.22*st});hiss(out,{t,len:.08+.1*st,freq:650,type:'lowpass',gain:.03+.08*st});break;
+   case 'tip':note(out,{wave:.25,freq:300,to:430,t,len:.22,a:.01,d:.2,s:.6,r:.08,gain:.035,cutoff:1800,vib:.03,vibRate:14});break;
+   case 'roll':['g5','e5','c5','g4','e4'].forEach((n,i)=>{note(out,{wave:.25,freq:midiHz(noteMidi(n)),t:t+i*.075,len:.06,a:.002,d:.05,s:.4,r:.04,gain:.04,cutoff:2600});hiss(out,{t:t+i*.075,len:.04,freq:500,type:'lowpass',gain:.035});});break;
+   case 'settle':case 'land':note(out,{wave:'triangle',freq:type==='land'?140:110,to:50,t,len:.14,a:.002,d:.12,s:.3,r:.1,gain:.2});hiss(out,{t,len:.12,freq:500,type:'lowpass',gain:.06});break;
+   case 'recover':jingle('recover',{gain:.055});break;
+   case 'wrap':hiss(out,{t,a:.12,len:.3,freq:420,to:2600,q:1.2,gain:.06});break;
+   case 'takeoff':note(out,{wave:.25,freq:220,to:520,t,len:.3,a:.02,d:.3,s:.6,r:.1,gain:.028,cutoff:1600});hiss(out,{t,a:.05,len:.3,freq:600,to:1800,gain:.02});break;
+   case 'touchdown':note(out,{wave:'triangle',freq:260,to:110,t,len:.12,a:.002,d:.1,s:.3,r:.08,gain:.12});hiss(out,{t,len:.08,freq:600,type:'lowpass',gain:.04});break;
+   case 'launch':hiss(out,{t,a:.01,len:.35,freq:900,to:2400,gain:.05});note(out,{wave:.125,freq:180,to:420,t,len:.3,a:.005,d:.3,s:.7,r:.1,gain:.03,cutoff:2000});break;
+   case 'go':jingle('go',{gain:.06});break;
+   case 'armed':jingle('armed',{gain:.045,wave:.125});break;
+   case 'lost':jingle('lost',{gain:.045});break;
+   case 'ended':jingle('ended',{gain:.05});break;
+   case 'finish':jingle('finish',{gain:.06,under:true,dip:true});break;
+   case 'best':jingle('best',{gain:.06,under:true,dip:true,r:.3});break;
+   case 'click':note(fx,{wave:.5,freq:1500,t,len:.012,a:.001,d:.01,s:0,r:.015,gain:.025});break;
+   default:if(JINGLES[type])jingle(type,{gain:.04,wave:.5,cutoff:3000});
+  }
+ }
+ // ---- Continuous voices. Engine: two copies of the car's soft tone, 7 cents apart for warmth, plus a sine an octave down,
+ // through a gentle lowpass that opens with the revs; a slow wobble gives the idle its putter, and a little bandpassed noise
+ // breathes in on the gas. Pitch and level glide, so shifts and lifts sound smooth. Rotors: two pulses a fifth apart,
+ // chopped by a fast wobble. Tyres: looping noise through a bandpass. All of them play through veh.
+ const ENGINE_LEVEL=.06;
+ const engineWave=id=>waves['e'+id]||(waves['e'+id]=(()=>{const h=ENGINE_VOICE[id].harm,re=new Float32Array(h.length+1),im=new Float32Array(h.length+1);h.forEach((a,k)=>{im[k+1]=a;});return ac.createPeriodicWave(re,im);})());
+ function voices(){
+  if(cont)return cont;const osc=(wave,f)=>{const o=ac.createOscillator();if(typeof wave==='number')o.setPeriodicWave(pulse(wave));else o.type=wave;o.frequency.value=f;o.start();return o;};
+  const gain=(v,to)=>{const g=ac.createGain();g.gain.value=v;if(to)g.connect(to);return g;},lp=(f,q,to)=>{const b=ac.createBiquadFilter();b.type='lowpass';b.frequency.value=f;b.Q.value=q;b.connect(to);return b;};
+  const eg=gain(0,veh),eam=gain(1,eg),elp=lp(600,.4,eam),e1=osc('sine',52),e2=osc('sine',52),sub=osc('sine',26),subg=gain(.3,elp),wob=osc('sine',10),wobg=gain(0);
+  e2.detune.value=7;e1.connect(elp);e2.connect(elp);sub.connect(subg);wob.connect(wobg);wobg.connect(eam.gain);
+  const ag=gain(0,eg),abp=ac.createBiquadFilter(),air=ac.createBufferSource();abp.type='bandpass';abp.frequency.value=700;abp.Q.value=.7;abp.connect(ag);air.buffer=noiseBuffer(false);air.loop=true;air.connect(abp);air.start();
+  const rg=gain(0,veh),chop=gain(.65,rg),rlp=lp(1100,.7,chop),r1=osc(.5,92),r2=osc(.25,140),lfo=osc('triangle',20),depth=gain(.35);r1.connect(rlp);r2.connect(rlp);lfo.connect(depth);depth.connect(chop.gain);
+  const tg=gain(0,veh),tbp=ac.createBiquadFilter(),src=ac.createBufferSource();tbp.type='bandpass';tbp.frequency.value=900;tbp.Q.value=1.4;tbp.connect(tg);src.buffer=noiseBuffer(false);src.loop=true;src.connect(tbp);src.start();
+  return cont={eg,eam,elp,e1,e2,sub,subg,wob,wobg,ag,abp,rg,r1,r2,lfo,tg,tbp,voice:''};
+ }
+ function drive(e,r,ty){
+  if(!fxOn()){if(cont){const t=ac.currentTime;for(const g of [cont.eg,cont.rg,cont.tg])g.gain.setTargetAtTime(0,t,.06);}return;}
+  const c=voices(),t=ac.currentTime;
+  if(e.voice&&c.voice!==e.voice){const wv=engineWave(e.voice);c.e1.setPeriodicWave(wv);c.e2.setPeriodicWave(wv);c.subg.gain.setTargetAtTime(ENGINE_VOICE[e.voice].sub,t,.05);c.voice=e.voice;}
+  if(e.freq>0){for(const o of [c.e1,c.e2])o.frequency.setTargetAtTime(e.freq,t,.1);c.sub.frequency.setTargetAtTime(e.freq/2,t,.1);c.wob.frequency.setTargetAtTime(e.lumpRate||10,t,.1);c.abp.frequency.setTargetAtTime(e.airFreq||700,t,.1);}
+  c.elp.frequency.setTargetAtTime(e.cutoff||600,t,.12);c.eg.gain.setTargetAtTime(e.gain*ENGINE_LEVEL,t,.15);
+  const lump=clamp(e.lump||0,0,.9);c.eam.gain.setTargetAtTime(1-lump/2,t,.1);c.wobg.gain.setTargetAtTime(lump/2,t,.1);c.ag.gain.setTargetAtTime((e.air||0)*.12,t,.15);
+  if(r.freq>0){c.r1.frequency.setTargetAtTime(r.freq,t,.08);c.r2.frequency.setTargetAtTime(r.freq*1.5+3,t,.08);c.lfo.frequency.setTargetAtTime(r.chop,t,.1);}c.rg.gain.setTargetAtTime(r.gain*.09,t,.15);
+  c.tbp.frequency.setTargetAtTime(ty.freq,t,.05);c.tg.gain.setTargetAtTime(ty.gain*.45,t,.04);
+ }
+ // ---- The horn (H): two pulses held while the key is; the Drone chirps instead. Lets go by itself after 1.6 s.
+ const HORNS={compact:[587,740],coupe:[392,494],f1:[880,1175],van:[1047,1397]};
+ function honk(on,id){
+  if(!on||!fxOn()){if(horn){const h=horn,t=ac.currentTime;horn=null;clearTimeout(h.timer);h.g.gain.setTargetAtTime(0,t,.02);for(const o of h.os)o.stop(t+.15);}return;}
+  if(horn)return;const t=ac.currentTime,g=ac.createGain(),lp=ac.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2400;lp.connect(g);g.connect(veh);
+  g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.045,t+.012);
+  const os=(HORNS[id]||HORNS.compact).map(f=>{const o=ac.createOscillator();o.setPeriodicWave(pulse(.5));o.frequency.value=f;o.connect(lp);o.start(t);return o;});
+  if(id==='van'){const l=ac.createOscillator(),d=ac.createGain();l.type='square';l.frequency.value=9;d.gain.value=140;l.connect(d);for(const o of os)d.connect(o.frequency);l.start(t);os.push(l);}
+  horn={g,os,timer:setTimeout(()=>honk(false),1600)};
+ }
+ return {
+  unlock(){if(!init())return;if(ac.state==='suspended'&&!hidden)ac.resume().then(apply,()=>{});else apply();},
+  get settings(){return {...S};},
+  set(next){S=audioSettings({...S,...next});saveAudio(store,S);apply();if(!S.sfx)honk(false);return {...S};},
+  // M: everything off, or back to how it was.
+  toggleMute(){if(S.music||S.sfx){memo={music:S.music,sfx:S.sfx};this.set({music:false,sfx:false});return false;}this.set(memo&&(memo.music||memo.sfx)?memo:{music:true,sfx:true});return true;},
+  song:setSong,nowPlaying:()=>SONGS[songId]?SONGS[songId].name:'',
+  duck(on){if(ducked===!!on)return;ducked=!!on;apply();},
+  suspend(h){hidden=!!h;if(!ac)return;if(hidden){stopMusic();honk(false);ac.suspend().catch(()=>{});}else ac.resume().then(apply,()=>{});},
+  drive,effect,honk,
+  get state(){return ac?ac.state:'off';}
+ };
+}
 const root=document.getElementById('playground'),canvas=document.getElementById('game'),ctx=canvas.getContext('2d'),paintCanvas=document.getElementById('paint');
 if(!ctx){document.getElementById('enter').textContent='Canvas 2D is unavailable';return;}
 ctx.imageSmoothingEnabled=false;
@@ -2874,6 +3205,9 @@ const ui={enter:$('enter'),status:$('status'),live:$('live'),skids:$('skids'),an
 const zoneEls={hud:$('hud'),wheel:$('wheel'),pedals:$('pedals'),recover:$('recover'),speed:$('speed'),gear:$('gearstick'),restart:$('new-race-button')};
 const tuneStore=(()=>{try{return window.localStorage;}catch(_){return null;}})();
 loadTuning(tuneStore);
+const sound=createSound(tuneStore);
+// The first press or key anywhere unlocks the sound, before any other handler can stop that event.
+for(const type of ['pointerdown','keydown','touchend'])window.addEventListener(type,()=>sound.unlock(),{capture:true,passive:true});
 // Touch wording for the painted instructions and the entry prompt when any pointer is coarse (phones, tablets, touch laptops).
 const coarseQuery=window.matchMedia?window.matchMedia('(any-pointer: coarse)'):null,isTouch=()=>!!((coarseQuery&&coarseQuery.matches)||(navigator.maxTouchPoints>0));
 const makeCanvas=(w,h)=>{const c=document.createElement('canvas');c.width=w;c.height=h;return c;};
@@ -3002,7 +3336,7 @@ const trackRec=createTrackRecorder();
 const controls=createControls({onEngage:()=>{if(!race||!['ready','finished'].includes(race.state))modes.engage();},reverse:()=>world.gear==='R'&&!(view&&view.mobile&&world.p.trans==='auto')});
 const modes=createModes(controls,(next,prev)=>onModeChange(next,prev));
 const raceHud=$('race-hud'),raceTimeRead=$('race-time'),raceQualityRead=$('race-quality'),raceStatus=$('race-status'),raceResult=$('race-result'),raceBreakdown=$('race-breakdown'),raceResultBest=$('race-result-best'),raceRestart=$('new-race-button'),raceDebugBox=$('race-debug');
-function raceSetup(){const route=raceRoute(world.layout);race=raceNew(route);if(route){const handling=Object.fromEntries(TUNING_SPEC.filter(s=>s.group!=='view'&&!RACE_COSMETIC_KEYS.has(s.key)).map(s=>[s.key,TUNING[s.key]]));raceKey=raceFingerprint(route,SELECTED_TRACK,world.id,handling);raceBest=raceRecordsCache[raceKey]||null;}else{raceKey='';raceBest=null;}raceDisplay();if(mode==='paused'&&!ui.enter.hidden)setEntry(race.state==='ready'?'TAP OR PRESS W TO START RACE':entryText());}
+function raceSetup(){const route=raceRoute(world.layout);race=raceNew(route);if(route){const handling=Object.fromEntries(TUNING_SPEC.filter(s=>s.group!=='view'&&!RACE_COSMETIC_KEYS.has(s.key)).map(s=>[s.key,TUNING[s.key]]));raceKey=raceFingerprint(route,SELECTED_TRACK,world.id,handling);raceBest=raceRecordsCache[raceKey]||null;}else{raceKey='';raceBest=null;}raceDisplay();if(soundPrev)soundPrev=audioSnapshot(world,race);if(mode==='paused'&&!ui.enter.hidden)setEntry(race.state==='ready'?'TAP OR PRESS W TO START RACE':entryText());}
 function raceElapsed(now=performance.now()){return race.elapsed+(race.anchor===null?0:Math.max(0,(now-race.anchor)/1000));}
 function raceDisplay(){if(!race)return;const visible=race.state!=='free';raceHud.hidden=!visible;raceResult.hidden=race.state!=='finished';raceRestart.hidden=!race.route||!view;
  if(visible){raceTimeRead.textContent=raceTime(raceElapsed());raceQualityRead.textContent=race.quality.toFixed(1)+'%';raceStatus.textContent=race.lost?'RETURN TO THE ROUTE':'';
@@ -3013,8 +3347,8 @@ function raceBegin(){if(!race||race.state!=='ready')return;race.state='racing';r
 function raceDismiss(){if(!race||race.state!=='finished')return;race.state='free';raceDisplay();resume();}
 let raceNoticeTimer=0,lastRaceUI=0;function raceInvalidate(reason){if(!race||race.state!=='racing')return;race.elapsed=raceElapsed();race.anchor=null;race.state='free';raceDisplay();const message=reason;say(message);const box=$('race-notice');box.textContent=message;box.hidden=false;clearTimeout(raceNoticeTimer);raceNoticeTimer=setTimeout(()=>{box.hidden=true;},5000);}
 function raceFinish(now){race.elapsed=raceElapsed(now);race.anchor=null;race.state='finished';const q=raceRank(race.elapsed,race.quality);q.isBest=raceBetter(q,raceBest);if(q.isBest){raceBest=q;delete raceRecordsCache[raceKey];raceRecordsCache[raceKey]={elapsed:q.elapsed,quality:q.quality,ranked:q.ranked};raceRecordsCache=Object.fromEntries(Object.entries(raceRecordsCache).slice(-RACE_LIMIT));raceSessionOnly=!raceSave(tuneStore,raceRecordsCache);}race.result=q;pause();raceDisplay();say('Lap finished. Ranked time '+raceTime(q.ranked)+'.');}
-function raceReset(start){$('race-notice').hidden=true;reset();raceSetup();if(mode==='menu')closeMenu(false);if(mode==='running')pause();if(start)raceBegin();else{setEntry(race.state==='ready'?'TAP OR PRESS W TO START RACE':entryText());raceDisplay();}}
-$('race-debug-toggle').addEventListener('change',e=>{raceDebug=e.target.checked;raceDisplay();});
+function raceReset(start){$('race-notice').hidden=true;reset();raceSetup();sound.effect('reset');if(mode==='menu')closeMenu(false);if(mode==='running')pause();if(start)raceBegin();else{setEntry(race.state==='ready'?'TAP OR PRESS W TO START RACE':entryText());raceDisplay();}}
+$('race-debug-toggle').addEventListener('change',e=>{raceDebug=e.target.checked;sound.effect(raceDebug?'on':'off');raceDisplay();});
  raceRestart.addEventListener('click',e=>{e.stopPropagation();raceReset(false);if(e.detail>0)raceRestart.blur();});
  // Start or continue on the same W/gas gesture so its held input reaches the controls.
  window.addEventListener('keydown',e=>{if(!race||mode==='menu'||e.ctrlKey||e.altKey||e.metaKey||ownsKeys(e.target)||e.repeat)return;
@@ -3080,6 +3414,17 @@ function drawItem(o){
  else if(o.type==='gate'){const g=gateSprites(world.layout.gate),b=g.art.box;ctx.drawImage(g[o.part],o.x-b.ax,o.y-b.ay);}
 }
 // Contract §6 order: ground, tracks, every shadow, then the depth-sorted drawables (cones, car, gate legs; the arch top last).
+// ---- Sound glue: collision peaks are gathered every physics step; once a frame the snapshot is compared with the last
+// for one-shot effects (audioEvents), and the engine, rotors and tyres follow the car. A new world only re-baselines.
+let soundPrev=null,soundWorld=null,soundKnock=0,soundImpact=0,soundHeard=[];
+function soundCollect(){soundKnock=Math.max(soundKnock,world.knock||0);soundImpact=Math.max(soundImpact,world.impact||0);}
+function soundFrame(running){
+ const now=audioSnapshot(world,race,soundKnock,soundImpact);soundKnock=soundImpact=0;
+ if(soundWorld===world)for(const e of audioEvents(soundPrev,now)){sound.effect(e.type,{...e,paddle:isPaddle(world)});soundHeard=[...soundHeard.slice(-7),e.type];}
+ soundPrev=now;soundWorld=world;
+ const i=controls.sample(),gas=Math.max(i.throttle,world.gear==='R'&&view&&view.mobile&&world.p.trans==='auto'?i.brake:0);
+ sound.drive(engineTone(world,gas,running),rotorTone(world,world.p.flying?controls.sticks():null,running),tyreNoise(world,running));
+}
 function draw(alpha=1){
  const A=world.arena,L=A.viewL||0,T=A.viewT||0;ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,canvas.width,canvas.height);ctx.setTransform(view.renderDensity,0,0,view.renderDensity,0,0);ctx.drawImage(surface,0,0);ctx.save();ctx.translate(-L,-T);ctx.drawImage(ground,0,0);if(titleLayer){const p=titleLayer;if(titleRotation(view)){ctx.save();ctx.translate(p.l+p.w/2,p.t+p.h/2);ctx.rotate(titleRotation(view));ctx.drawImage(p.canvas,-p.w/2,-p.h/2,p.w,p.h);ctx.restore();}else ctx.drawImage(p.canvas,p.l,p.t,p.w,p.h);}if(paintLayer){const p=paintLayer,scale=view.worldScale;ctx.drawImage(p.canvas,L+p.left/scale,T+p.top/scale,p.width/scale,p.height/scale);}if(enabled)ctx.drawImage(tracks,L,T);
  ctx.save();for(const p of smoke)if(p.dark){ctx.globalAlpha=p.life*.22;ctx.fillStyle=ink;ctx.beginPath();ctx.arc(p.x,p.y,2+(1-p.life)*8,0,TAU);ctx.fill();}ctx.restore();
@@ -3095,7 +3440,7 @@ function updateUI(){
  ui.status.textContent=running?world.p.flying?(c.landed?'LANDED':Math.hypot(c.vx,c.vy)>2?'FLYING':'HOVERING'):(c.burnout?'BURNOUT':c.skidding?'SIDEWAYS':Math.hypot(c.vx,c.vy)>2?'DRIVING':'IDLE / W TO GO'):mode==='menu'?'MENU':'PAUSED';
  // Read-only diagnostics for QA; these are not exposed as extra player controls.
  const input=controls.sample();
- Object.assign(canvas.dataset,{car:world.id,x:c.x.toFixed(2),y:c.y.toFixed(2),speed:Math.hypot(c.vx,c.vy).toFixed(2),heading:c.a.toFixed(3),state:c.state||'driving',roll:(c.roll||0).toFixed(2),wraps:String(world.wraps),hits:String(world.hits),tracks:String(trackPixels),simTime:world.time.toFixed(3),running:String(running),mode,arena:world.arena.W+'x'+world.arena.H,scale:String(view?view.scale:0),input:input.steering.toFixed(2)+','+input.throttle.toFixed(2)+','+input.brake.toFixed(2),movingCones:String(world.cones.filter(o=>Math.hypot(o.vx,o.vy)>.2).length)});
+ Object.assign(canvas.dataset,{car:world.id,x:c.x.toFixed(2),y:c.y.toFixed(2),speed:Math.hypot(c.vx,c.vy).toFixed(2),heading:c.a.toFixed(3),state:c.state||'driving',roll:(c.roll||0).toFixed(2),wraps:String(world.wraps),hits:String(world.hits),tracks:String(trackPixels),simTime:world.time.toFixed(3),running:String(running),mode,arena:world.arena.W+'x'+world.arena.H,scale:String(view?view.scale:0),input:input.steering.toFixed(2)+','+input.throttle.toFixed(2)+','+input.brake.toFixed(2),movingCones:String(world.cones.filter(o=>Math.hypot(o.vx,o.vy)>.2).length),sound:sound.state+' '+(sound.nowPlaying()||'-'),soundEvents:soundHeard.join(' ')});
 }
 // The physics input for one step: the merged pedals and wheel, plus the thumb sticks when the Drone flies.
 function frameInput(){let input=controls.sample();if(view.mobile&&world.p.trans==='auto')input=simpleAutoInput(world,input);if(world.p.flying)input.sticks=controls.sticks();return input;}
@@ -3104,11 +3449,11 @@ function animate(time){
  if(!lastTime)lastTime=time;
  accumulator+=Math.min(.1,(time-lastTime)/1000)*SIM_SPEED;lastTime=time;
  // One controls.sample() per fixed physics step (contract §3).
- let ticks=0;while(accumulator>=STEP&&ticks<12){const before={x:world.car.x,y:world.car.y},wraps=world.wraps;step(world,frameInput());
+ let ticks=0;while(accumulator>=STEP&&ticks<12){const before={x:world.car.x,y:world.car.y},wraps=world.wraps;step(world,frameInput());soundCollect();
   if(race&&race.state==='racing'){if(world.wraps!==wraps)raceInvalidate('Edge wrap ended the timed run.');else if(raceMove(race,before,world.car,world.p.width)){raceFinish(Math.min(time,Math.max(race.anchor||0,time-(accumulator-STEP)*1000/SIM_SPEED)));break;}}
   addTracks();accumulator-=STEP;ticks++;}
  if(ticks===12&&accumulator>=STEP)accumulator%=STEP;
- draw(accumulator/STEP);renderControls();syncRecover();if(time-lastRaceUI>=100){raceDisplay();lastRaceUI=time;}
+ draw(accumulator/STEP);renderControls();syncRecover();soundFrame(mode==='running');if(time-lastRaceUI>=100){raceDisplay();lastRaceUI=time;}
  if(mode!=='running')return;
  if(time-lastUI>250){updateUI();lastUI=time;}
  raf=requestAnimationFrame(animate);
@@ -3117,10 +3462,12 @@ function animate(time){
 // (done by createModes) and breaks tracks. The settings panel is open exactly while the mode is 'menu'.
 const entryText=()=>world.p.flying?(isTouch()?'DRAG THE STICKS TO FLY':'W CLIMBS · ARROWS FLY'):!isManual(world)&&(world.gear==='P'||world.gear==='N')?(isTouch()?'MOVE THE STICK TO D, THEN GAS':'SHIFT TO D WITH Q, THEN PRESS W'):isTouch()?'TAP GAS OR PRESS W TO DRIVE':'PRESS W TO DRIVE';
 const setEntry=text=>{ui.enter.replaceChildren(Object.assign(document.createElement('span'),{textContent:text}));};
-function onModeChange(next){
+function onModeChange(next,prev){
  if(race&&race.state==='racing'){if(next!=='running'&&race.anchor!==null){race.elapsed=raceElapsed();race.anchor=null;}else if(next==='running'&&race.anchor===null)race.anchor=performance.now();}
  mode=next;
  cancelAnimationFrame(raf);raf=0;accumulator=0;lastTime=0;breakTracks(trackRec);
+ sound.duck(next!=='running');if(next!=='running')sound.honk(false);soundFrame(next==='running');
+ if(next==='menu')sound.effect('open');else if(prev==='menu')sound.effect('close');else if(next==='paused'&&prev==='running'&&!(race&&race.state==='finished'))sound.effect('pause');
  if(next!=='running')endStick(true); // pause, menu, blur: the stick lets go too (contract §3 release-all)
  const menu=next==='menu';ui.panel.hidden=!menu;ui.settingsBtn.setAttribute('aria-expanded',String(menu));
  if(next==='running'){for(const o of [world.car,...world.cones]){o.px=o.x;o.py=o.y;o.pa=o.a;}ui.enter.hidden=true;updateUI();renderControls();syncRecover();raf=requestAnimationFrame(animate);return;}
@@ -3135,7 +3482,7 @@ function fitTransmission(w){w.manual=w.p.trans==='manual'||w.p.trans==='paddle';
 const syncFly=()=>{root.dataset.fly=String(!!world.p.flying);root.dataset.paddle=String(isPaddle(world));root.dataset.auto=String(world.p.trans==='auto');ui.brake.setAttribute('aria-label',view&&view.mobile&&world.p.trans==='auto'?'Brake and reverse':'Brake');};
 function reset(id=world.id){world=fitTransmission(createWorld(id,world.arena));syncFly();world.trackBreak=true;controls.releaseAll();endStick(false);clearTracks();accumulator=0;lastTime=0;
  buildGround(world.arena);groundKey=groundKeyFor();
- draw();updateUI();renderControls();syncRecover();if(!ui.enter.hidden)setEntry(entryText());ui.announce.textContent=PRESETS[id].name+' ready. Scene reset.';}
+ draw();updateUI();renderControls();syncRecover();soundFrame(mode==='running');if(!ui.enter.hidden)setEntry(entryText());ui.announce.textContent=PRESETS[id].name+' ready. Scene reset.';}
 // adapter, so tests can swap in a fake api.
 const recoveryApi={can:w=>typeof canRecover==='function'?canRecover(w)===true:false,run:w=>{if(typeof recover==='function')recover(w);}};
 // Live-region text; a repeated message gets a trailing no-break space so screen readers announce it again.
@@ -3160,7 +3507,7 @@ function doRecover(){
  const before={x:world.car.x,y:world.car.y};if(!tryRecover(recoveryApi,world,mode,controls))return false;
  if(Math.hypot(world.car.x-before.x,world.car.y-before.y)>.01)raceInvalidate('Recovery moved the car and ended the timed run.');
  drag=null;accumulator=0;
- draw();updateUI();renderControls();syncRecover();say('Car righted.');
+ draw();updateUI();renderControls();syncRecover();soundFrame(mode==='running');say('Car righted.');
  return true;
 }
 ui.recover.addEventListener('click',()=>doRecover());
@@ -3183,12 +3530,12 @@ function syncChoices(){document.querySelectorAll('.car-choice[data-car]').forEac
  const th=thumbFor(button.dataset.car),c=button.querySelector('canvas'),cx=c.getContext('2d'),x=Math.round((c.width-(th.r-th.l))/2)-th.l,y=thumbY(th,c.height);
  cx.clearRect(0,0,c.width,c.height);cx.imageSmoothingEnabled=false;for(const layer of th.layers)cx.drawImage(layer,x,y);});}
 // Switching car resets the scene and the tracks (unchanged semantics); the mode is kept.
-document.querySelectorAll('.car-choice[data-car]').forEach(button=>button.addEventListener('click',()=>{reset(button.dataset.car);raceSetup();if(mode==='running')pause();syncChoices();}));
+document.querySelectorAll('.car-choice[data-car]').forEach(button=>button.addEventListener('click',()=>{reset(button.dataset.car);raceSetup();if(mode==='running')pause();syncChoices();sound.effect('car');}));
 // Skid toggle hides the layer and pauses recording; retained tracks are not erased.
-ui.skids.addEventListener('change',()=>{enabled=ui.skids.checked;breakTracks(trackRec);world.trackBreak=true;draw();ui.announce.textContent=enabled?'Skid marks enabled.':'Skid marks hidden and recording paused.';});
-$('clear').addEventListener('click',()=>{clearTracks();draw();updateUI();ui.announce.textContent='Tracks cleared.';});
+ui.skids.addEventListener('change',()=>{enabled=ui.skids.checked;sound.effect(enabled?'on':'off');breakTracks(trackRec);world.trackBreak=true;draw();ui.announce.textContent=enabled?'Skid marks enabled.':'Skid marks hidden and recording paused.';});
+$('clear').addEventListener('click',()=>{clearTracks();sound.effect('click');draw();updateUI();ui.announce.textContent='Tracks cleared.';});
 // Reset restores the cones (createWorld rebuilds them from their homes) and clears the tracks.
-$('reset').addEventListener('click',()=>{reset();raceSetup();});
+$('reset').addEventListener('click',()=>{reset();raceSetup();sound.effect('reset');});
 ui.enter.addEventListener('click',()=>{resume();canvas.focus({preventScroll:true});});
 
 function openMenu(){cancelRaceHold();if(!modes.openMenu())return;syncTracks();ui.skids.focus({preventScroll:true});ui.announce.textContent='Settings open. Game paused.';}
@@ -3233,7 +3580,7 @@ function buildTuning(){
 function applyTuning(keys,relayout){const affects=keys.some(k=>!RACE_COSMETIC_KEYS.has(k)&&(k!=='viewLot'||SELECTED_TRACK==='parking'));if(affects){raceInvalidate('Tuning changed.');if(race&&race.state==='ready')raceSetup();}saveTuning(tuneStore);syncTuning();if(relayout&&(keys.includes('viewShort')||keys.includes('viewLot')))scheduleView();shown='';renderControls();}
 ui.tuneList.addEventListener('input',e=>{const key=e.target.dataset&&e.target.dataset.key;if(!key)return;setTuning({[key]:+e.target.value});applyTuning([key],false);});
 ui.tuneList.addEventListener('change',e=>{const key=e.target.dataset&&e.target.dataset.key;if(key)applyTuning([key],true);});
-ui.tuneReset.addEventListener('click',()=>{resetTuning();applyTuning(TUNING_SPEC.map(s=>s.key),true);say('Tuning reset to the defaults.');});
+ui.tuneReset.addEventListener('click',()=>{resetTuning();sound.effect('click');applyTuning(TUNING_SPEC.map(s=>s.key),true);say('Tuning reset to the defaults.');});
 buildTuning();
 // with a 1-bit thumbnail of that track for the current arena. Choosing one selects it (setTrack), resets the scene and rebuilds
 // the ground (reset), then redraws the thumbnails (the chosen one inverted, aria-pressed).
@@ -3253,8 +3600,15 @@ function syncTracks(){
   for(let y=0;y<m.h;y++)for(let x=0;x<m.w;x++)if(m.bits[y*m.w+x])cx.fillRect(x,y,1,1);
  }
 }
-function pickTrack(id){if(!setTrack(id))return;applyView();reset();raceSetup();syncTracks();const t=TRACKS.find(q=>q.id===id);say((t?t.name:id)+' selected. Scene reset.');}
-syncTracks();
+// Sound settings: the Music / Effects switches and the SOUND volumes (saved under AUDIO_STORE).
+const soundEls={music:$('music-toggle'),sfx:$('sfx-toggle'),now:$('now-playing'),volume:$('vol-master'),musicVol:$('vol-music'),sfxVol:$('vol-sfx')};
+function syncSound(){const s=sound.settings;soundEls.music.checked=s.music;soundEls.sfx.checked=s.sfx;
+ for(const k of ['volume','musicVol','sfxVol']){const el=soundEls[k],pct=Math.round(s[k]*100);el.value=String(pct);el.setAttribute('aria-valuetext',pct+' percent');$(el.id+'-value').textContent=pct+'%';}
+ soundEls.now.textContent='Now playing: '+(sound.nowPlaying()||'-');}
+for(const k of ['music','sfx'])soundEls[k].addEventListener('change',()=>{const on=soundEls[k].checked;sound.set({[k]:on});sound.effect(on?'on':'off');say((k==='music'?'Music ':'Sound effects ')+(on?'on.':'off.'));});
+for(const k of ['volume','musicVol','sfxVol']){const el=soundEls[k];el.addEventListener('input',()=>{sound.set({[k]:+el.value/100});syncSound();});el.addEventListener('change',()=>{if(k!=='musicVol')sound.effect('cone',{strength:.4});});}
+function pickTrack(id){if(!setTrack(id))return;applyView();reset();raceSetup();syncTracks();sound.song(songFor(id));sound.effect('track');syncSound();const t=TRACKS.find(q=>q.id===id);say((t?t.name:id)+' selected. Scene reset.');}
+syncTracks();sound.song(songFor(SELECTED_TRACK));syncSound();
 // A primary press on the playground resumes; a pointer release never pauses.
 canvas.addEventListener('pointerdown',event=>{if(event===dismissEvent)return;if(event.isPrimary&&event.button===0)resume();});
 
@@ -3346,7 +3700,7 @@ function requestGear(g,source){
  if(mode==='menu'||!g||g===world.gear||world.p.flying||(view&&view.mobile&&world.p.trans==='auto'))return false; // the Drone has no gearbox
  if(shiftGear(world,g)){resume();if(source!=='drag'&&!isPaddle(world))animateKnob(g);renderControls();say(gearName(g)+'.');return true;}
  const stop=typeof g==='string'||world.gear==='R'; // R, P and D (or leaving R) wait for a stop; a downshift waits for less speed
- say((stop?'Stop the car before shifting to ':'Too fast for ')+gearName(g).toLowerCase()+'.');return false;
+ sound.effect('deny');say((stop?'Stop the car before shifting to ':'Too fast for ')+gearName(g).toLowerCase()+'.');return false;
 }
 // SVG viewBox units (STICK_VB, scaled to fit the face, left-aligned beside the shift bar, centred vertically) from client coordinates.
 function stickPoint(e){const r=ui.stickFace.getBoundingClientRect(),V=STICK_VB,s=Math.min(r.width/V.w,r.height/V.h)||1;return {x:(e.clientX-r.left)/s,y:(e.clientY-r.top-(r.height-V.h*s)/2)/s};}
@@ -3463,6 +3817,12 @@ window.addEventListener('keydown',event=>{
  if(event.key==='Escape'||event.key==='Esc'){if(mode==='menu'){event.preventDefault();closeMenu(true);}else if(mode==='running'){event.preventDefault();pause();}return;}
  // A short R press recovers; holding it for 1.8 seconds starts a fresh race.
  if(recoverFromKey(event,mode,ownsKeys(document.activeElement))){event.preventDefault();if(!raceHoldTimer&&!raceHoldTriggered)raceHoldTimer=setTimeout(()=>{raceHoldTimer=0;raceHoldTriggered=true;if(race&&race.route&&mode!=='menu')raceReset(false);},1000);return;}
+ // M mutes or unmutes everything; H holds the horn.
+ const letter=event.code||(typeof event.key==='string'?'Key'+event.key.toUpperCase():'');
+ if((letter==='KeyM'||letter==='KeyH')&&!event.repeat&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&!ownsKeys(document.activeElement)){
+  event.preventDefault();if(letter==='KeyH'){if(mode!=='menu')sound.honk(true,world.id);return;}
+  const on=sound.toggleMute();syncSound();say(on?'Sound on.':'Sound off.');return;
+ }
  if((event.key===' '||event.key==='Enter')&&event.target.closest&&event.target.closest('#pedal-gas,#pedal-brake,#paddle-up,#paddle-down'))return;
  if((event.key===' '||event.key==='Enter')&&event.target.closest&&event.target.closest('#shift-up,#shift-down'))return;
  const key=driveKey(event);if(!key)return;
@@ -3471,13 +3831,14 @@ window.addEventListener('keydown',event=>{
  event.preventDefault();controls.keyDown(key,event.repeat);renderControls();
 });
 // Key-up is always honoured, wherever focus is, so a key can never stay stuck.
-window.addEventListener('keyup',event=>{if(event.code==='KeyR'||(!event.code&&event.key.toLowerCase()==='r')){const short=!!raceHoldTimer&&!raceHoldTriggered;cancelRaceHold();if(short&&mode!=='menu'&&!ownsKeys(document.activeElement))doRecover();}const key=driveKey(event);if(key)controls.keyUp(key);
+window.addEventListener('keyup',event=>{if(event.code==='KeyH'||(!event.code&&event.key.toLowerCase()==='h'))sound.honk(false);if(event.code==='KeyR'||(!event.code&&event.key.toLowerCase()==='r')){const short=!!raceHoldTimer&&!raceHoldTriggered;cancelRaceHold();if(short&&mode!=='menu'&&!ownsKeys(document.activeElement))doRecover();}const key=driveKey(event);if(key)controls.keyUp(key);
  // macOS drops key-ups for keys released while Cmd was held: forget the keyboard when Cmd goes up.
  if(event.key==='Meta')controls.releaseKeys();renderControls();});
 // Backgrounding pauses and releases everything (and closes the menu). Canvas blur is not a pause trigger.
-window.addEventListener('blur',()=>{cancelRaceHold();pause();});
-document.addEventListener('visibilitychange',()=>{if(document.hidden){cancelRaceHold();pause();}});
-window.addEventListener('pagehide',()=>{cancelRaceHold();pause();});
+window.addEventListener('blur',()=>{cancelRaceHold();pause();sound.honk(false);});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){cancelRaceHold();pause();}sound.suspend(document.hidden);});
+window.addEventListener('pagehide',()=>{cancelRaceHold();pause();sound.suspend(true);});
+window.addEventListener('pageshow',()=>{if(!document.hidden)sound.suspend(false);});
 
 // Safe-area insets come from env() through a probe element, converted to logical px.
 function readSafe(u){const cs=getComputedStyle(ui.probe),px=side=>Math.ceil((parseFloat(cs['padding'+side])||0)/u-1e-6);return {top:px('Top'),right:px('Right'),bottom:px('Bottom'),left:px('Left')};}

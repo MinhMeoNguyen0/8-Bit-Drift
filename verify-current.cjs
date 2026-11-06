@@ -350,4 +350,114 @@ test('temple: the settings thumbnail and the ground paint show the pond, stairs,
  const T=L.temple,G=e.TEMPLE_GEO,o=e.templeOuter(T);let ink=0,fill='';const gc={set fillStyle(v){fill=v;},get fillStyle(){return fill;},fillRect(x,y){if(/30342d/i.test(fill)&&x<T.x-o.u&&x>T.x-o.u-G.walk.len*T.s&&Math.abs(y-T.y*e.K)<G.walk.v*T.s)ink++;}};
  e.templeGround(gc,L);assert(ink>100,'walk joints painted '+ink);
 });
+// ==== Sound: 8-bit synthesis (pure parts). The Web Audio graph itself is checked in the browser. ====
+// Values made in the sandbox have its own prototypes, so structures are compared as JSON.
+const same=(a,b,m)=>assert.equal(JSON.stringify(a),JSON.stringify(b),m);
+test('sound: notes parse to MIDI and pitch; step strings keep their lengths and rests',()=>{
+ assert.equal(e.noteMidi('a4'),69);assert.equal(e.noteMidi('c4'),60);assert.equal(e.noteMidi('c#5'),73);assert.equal(e.noteMidi('bb3'),58);assert.equal(e.noteMidi('b4'),71);
+ for(const bad of ['h4','.','c','c10','',null])assert.equal(e.noteMidi(bad),null,String(bad));
+ assert(Math.abs(e.midiHz(69)-440)<1e-9);assert(Math.abs(e.midiHz(81)-880)<1e-9);
+ const p=e.parseSteps('0:3 . 1^:2 *');assert.equal(p.length,7);same(p.steps.map(q=>[q.at,q.len,q.v]),[[0,3,'0'],[4,2,'1^'],[6,1,'*']]);
+ const b=e.parseBar('c5:3 a4 .:2 e5:2');assert.equal(b.length,8);same(b.notes.map(q=>[q.at,q.len,q.midi]),[[0,3,72],[3,1,69],[6,2,76]]);
+});
+test('sound: every map has its own calm song, and every song is well formed',()=>{
+ for(const t of e.TRACKS)assert(e.SONGS[e.songFor(t.id)],'song for '+t.id);
+ assert.equal(new Set(e.TRACKS.map(t=>e.songFor(t.id))).size,e.TRACKS.length,'one song per map');assert.equal(e.songFor('nowhere'),'sunday');
+ for(const [id,s] of Object.entries(e.SONGS)){
+  const bar=s.bar||8;assert(s.name&&s.bpm>=56&&s.bpm<=96,id+' is slow: '+s.bpm+' bpm');assert(bar===8||bar===6,id+' bar');
+  assert.equal(s.chords.length,8,id+' chords');for(const c of s.chords){const m=c.split(' ').map(e.noteMidi);assert(m.length>=5&&m.every(Number.isInteger),id+' chord '+c);assert(m[0]>=36&&m[0]<=50,id+' bass root (C2 to D3) '+c);}
+  for(const k of ['bass','arp'])assert.equal(e.parseSteps(s[k]).length,bar,id+' '+k+' fills the bar');
+  assert.equal(s.drums.length,bar*2,id+' drums');assert(/^[kshwt.]+$/.test(s.drums),id+' drum kinds');
+  assert(s.form.length>=4&&s.form.includes(-1)&&s.form.every(f=>f>=-1&&f<s.lead.length),id+' form');
+  for(const ph of s.lead){assert.equal(ph.length,8,id+' phrase bars');for(const b of ph){const p=e.parseBar(b);assert.equal(p.length,bar,id+' lead bar "'+b+'"');for(const q of p.notes)assert(q.midi>=55&&q.midi<=88,id+' lead range '+q.midi);}}
+  assert(Number.isInteger(s.key)&&s.key>=0&&s.key<12,id+' key');
+  for(const part of ['lead','arp','bass','pad','bell']){const v=e.songVoice(id,part);assert(v.gain>0&&v.gain<.25&&(typeof v.wave==='number'||v.wave==='triangle'),id+' '+part+' voice');}
+ }
+});
+test('sound: song bars are deterministic, inside the bar, and breathers drop the melody and drums',()=>{
+ for(const [id,s] of Object.entries(e.SONGS)){
+  const bar=s.bar||8,loop=s.chords.length*s.form.length;
+  for(let n=0;n<loop;n++){
+   const a=e.songBar(s,n),b=e.songBar(s,n);assert.equal(JSON.stringify(a),JSON.stringify(b),id+' deterministic');
+   assert.equal(JSON.stringify(e.songBar(s,n+loop).events),JSON.stringify(a.events),id+' loops');
+   for(const q of a.events){assert(q.at>=0&&q.at+q.len<=bar+.5+1e-9,id+' bar '+n+' '+q.part+' at '+q.at);if(q.part!=='drum')assert(q.midi>=24&&q.midi<=96,id+' pitch '+q.midi);}
+   const parts=new Set(a.events.map(q=>q.part));assert(parts.has('bass')&&parts.has('arp'),id+' accompaniment');
+   if(a.phrase<0)assert(!parts.has('lead')&&!parts.has('drum'),id+' breather '+n);else assert(parts.has('lead'),id+' melody '+n);
+  }
+  assert(e.songBarSeconds(s)>=3*30/s.bpm*2,id+' bar time');
+ }
+ const L=e.SONGS.lounge,offs=e.songBar(L,8).events.filter(q=>q.part==='bass'||q.part==='lead').map(q=>q.at%1);assert(offs.some(x=>Math.abs(x-.3)<1e-9),'the lounge swings its off-beats');
+ assert(e.songBar(e.SONGS.lotus,8).events.some(q=>q.part==='bell'),'the temple rings a bell at each melody');assert(e.songBar(e.SONGS.lotus,0).events.some(q=>q.part==='pad'),'and holds a soft pad');
+});
+test('sound: jingles parse and stay in range in every song key',()=>{
+ for(const [name,j] of Object.entries(e.JINGLES)){const p=e.parseBar(j.notes);assert(p.notes.length>=1&&j.bpm>=150,name);
+  for(const s of Object.values(e.SONGS)){const k=e.jingleKey(s.key);assert(k>=-5&&k<=6);for(const q of p.notes)assert(q.midi+k>=55&&q.midi+k<=102,name+' in key '+s.key);}}
+ for(const k of ['go','armed','lost','ended','finish','best','recover','car','track','open','close','on','off','pause','reset'])assert(e.JINGLES[k],k);
+});
+test('sound: the engine follows the gear load (it glides down after an upshift), purrs at idle, smooths out with revs and is silent when paused or flying',()=>{
+ const w=e.createWorld('coupe',e.makeArena(4000,4000));w.layout=null;w.cones=[];w.manual=true;w.gear=1;
+ const idle=e.engineTone(w,0,true);assert(idle.gain>0&&idle.freq===e.ENGINE_VOICE.coupe.idle,'idle hum');assert.equal(e.engineTone(w,1,false).gain,0,'paused');
+ const tones=[];for(let i=0;i<120;i++){e.step(w,{throttle:1,brake:0,steering:0});tones.push(e.engineTone(w,1,true));}
+ for(let i=1;i<tones.length;i++)assert(tones[i].freq>=tones[i-1].freq-1e-9,'revs climb in first gear');const before=tones[tones.length-1];
+ assert(before.freq>idle.freq+40&&before.gain>idle.gain&&before.cutoff>idle.cutoff,'louder and brighter on the gas');
+ assert.equal(idle.voice,'coupe');assert(idle.lump>.3&&before.lump<idle.lump*.2,'the idle putter smooths out as the revs rise');assert(before.air>idle.air*3,'it breathes in on the gas');
+ assert(before.cutoff<=300+e.ENGINE_VOICE.coupe.tone+1e-9&&before.cutoff<2500,'the tone stays mellow');assert(Math.abs(idle.lumpRate-idle.freq*e.ENGINE_VOICE.coupe.lumpK)<1e-9&&idle.lumpRate<12,'a slow putter, not a buzz');
+ assert(e.shiftGear(w,2));assert(e.engineTone(w,1,true).freq<before.freq-20,'the pitch drops after the upshift');
+ const f1=e.createWorld('f1',e.makeArena(4000,4000));f1.manual=true;f1.gear=1;assert(e.engineTone(f1,0,true).freq>idle.freq,'the F1 Car sings higher');
+ const d=e.createWorld('van',e.makeArena(4000,4000));assert.equal(e.engineTone(d,1,true).gain,0,'the Drone has no engine');
+ w.car.state='rolling';assert.equal(e.engineTone(w,1,true).gain,0,'stalls while rolling');w.car.state='driving';
+ for(const id of ['compact','coupe','f1']){const v=e.ENGINE_VOICE[id];assert(v.idle>=30&&v.top<=400&&v.gain<=.6,id+' engine voice');assert(v.harm[0]===1&&v.harm.every((a,i)=>i===0||a<v.harm[i-1]),id+' harmonics fall away');assert(v.tone<=2500&&v.lump<.5,id+' soft');}
+ assert.equal(e.engineTone(e.createWorld('van',e.makeArena(4000,4000)),1,true).air,0,'no breath without an engine');
+});
+test('sound: rotors hum while the Drone flies and spin down when it lands; tyres hiss in a skid and roar in a burnout',()=>{
+ const d=e.createWorld('van',e.makeArena(4000,4000));d.layout=null;d.cones=[];
+ const hover=e.rotorTone(d,{},true);assert(hover.gain>0&&hover.freq>80&&hover.chop>0);assert.equal(e.rotorTone(d,{},false).gain,0,'paused');
+ for(let i=0;i<300;i++)e.step(d,{steering:0,throttle:0,brake:0,sticks:{pitch:1}});assert(e.rotorTone(d,{pitch:1},true).freq>hover.freq,'tilted rotors work harder');
+ assert(e.rotorTone(d,{lift:1},true).freq>e.rotorTone(d,{lift:-1},true).freq,'climbing is higher than descending');
+ for(let i=0;i<900;i++)e.step(d,{steering:0,throttle:0,brake:0,sticks:{lift:-1}});assert(d.car.landed);assert.equal(e.rotorTone(d,{},true).gain,0,'landed: quiet');
+ const c=e.createWorld('compact',e.makeArena(4000,4000));assert.equal(e.rotorTone(c,{},true).gain,0,'cars have no rotors');assert.equal(e.tyreNoise(c,true).gain,0,'rolling tyres are quiet');
+ Object.assign(c.car,{skidding:true,slip:30,vx:150,vy:0});const sk=e.tyreNoise(c,true);assert(sk.gain>0&&sk.gain<=.22);assert.equal(e.tyreNoise(c,false).gain,0);
+ Object.assign(c.car,{skidding:false,burnout:true,spin:1});assert(e.tyreNoise(c,true).gain>sk.gain,'a burnout roars');assert.equal(e.tyreNoise(d,true).gain,0,'the Drone never skids');
+});
+test('sound: the simulation reports wall impacts and cone knocks without changing the physics',()=>{
+ const make=()=>{e.setTrack('signature');const w=e.createWorld('compact');w.cones=[];const post=w.layout.gate.posts[0];Object.assign(w.car,{x:post.x-w.p.length/2-post.r-6,y:post.y,a:0,pa:0,vx:150,vy:0,omega:0});return w;};
+ const w=make();let peak=0;for(let i=0;i<40;i++){e.step(w,{steering:0,throttle:0,brake:0});peak=Math.max(peak,w.impact);}assert(peak>=e.IMPACT_MIN,'a post hit is an impact '+peak);
+ const twin=make();for(let i=0;i<40;i++){twin.impact=123;twin.knock=45;e.step(twin,{steering:0,throttle:0,brake:0});}assert.equal(JSON.stringify(twin.car),JSON.stringify(w.car),'the readings never feed back into the physics');
+ const open=e.createWorld('compact',e.makeArena(4000,4000));open.layout=null;open.cones=[];for(let i=0;i<120;i++){e.step(open,{throttle:1,brake:0,steering:.3});assert.equal(open.impact,0);assert.equal(open.knock,0);}
+ const c=e.createWorld('compact',e.makeArena(4000,4000));c.layout=null;c.cones=[e.bodyFrom({x:c.car.x+30,y:c.car.y},0)];Object.assign(c.car,{a:0,pa:0,vx:120,vy:0});
+ let knock=0,kind='';for(let i=0;i<60;i++){e.step(c,{steering:0,throttle:0,brake:0});if(c.knock>knock){knock=c.knock;kind=c.knockKind;}}assert(knock>=e.KNOCK_MIN&&kind==='cone','a cone knock '+knock+' '+kind);
+});
+test('sound: snapshots turn game moments into sound events, and a new car or race only re-baselines',()=>{
+ const w=e.createWorld('coupe',e.makeArena(4000,4000)),race={state:'ready',armed:false,lost:false},S=(o={},r=race)=>({...e.audioSnapshot(w,r,0,0),...o});
+ same(e.audioEvents(S(),S()),[],'nothing changed');same(e.audioEvents(null,S()),[]);same(e.audioEvents(S({id:'f1'}),S({gear:2})),[],'new car');
+ const ev=(a,b)=>e.audioEvents(S(a),S(b)).map(q=>q.type).join(' ');
+ assert.equal(ev({gear:1},{gear:2}),'shift');assert.equal(ev({state:'driving'},{state:'tipping'}),'tip');assert.equal(ev({state:'tipping'},{state:'rolling'}),'roll');
+ assert.equal(ev({state:'rolling'},{state:'resting'}),'settle');assert.equal(ev({state:'rolling'},{state:'driving'}),'land');assert.equal(ev({state:'resting'},{state:'recovering'}),'recover');
+ assert.equal(ev({state:'recovering'},{state:'driving'}),'','back from recovery quietly');
+ assert.equal(ev({},{knock:e.KNOCK_MIN}),'cone');assert.equal(ev({},{knock:30,knockKind:'cart'}),'cart');assert.equal(ev({},{knock:e.KNOCK_MIN-1}),'','a brush is silent');
+ assert.equal(ev({},{impact:e.IMPACT_MIN}),'bump');assert.equal(ev({},{impact:e.IMPACT_MIN-1}),'');assert(e.audioEvents(S(),S({impact:1000}))[0].strength<=1);
+ assert.equal(ev({wraps:0},{wraps:1}),'wrap');assert.equal(ev({landed:false},{landed:true}),'touchdown');assert.equal(ev({landed:true},{landed:false}),'takeoff');assert.equal(ev({launching:false},{launching:true}),'launch');
+ assert.equal(ev({raceState:'ready'},{raceState:'racing'}),'go');assert.equal(ev({raceState:'racing'},{raceState:'racing',armed:true}),'armed');assert.equal(ev({raceState:'racing'},{raceState:'racing',lost:true}),'lost');
+ assert.equal(ev({raceState:'racing'},{raceState:'finished'}),'finish');assert.equal(ev({raceState:'racing'},{raceState:'finished',best:true}),'best');assert.equal(ev({raceState:'racing'},{raceState:'free'}),'ended');
+ assert.equal(ev({raceState:'finished'},{raceState:'free'}),'','continuing after a finish is quiet');
+ same(e.audioEvents(S({raceState:'ready'}),S({raceState:'racing'},{state:'racing'})),[],'a new race re-baselines');
+ assert.equal(e.audioEvents(S({gear:1,raceState:'ready'}),S({gear:2,raceState:'racing'},{})).map(q=>q.type).join(' '),'shift','car events still play across a new race');
+});
+test('sound: settings are validated, saved apart from tuning, and fall back safely',()=>{
+ same(e.audioSettings(),e.AUDIO_DEFAULTS);same(e.audioSettings({music:'yes',sfx:false,volume:3,musicVol:-1,sfxVol:NaN,extra:1}),{...e.AUDIO_DEFAULTS,sfx:false,volume:1,musicVol:0});
+ same(e.audioSettings([1,2]),e.AUDIO_DEFAULTS);assert.notEqual(e.AUDIO_STORE,e.TUNING_STORE);
+ const m=new Map(),mem={getItem:k=>m.has(k)?m.get(k):null,setItem:(k,v)=>m.set(k,String(v)),removeItem:k=>m.delete(k)};
+ same(e.loadAudio(mem),e.AUDIO_DEFAULTS);assert(e.saveAudio(mem,{music:false,musicVol:.2}));same(e.loadAudio(mem),{...e.AUDIO_DEFAULTS,music:false,musicVol:.2});
+ m.set(e.AUDIO_STORE,'{not json');same(e.loadAudio(mem),e.AUDIO_DEFAULTS);
+ const bad={getItem(){throw new Error('denied');},setItem(){throw new Error('quota');}};same(e.loadAudio(bad),e.AUDIO_DEFAULTS);assert.equal(e.saveAudio(bad,{}),false);assert.equal(e.saveAudio(null,{}),false);
+ assert.equal(e.volumeGain(0),0);assert.equal(e.volumeGain(1),1);assert(Math.abs(e.volumeGain(.5)-.25)<1e-12);assert.equal(e.volumeGain(7),1);assert.equal(e.volumeGain('x'),0);
+});
+test('sound: the page synthesises everything (no audio files or requests) and has Music / Effects switches and volumes',()=>{
+ assert(!/<audio\b/i.test(html),'no audio elements');const s=html.match(/<script>([\s\S]*?)<\/script>/)[1],synth=s.slice(s.indexOf('function createSound('),s.indexOf("const root=document.getElementById('playground')"));
+ assert(synth.length>2000&&/createPeriodicWave/.test(synth)&&/createBuffer\(/.test(synth),'pulse waves and shift-register noise');assert(!/fetch\(|XMLHttpRequest|\.src\s*=|new Audio\(/.test(synth),'no files or requests');
+ for(const id of ['music-toggle','sfx-toggle','vol-master','vol-music','vol-sfx','now-playing'])assert(new RegExp('id="'+id+'"').test(html),id);
+ assert(/M mutes the sound and H sounds the horn/.test(html),'the keys are described');
+ assert(/VEHICLE=\.5,/.test(synth)&&/eg=gain\(0,veh\)/.test(synth)&&/rg=gain\(0,veh\)/.test(synth)&&/tg=gain\(0,veh\)/.test(synth)&&/g\.connect\(veh\)/.test(synth),'every vehicle voice plays through the half-level vehicle bus');
+ const vehicleFx=(synth.match(/VEHICLE_FX=new Set\(\[([^\]]*)\]/)||[])[1]||'';for(const k of ['shift','cone','cart','bump','land','takeoff','launch'])assert(vehicleFx.includes("'"+k+"'"),k+' is a vehicle sound');
+});
 e.setTrack('signature');console.log(n+' current-feature checks passed.');

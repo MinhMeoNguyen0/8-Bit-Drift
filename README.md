@@ -1,6 +1,6 @@
 # 8-Bit Drift
 
-A full-screen, two-tone driving playground with timed single-lap races. The current game is `dist/index.html`: HTML, CSS, JavaScript, and procedural Canvas artwork in one standalone file. No build, runtime libraries, external assets, fonts, backend, or application network requests are required.
+A full-screen, two-tone driving playground with timed single-lap races and calm 8-bit music and sound effects. The current game is `dist/index.html`: HTML, CSS, JavaScript, and procedural Canvas artwork in one standalone file. No build, runtime libraries, external assets, fonts, backend, or application network requests are required.
 
 Updated October 30, 2026. The public repository now includes GitHub Pages publishing and GitHub Actions checks. See [Current state](tasks/CURRENT_STATE.md) for game implementation details and [the publishing guide](tasks/GITHUB_PAGES.md) for deployment and verification limits. Earlier task plans and agent handoffs are historical references.
 
@@ -42,6 +42,8 @@ Publication requires the standalone deployment, broad, current-feature and mobil
 | Shift | Q / E, or drag the gear stick |
 | Pause | Escape; opening Settings or leaving the foreground also pauses |
 | Right a stuck ground car | R or the recovery button when available |
+| Mute / unmute all sound | M (Settings has separate Music and Effects switches and volumes) |
+| Horn | Hold H |
 
 The **Compact** uses a P/R/N/D automatic and starts in Drive. Q moves the automatic selector toward Drive; E moves it toward Park. The **Supercar** is a five-speed manual with reverse below fifth on its H gate; it starts in first. Q from first can select reverse when stopped. Shifts into reverse and Park, and unsafe manual downshifts, are protected. A brake alone never selects reverse.
 
@@ -93,6 +95,136 @@ Ranked time is `elapsedSeconds + 0.02 × (100 − quality)²`; lower wins. Perso
 | Desktop (1366×768) | Phone, landscape (844×390) | Phone, portrait (375×812) |
 | --- | --- | --- |
 | ![Desktop interface on the Temple map](docs/images/ui-desktop-temple.jpg) | ![Phone landscape on the Temple map](docs/images/ui-phone-landscape-temple.jpg) | ![Phone portrait on the Temple map](docs/images/ui-phone-portrait-temple.jpg) |
+
+## Sound and music
+
+Added November 5, 2026. The game has calm 8-bit music and sound effects, and **every sound is made in code** with the browser's Web Audio API: there are no audio files, libraries or downloads, so the game stays one standalone file. The voices copy an old 8-bit console: two pulse waves (12.5%, 25% and 50% width), a triangle for the bass, and noise from a 15-bit shift register. A soft echo on the music, a gentle lowpass over everything and a compressor keep it warm and quiet. The music is deliberately slow (64–92 bpm) and sits behind the driving.
+
+Browsers only allow sound after the player touches the page, so nothing plays until the first tap, click or key.
+
+### What you hear
+
+Each map has its own song. Every song loops through melody passes and "breathers" (no melody, no drums) so it never feels busy. The loops last 1.5 to 3 minutes.
+
+| Map | Song | Feel |
+| --- | --- | --- |
+| Daily Challenge | **Coast Road** | D major, 84 bpm, a gentle forward roll |
+| Easy oval | **Easy Breeze** | G major waltz (3/4), 92 bpm, oom-pah-pah chords |
+| Figure eight | **Sunday Loop** | F major, 76 bpm, the default song |
+| Temple | **Lotus Pond** | D minor pentatonic, 64 bpm, plucked notes that bend up into pitch like a đàn tranh, a held pad, wood blocks and a bell |
+| Parking lot | **Lot Lounge** | C major jazz, 80 bpm, swung, with walking bass and chord stabs |
+
+Changing map cross-fades to the new song. While the game is paused or Settings is open, the music keeps playing but is muffled and quieter; it opens up again when you drive. A hidden tab suspends all sound.
+
+Sounds that follow the car all the time:
+
+| Voice | Behaviour |
+| --- | --- |
+| Engine (Compact, Supercar, F1) | A soft, layered hum: two copies of the car's own mellow tone a few cents apart for warmth, a sine an octave down for body, a gentle idle putter that smooths out as the revs rise, and a little breath of air on the gas, all through a lowpass that opens with the revs. Pitch and level glide, so it settles down smoothly after each upshift. The Compact purrs, the Supercar has a deeper lope, the F1 Car a smooth high hum. |
+| Drone rotors | Two pulses a fifth apart with a fast wobble. Higher when climbing or tilting; they spin down when it lands. |
+| Tyres | Noise that hisses in a skid and roars in a burnout. |
+
+One-shot effects:
+
+| Moment | Sound |
+| --- | --- |
+| Gear change / paddle shift | A short click and clunk (crisper on the paddles) |
+| Shift refused | A low double buzz |
+| Cone / shopping cart | A soft wooden "bonk" / a metallic clatter, louder for harder knocks |
+| Post, wall or temple fence | A thud scaled by the impact |
+| Two wheels / rollover / landing | A wobble / a tumbling arpeggio / a thump |
+| Car righted | A rising arpeggio |
+| Edge wrap | A soft whoosh |
+| Drone take-off / touchdown, launch after a burnout | A rising sweep / a soft landing / a rush |
+| Race start, gate armed, off the route, run ended | Short chimes in the song's key |
+| Finish / new best | A fanfare (longer with sparkle for a new best); the music dips under it |
+| Settings, car and track buttons, switches, pause | Quiet blips |
+| Horn (hold H) | Two-tone beep, different per car; the Drone chirps |
+
+### Controls and settings
+
+- **Settings → Music / Effects** switch each part on or off.
+- **Settings → SOUND** shows what is playing and has Master, Music and Effects volume sliders.
+- **M** mutes everything, and pressing it again restores what was on. **Hold H** for the horn (keyboard only).
+- Sound settings are saved in the browser under `8bitdrift.audio.v1`, apart from tuning and race records. If storage is blocked, the defaults are used.
+
+### How it is built
+
+All of it lives in `dist/index.html`, in three layers. The physics never knows about sound.
+
+```text
+Simulation (pure)      step() also records the last step's hardest knocks: w.impact (posts, walls, temple blocks)
+                       and w.knock / w.knockKind (cones, carts). Nothing in the physics reads them.
+
+Sound data and logic   SONGS, SONG_FOR, SONG_VOICES   the music, written as text
+(pure, tested in Node) songBar(song, n)               every note of bar n: deterministic
+                       JINGLES                        short tunes for game moments, moved into the song's key
+                       engineTone / rotorTone / tyreNoise   pitch and level of the continuous voices
+                       audioSnapshot → audioEvents    compares two moments and returns events (shift, cone, go, finish…)
+                       audioSettings / loadAudio / saveAudio   validated, stored settings
+
+Synth (browser)        createSound(store)             the Web Audio graph, voices, music scheduler, effects, horn
+
+Glue (browser)         soundCollect()  after every physics step: keeps the frame's hardest knock and impact
+                       soundFrame()    once a frame: runs audioEvents and feeds the engine, rotors and tyres
+                       onModeChange, buttons, keys    muffling, blips, M and H
+```
+
+The audio graph:
+
+```text
+song → music → echo ─┐
+          └──────────┴→ tone (muffles while paused) → master → warm lowpass → compressor → speakers
+effects, engine, rotors, tyres, horn → fx ──────────→ master
+```
+
+Why it is built this way:
+
+- **No files.** The project allows no shipped media, and synthesis is also tiny: the whole sound system is about 30 KB of code, comments included.
+- **Testable.** Songs, events and tone maths are plain functions, so `verify-current.cjs` checks them in Node like the physics.
+- **Steady timing.** The music is scheduled 0.4 s ahead on the audio clock, so a slow frame or a busy page never makes it stumble.
+- **Events by comparison.** Comparing two snapshots (gear, car state, race state, wraps, knocks) finds every moment without adding sound calls throughout the game code. A new car or a new race only resets the comparison, so changing car never plays a crash.
+
+### Writing or changing music
+
+A song is a few lines of text. Notes are written `c5`, `f#4`, `bb3`; a token `note:length` lasts that many eighth notes (1 when left out) and `.` is a rest. Each line of a phrase is one bar and must add up to the bar length (8 eighths, or 6 for a waltz); the tests check this.
+
+```js
+sunday:{name:'Sunday Loop',bpm:76,bar:8,key:5,swing:0,arpUp:0,pad:false,bell:false,form:[-1,0,1,0,-1,1],
+ chords:['f2 c3 a3 c4 e4', /* one chord per bar: root, fifth, then the upper voicing */ ...],
+ bass:'0:4 1:2 0^:2',        // chord tones by index: root for a half note, fifth, root an octave up
+ arp:'2 4 3 4 2 4 3 4',      // eighth-note arpeggio over the upper voicing ('*' strikes it as a chord)
+ drums:'k.....h.s.....h.',   // two characters per eighth: k kick, s brush, h hat, w / t wood blocks
+ lead:[[ 'c5:3 a4 c5:2 e5:2', /* bar 2 */ ... ], /* phrase 1 */ [ ... ]]}
+```
+
+- `form` is the order the phrases play in; `-1` is a breather. `key` (semitones above C) moves the jingles into the song's key. `swing` delays the off-beats (the lounge uses `.3`).
+- To add a song, add it to `SONGS`, choose its map in `SONG_FOR`, and optionally give it its own instruments in `SONG_VOICES` (wave, level, envelope, lowpass, vibrato, glide). Then run `node verify-current.cjs`.
+- To change an effect, edit its `case` in `effect()` inside `createSound`. To add a new game moment, add it to `audioEvents`, give it a `case`, and add a line to the sound test.
+- Keep it calm: slow tempos, soft attacks, pulse waves through a lowpass, and quiet drums.
+
+### Mix levels
+
+Levels were measured by rendering the real synth offline at the default volumes (Master 80%, Music 55%, Effects 75%). The music sits around −21 dBFS RMS. Every vehicle sound (engine, rotors, tyres, horn, knocks, shifts, landings) plays through a vehicle bus at half level (`VEHICLE = .5`, November 6, 2026), so the engine sits about 12 dB under the music at cruise and very softly at idle, skids around −36 dB, and knocks peak around −12 to −16 dB. Race jingles and interface blips are not halved. `LEVEL` in `createSound` raises or lowers everything at once, `ENGINE_LEVEL` the engine, and each voice has its own level.
+
+### What is in, and what is left out
+
+In: music for every map, engine, rotor and tyre sounds, all the effects above, race jingles, interface blips, a horn, pause muffling, mute, volumes and saved settings.
+
+Left out on purpose:
+
+- **Audio files or samples.** They would break the single-file, no-assets rule.
+- **Stereo panning and 3D position.** The camera is fixed and the screen is small, so they would add little.
+- **Music that speeds up with the car.** It would work against the calm feel.
+- **A horn button on phones.** It would need a new on-screen control; on touch screens the horn is not available.
+- **Getting around the iPhone silent switch.** iOS mutes Web Audio when the phone is on silent.
+- **Different sounds per surface** (grass, brick, water). A possible later addition.
+
+### Verification
+
+Ten sound checks in `verify-current.cjs` cover note parsing, every song's bar lengths and ranges, deterministic looping and breathers, jingles in every key, the engine following the gear load, rotors and tyres, the impact and knock readings (which must not change the physics), event detection, saved settings, and that the page uses no audio files or requests. In the browser, driving on desktop triggered the start chime, gate, shifts, a cone, an edge wrap, a wall bump and the off-route chime; the Drone triggered take-off and touchdown; changing map switched the song; M muted and restored the sound; and the Settings layout was checked at 1280×720, 375×812 and 844×390. The `data-sound` and `data-sound-events` attributes on the game canvas show the audio state and the last events for QA.
+
+Not yet done: listening on real phones (especially iPhone Safari) and on a range of speakers. The levels were measured, not tuned by ear.
 
 ## Art style guide
 
@@ -156,7 +288,7 @@ The images in `docs/images` were made this way, except the `ui-*.jpg` interface 
 
 Speed and gear are stacked against the right edge below the selector. On keyboard layouts, the ground-painted keycap guide shows R New Race, W Gas, Q/E Shift, A/D Turn, and Brake. The guide is drawn below tyre marks and vehicles. Narrow/mobile layouts omit this guide. On-screen wheel, pedals, and gear stick remain available.
 
-Settings includes skid visibility, clear tracks, reset scene, race debug mode, race rules, course thumbnails, and collapsible tuning. Handling, wheel response, Drone tilt, separate road/parking zoom, burnout, launch, and smoke controls are adjustable. Defaults and ranges are defined in `TUNING_SPEC` in the HTML.
+Settings includes Music and Effects switches, skid visibility, clear tracks, reset scene, race debug mode, race rules, course thumbnails, a collapsible SOUND section with volumes (see [Sound and music](#sound-and-music)), and collapsible tuning. Handling, wheel response, Drone tilt, separate road/parking zoom, burnout, launch, and smoke controls are adjustable. Defaults and ranges are defined in `TUNING_SPEC` in the HTML.
 
 ## Development and verification
 
@@ -171,7 +303,7 @@ node verify.cjs
 node snapshot.cjs temple docs/images/temple-map.png
 ```
 
-Latest local results on November 2, 2026 (Temple map added): all suites pass — 144 broad checks plus 10 race groups, 57 current-feature checks (seven of them for the Temple map), 12 mobile checks and two deployment groups. The formerly failing checks were audited and migrated to current behavior; actual gate, drone-pad and F1 skid defects were fixed. See [the regression audit](tasks/REGRESSION_AUDIT.md) for the exact changes.
+Latest local results on November 5, 2026 (sound and music added): all suites pass — 144 broad checks plus 10 race groups, 69 current-feature checks (ten of them for sound, seven for the Temple map), 15 mobile checks and three deployment checks. The formerly failing checks were audited and migrated to current behavior; actual gate, drone-pad and F1 skid defects were fixed. See [the regression audit](tasks/REGRESSION_AUDIT.md) for the exact changes.
 
 Browser checks covered 1366×768, 864×930, 390×844, 844×390, and 320×568. Short drives, pause, and on-screen gas were exercised; a landscape instruction/prompt overlap was fixed. A simulated-finish fixture exercised the centered result, mobile restart, and tap-to-free-drive. A full lap through actual browser controls, physical-device multitouch, safe-area hardware, long-session performance, and direct-file browser validation remain outstanding. Do not treat this as a full green QA signoff.
 
